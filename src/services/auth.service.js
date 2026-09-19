@@ -1,13 +1,55 @@
-// auth.service.js — skeleton
-// TODO: implement register, login, logout, refreshToken, googleLogin, etc.
+import axios from 'axios';
+import { API_BASE_URL } from '../config/env';
+
+// Create a basic axios instance
+const apiClient = axios.create({
+  baseURL: API_BASE_URL,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
 
 export const authService = {
-  login: async (email, password) => { throw new Error('TODO') },
-  register: async (data) => { throw new Error('TODO') },
-  logout: async () => { throw new Error('TODO') },
-  refreshToken: async () => { throw new Error('TODO') },
-  googleLogin: async (idToken) => { throw new Error('TODO') },
-  sendOtp: async (email) => { throw new Error('TODO') },
-  verifyOtp: async (email, otp) => { throw new Error('TODO') },
-  resetPassword: async (data) => { throw new Error('TODO') },
+  login: async (email, password) => { 
+    const response = await apiClient.post('/auth/login', { email, password });
+    return response.data;
+  },
+  
+  registerBuyer: async (data) => { 
+    const response = await apiClient.post('/users', data);
+    return response.data;
+  },
+  
+  registerShop: async (data) => { 
+    const response = await apiClient.post('/users/shops', data);
+    return response.data;
+  },
+  
+  registerShipper: async (data) => { 
+    const response = await apiClient.post('/users/shippers', data);
+    return response.data;
+  },
+  
+  logout: async (token) => { 
+    const response = await apiClient.post('/auth/logout', { token });
+    return response.data;
+  },
+  
+  refreshToken: async (token) => { 
+    const response = await apiClient.post('/auth/refresh', { token });
+    return response.data;
+  },
+  
+  sendOtp: async (email) => { 
+    const response = await apiClient.post('/users/resend-otp', { email });
+    return response.data;
+  },
+  
+  verifyOtp: async (email, otp) => { 
+    const response = await apiClient.post('/users/verify-otp', { email, otp: Number(otp) });
+    return response.data;
+  },
+  
+  resetPassword: async (data) => { throw new Error('Chưa có API Reset Password từ Backend') },
 };
+
