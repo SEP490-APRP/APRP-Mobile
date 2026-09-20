@@ -1,7 +1,43 @@
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform } from "react-native";
+import { useState } from "react";
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator, Linking } from "react-native";
 import { COLORS } from "../../constants/colors";
+import { API_BASE_URL } from "../../config/env";
+import { authService } from "../../services/auth.service";
 
 export default function LoginScreen({ navigation }) {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
+
+  const handleLogin = async () => {
+    setErrorMsg("");
+    if (!email || !password) {
+      setErrorMsg("Vui lòng nhập đầy đủ email và mật khẩu");
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const res = await authService.login(email, password);
+      if (res?.result?.token) {
+        // NOTE: Should save token to AsyncStorage or SecureStore
+        // await AsyncStorage.setItem('token', res.result.token);
+        // Navigate to Home or Main App
+        navigation.navigate("Home");
+      }
+    } catch (err) {
+      console.error("Login failed:", err);
+      setErrorMsg(err.response?.data?.message || "Đăng nhập thất bại. Vui lòng thử lại.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleGoogleLogin = () => {
+    Linking.openURL(`${API_BASE_URL}/oauth2/authorization/google`);
+  };
+
   return (
     <KeyboardAvoidingView 
       style={styles.container}
@@ -16,9 +52,13 @@ export default function LoginScreen({ navigation }) {
 
         <Text style={styles.title}>Đăng nhập</Text>
         
+        {errorMsg ? <Text style={styles.errorText}>{errorMsg}</Text> : null}
+
         <TextInput 
           style={styles.input} 
           placeholder="Email" 
+          value={email}
+          onChangeText={setEmail}
           keyboardType="email-address"
           autoCapitalize="none"
           placeholderTextColor={COLORS.textSecondary}
@@ -26,18 +66,31 @@ export default function LoginScreen({ navigation }) {
         <TextInput 
           style={styles.input} 
           placeholder="Mật khẩu" 
+          value={password}
+          onChangeText={setPassword}
           secureTextEntry 
           placeholderTextColor={COLORS.textSecondary}
         />
         
-        <TouchableOpacity style={styles.primaryButton} onPress={() => {}}>
-          <Text style={styles.primaryButtonText}>Đăng nhập</Text>
+        <TouchableOpacity style={styles.primaryButton} onPress={handleLogin} disabled={isLoading}>
+          {isLoading ? (
+            <ActivityIndicator color={COLORS.white} />
+          ) : (
+            <Text style={styles.primaryButtonText}>Đăng nhập</Text>
+          )}
+        </TouchableOpacity>
+
+        <View style={styles.dividerContainer}>
+          <View style={styles.divider} />
+          <Text style={styles.dividerText}>Hoặc</Text>
+          <View style={styles.divider} />
+        </View>
+
+        <TouchableOpacity style={styles.outlineButton} onPress={handleGoogleLogin}>
+          <Text style={styles.outlineButtonText}>Đăng nhập bằng Google</Text>
         </TouchableOpacity>
         
         <View style={styles.linksContainer}>
-          <TouchableOpacity onPress={() => navigation.navigate("ForgotPassword")}>
-            <Text style={styles.linkText}>Quên mật khẩu?</Text>
-          </TouchableOpacity>
           <TouchableOpacity onPress={() => navigation.navigate("Register")}>
             <Text style={styles.linkText}>Tạo tài khoản mới</Text>
           </TouchableOpacity>
@@ -61,6 +114,7 @@ const styles = StyleSheet.create({
   logoText: { fontSize: 32, fontWeight: "bold", color: COLORS.primary },
   subLogoText: { fontSize: 14, color: COLORS.primaryDark, marginTop: 4 },
   title: { fontSize: 24, fontWeight: 'bold', marginBottom: 24, color: COLORS.text },
+  errorText: { color: COLORS.error, marginBottom: 16, textAlign: "center" },
   input: { 
     borderWidth: 1, 
     borderColor: COLORS.border, 
@@ -79,9 +133,31 @@ const styles = StyleSheet.create({
     marginTop: 8
   },
   primaryButtonText: { color: COLORS.white, fontSize: 16, fontWeight: "bold" },
+  outlineButton: {
+    borderWidth: 2,
+    borderColor: COLORS.primary,
+    padding: 16,
+    borderRadius: 8,
+    alignItems: "center",
+    marginTop: 16,
+  },
+  outlineButtonText: { color: COLORS.primary, fontSize: 16, fontWeight: "bold" },
+  dividerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 24,
+  },
+  divider: {
+    flex: 1,
+    height: 1,
+    backgroundColor: COLORS.border,
+  },
+  dividerText: {
+    marginHorizontal: 16,
+    color: COLORS.textSecondary,
+  },
   linksContainer: { 
-    flexDirection: "row", 
-    justifyContent: "space-between", 
+    alignItems: "center", 
     marginTop: 24 
   },
   linkText: { color: COLORS.primaryDark, fontSize: 14, fontWeight: "600" }

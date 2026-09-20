@@ -1,6 +1,7 @@
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator } from "react-native";
 import { useState } from "react";
 import { COLORS } from "../../constants/colors";
+import { authService } from "../../services/auth.service";
 
 export default function RegisterScreen({ navigation }) {
   const [role, setRole] = useState("BUYER"); // BUYER, SHOP, SHIPPER
@@ -15,12 +16,39 @@ export default function RegisterScreen({ navigation }) {
     vehicleNumber: "", // for SHIPPER
   });
 
+  const [isLoading, setIsLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
+
   const handleChange = (field, value) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
-  const handleRegister = () => {
-    console.log("Register as", role, formData);
+  const handleRegister = async () => {
+    setErrorMsg("");
+    if (formData.password !== formData.confirmPassword) {
+      setErrorMsg("Mật khẩu xác nhận không khớp");
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const payload = { ...formData, role };
+      let result;
+      if (role === 'SHOP') {
+        result = await authService.registerShop(payload);
+      } else if (role === 'SHIPPER') {
+        result = await authService.registerShipper(payload);
+      } else {
+        result = await authService.registerBuyer(payload);
+      }
+      // Success: Navigate to OTP verification
+      navigation.navigate("OtpVerification", { email: formData.email });
+    } catch (err) {
+      console.error("Register failed:", err);
+      setErrorMsg(err.response?.data?.message || "Đăng ký thất bại. Vui lòng thử lại.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -33,6 +61,8 @@ export default function RegisterScreen({ navigation }) {
 
       <Text style={styles.title}>Đăng ký tài khoản</Text>
       
+      {errorMsg ? <Text style={styles.errorText}>{errorMsg}</Text> : null}
+
       {/* Role Selection */}
       <View style={styles.roleContainer}>
         {["BUYER", "SHOP", "SHIPPER"].map((r) => (
@@ -64,8 +94,12 @@ export default function RegisterScreen({ navigation }) {
       <TextInput style={styles.input} placeholder="Mật khẩu" placeholderTextColor={COLORS.textSecondary} secureTextEntry value={formData.password} onChangeText={(t) => handleChange("password", t)} />
       <TextInput style={styles.input} placeholder="Xác nhận mật khẩu" placeholderTextColor={COLORS.textSecondary} secureTextEntry value={formData.confirmPassword} onChangeText={(t) => handleChange("confirmPassword", t)} />
       
-      <TouchableOpacity style={styles.primaryButton} onPress={handleRegister}>
-        <Text style={styles.primaryButtonText}>Đăng ký</Text>
+      <TouchableOpacity style={styles.primaryButton} onPress={handleRegister} disabled={isLoading}>
+        {isLoading ? (
+          <ActivityIndicator color={COLORS.white} />
+        ) : (
+          <Text style={styles.primaryButtonText}>Đăng ký</Text>
+        )}
       </TouchableOpacity>
       
       <TouchableOpacity style={styles.linkContainer} onPress={() => navigation.navigate("Login")}>
@@ -88,6 +122,7 @@ const styles = StyleSheet.create({
   logoText: { fontSize: 32, fontWeight: "bold", color: COLORS.primary },
   subLogoText: { fontSize: 14, color: COLORS.primaryDark, marginTop: 4 },
   title: { fontSize: 24, fontWeight: 'bold', marginBottom: 20, color: COLORS.text, textAlign: 'center' },
+  errorText: { color: COLORS.error, marginBottom: 16, textAlign: "center" },
   roleContainer: { flexDirection: "row", justifyContent: "space-between", marginBottom: 24 },
   roleButton: { 
     flex: 1, paddingVertical: 12, borderWidth: 1, borderColor: COLORS.border, 
