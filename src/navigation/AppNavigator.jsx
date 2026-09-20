@@ -3,9 +3,9 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
 import SplashScreen from "../screens/auth/SplashScreen";
-// import LoginScreen from "../screens/auth/LoginScreen";
-// import RegisterScreen from "../screens/auth/RegisterScreen";
-// import ForgotPasswordScreen from "../screens/auth/ForgotPasswordScreen";
+import LoginScreen from "../screens/auth/LoginScreen";
+import RegisterScreen from "../screens/auth/RegisterScreen";
+import OtpVerificationScreen from "../screens/auth/OtpVerificationScreen";
 // import OAuthRegisterScreen from "../screens/auth/OAuthRegisterScreen";
 
 // ─── Buyer ───────────────────────────────────────────────────────────────────
@@ -82,9 +82,9 @@ export default function AppNavigator() {
         {/* ── Uncomment screens below as you implement them ─────────────── */}
 
         {/* AUTH */}
-        {/* <Stack.Screen name="Login"           component={LoginScreen} /> */}
-        {/* <Stack.Screen name="Register"        component={RegisterScreen} /> */}
-        {/* <Stack.Screen name="ForgotPassword"  component={ForgotPasswordScreen} /> */}
+        <Stack.Screen name="Login"           component={LoginScreen} />
+        <Stack.Screen name="Register"        component={RegisterScreen} />
+        <Stack.Screen name="OtpVerification" component={OtpVerificationScreen} />
         {/* <Stack.Screen name="OAuthRegister"   component={OAuthRegisterScreen} /> */}
 
         {/* BUYER */}
