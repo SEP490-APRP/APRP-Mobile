@@ -63,7 +63,7 @@ import HomeScreen from "../screens/buyer/HomeScreen";
 // import NotificationTab_Shipper from "../screens/shipper/tabs/NotificationTab";
 // import PersonalTab from "../screens/shipper/tabs/PersonalTab";
 // Pages
-// import ProfileScreen_Shipper from "../screens/shipper/pages/ProfileScreen";
+import ProfileScreen_Shipper from "../screens/shipper/pages/ProfileScreen";
 // import SettingsScreen from "../screens/shipper/pages/SettingsScreen";
 // import EarningsScreen from "../screens/shipper/pages/EarningsScreen";
 // import WalletScreen_Shipper from "../screens/shipper/pages/WalletScreen";
@@ -74,7 +74,7 @@ const Stack = createNativeStackNavigator();
 export default function AppNavigator() {
   return (
     <NavigationContainer>
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Navigator initialRouteName="ShipperProfile" screenOptions={{ headerShown: false }}>
         {/* Entry point — swap SplashScreen → auth flow when ready */}
         <Stack.Screen name="Splash" component={SplashScreen} />
         <Stack.Screen name="Home"   component={HomeScreen} />
@@ -130,7 +130,7 @@ export default function AppNavigator() {
 
         {/* SHIPPER */}
         {/* <Stack.Screen name="ShipperDeliveryMap"  component={ShipperDeliveryMapScreen} /> */}
-        {/* <Stack.Screen name="ShipperProfile"      component={ProfileScreen_Shipper} /> */}
+        <Stack.Screen name="ShipperProfile"      component={ProfileScreen_Shipper} />
         {/* <Stack.Screen name="ShipperSettings"     component={SettingsScreen} /> */}
         {/* <Stack.Screen name="ShipperEarnings"     component={EarningsScreen} /> */}
         {/* <Stack.Screen name="ShipperWallet"       component={WalletScreen_Shipper} /> */}

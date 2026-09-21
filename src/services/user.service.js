@@ -1,9 +1,18 @@
-// user.service.js — skeleton
-// TODO: implement getProfile, updateProfile, changePassword, uploadAvatar, etc.
+// user.service.js
+import apiClient from "./api/apiClient";
 
 export const userService = {
-  getProfile: async () => { throw new Error('TODO') },
-  updateProfile: async (data) => { throw new Error('TODO') },
-  changePassword: async (data) => { throw new Error('TODO') },
-  uploadAvatar: async (file) => { throw new Error('TODO') },
+  getProfile: async (userId) => { 
+    throw new Error('TODO') 
+  },
+  updateProfile: async (userId, data) => { 
+    const response = await apiClient.put(`/users/${userId}`, data);
+    return response.data;
+  },
+  changePassword: async (data) => { 
+    throw new Error('TODO') 
+  },
+  uploadAvatar: async (file) => { 
+    throw new Error('TODO') 
+  },
 };

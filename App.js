@@ -1,3 +1,6 @@
-// Root entry point — Expo's AppEntry resolver looks for this file.
+import { registerRootComponent } from "expo";
 import AppRoot from "./src/App";
+
+registerRootComponent(AppRoot);
+
 export default AppRoot;
