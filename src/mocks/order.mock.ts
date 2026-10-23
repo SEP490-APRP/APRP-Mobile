@@ -1,0 +1,48 @@
+import type { OrderResponse } from '@/services/order.types'
+
+export const mockOrders: OrderResponse[] = [
+  {
+    id: 1001,
+    orderCode: 'ORD-1001',
+    status: 'COMPLETED',
+    totalAmount: 320000,
+    shippingFee: 30000,
+    buyerName: 'Trần Thị Mai',
+    shopName: 'Nông Trại Hữu Cơ Đà Lạt',
+    createdAt: '2026-03-30T10:15:00Z',
+    itemsCount: 3,
+  },
+  {
+    id: 1002,
+    orderCode: 'ORD-1002',
+    status: 'SHIPPING',
+    totalAmount: 540000,
+    shippingFee: 40000,
+    buyerName: 'Lê Minh Quân',
+    shopName: 'Vườn Cam Hữu Cơ Cao Phong',
+    createdAt: '2026-04-01T08:30:00Z',
+    itemsCount: 5,
+  },
+  {
+    id: 1003,
+    orderCode: 'ORD-1003',
+    status: 'PENDING',
+    totalAmount: 185000,
+    shippingFee: 25000,
+    buyerName: 'Nguyễn Văn Nam',
+    shopName: 'HTX Rau Quả Bảo Lộc',
+    createdAt: '2026-04-02T14:45:00Z',
+    itemsCount: 2,
+  },
+  {
+    id: 1004,
+    orderCode: 'ORD-1004',
+    status: 'QUALITY_CHECKING',
+    totalAmount: 420000,
+    shippingFee: 35000,
+    buyerName: 'Hoàng Bích Phương',
+    shopName: 'Nông Trại Hữu Cơ Đà Lạt',
+    createdAt: '2026-04-02T16:00:00Z',
+    itemsCount: 4,
+  },
+]

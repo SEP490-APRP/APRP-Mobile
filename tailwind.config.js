@@ -1,8 +1,11 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
-  content: ["./App.js", "./src/**/*.{js,jsx,ts,tsx}"],
+  content: ['./src/**/*.{ts,tsx}'],
+  // App chưa có giao diện tối. 'class' tránh lỗi "Cannot manually set color scheme" của NativeWind trên web.
+  darkMode: 'class',
+  presets: [require('nativewind/preset'), require('./tailwind.capnong-preset')],
   theme: {
     extend: {},
   },
   plugins: [],
-};
+}

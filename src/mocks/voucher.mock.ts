@@ -1,0 +1,40 @@
+import type { VoucherResponse } from '@/services/voucher.types'
+
+export const mockVouchers: VoucherResponse[] = [
+  {
+    voucherId: 501,
+    voucherCode: 'DALAT10K',
+    voucherType: 'PERCENTAGE',
+    creatorRole: 'SHOP',
+    shopId: 101,
+    discountValue: 10,
+    maxDiscount: 30000,
+    minOrderValue: 100000,
+    expiryDate: '2026-05-30T23:59:59Z',
+    claimedCount: 45,
+  },
+  {
+    voucherId: 502,
+    voucherCode: 'FREESHIPFARM',
+    voucherType: 'FREE_SHIPPING',
+    creatorRole: 'SHOP',
+    shopId: 101,
+    discountValue: 15000,
+    maxDiscount: 25000,
+    minOrderValue: 150000,
+    expiryDate: '2026-05-15T23:59:59Z',
+    claimedCount: 88,
+  },
+  {
+    voucherId: 503,
+    voucherCode: 'BAOLOCGREEN',
+    voucherType: 'PERCENTAGE',
+    creatorRole: 'SHOP',
+    shopId: 102,
+    discountValue: 12,
+    maxDiscount: 20000,
+    minOrderValue: 80000,
+    expiryDate: '2026-05-20T23:59:59Z',
+    claimedCount: 20,
+  },
+]
