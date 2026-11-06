@@ -6,6 +6,9 @@ export interface LatLng {
   longitude: number
 }
 
+/** Toạ độ mặc định (trung tâm TP.HCM) khi không lấy được GPS từ thiết bị hoặc máy ảo */
+export const DEFAULT_SHIPPER_COORDS: LatLng = { latitude: 10.7769, longitude: 106.7009 }
+
 /** Đơn shipper đang cầm: chặng 1 đến nhà vườn, chặng 2 đi giao. */
 export const ACTIVE_STATUSES: OrderStatus[] = ['SHIPPING', 'PICKED_UP']
 export const DONE_STATUSES: OrderStatus[] = ['DELIVERED', 'COMPLETED', 'FAILED']

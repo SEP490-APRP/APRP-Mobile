@@ -9,6 +9,7 @@ import { money } from '@/features/product'
 import { useMyProfile } from '@/features/profile'
 import {
   codToCollect,
+  DEFAULT_SHIPPER_COORDS,
   formatKm,
   orderLegs,
   ShipperOrderCard,
@@ -39,6 +40,8 @@ export default function ShipperHome() {
   const accept = useAcceptOrder()
   const showToast = useUiStore((s) => s.showToast)
   const [picked, setPicked] = useState<OrderResponse | null>(null)
+  const [switching, setSwitching] = useState(false)
+  const isToggling = toggle.isPending || switching
 
   const name = profile.data?.fullName || user?.name || 'Tài xế'
   const current = active.data?.[0]
@@ -56,12 +59,30 @@ export default function ShipperHome() {
       )
       return
     }
-    const at = gps.position ?? (await gps.refresh())
-    if (!at) return showToast('Cần bật quyền vị trí để hệ thống tìm đơn quanh bạn.')
+
+    setSwitching(true)
+    let at = gps.position
+    if (!at) {
+      try {
+        at = await gps.refresh()
+      } catch {
+        at = null
+      }
+    }
+    setSwitching(false)
+
+    // Nếu không lấy được GPS (máy ảo / tắt định vị / từ chối quyền), fallback sang tọa độ mặc định TP.HCM
+    // để tài xế không bị kẹt và có thể nhận đơn như trên bản Web
+    const targetCoords = at ?? DEFAULT_SHIPPER_COORDS
     toggle.mutate(
-      { online: true, at },
+      { online: true, at: targetCoords },
       {
-        onSuccess: () => showToast('Đã bật nhận đơn. Đơn sẵn sàng sẽ hiện ngay bên dưới.'),
+        onSuccess: () =>
+          showToast(
+            at
+              ? 'Đã bật nhận đơn. Đơn sẵn sàng sẽ hiện ngay bên dưới.'
+              : 'Đã bật nhận đơn (vị trí mặc định). Hãy bật GPS để tính quãng đường chính xác.',
+          ),
         onError: (e) => showToast(shipperErrorMessage(e, 'Chưa bật được, thử lại nhé.')),
       },
     )
@@ -108,9 +129,9 @@ export default function ShipperHome() {
       </View>
       <Pressable
         onPress={() => void switchOnline()}
-        disabled={toggle.isPending || status.isPending}
+        disabled={isToggling || status.isPending}
         accessibilityRole="switch"
-        accessibilityState={{ checked: online, busy: toggle.isPending }}
+        accessibilityState={{ checked: online, busy: isToggling }}
         accessibilityLabel={online ? 'Đang nhận đơn, chạm để tắt' : 'Đang nghỉ, chạm để bật nhận đơn'}
         className={cn(
           'min-h-[56px] flex-row items-center gap-3 rounded-2xl px-4',
@@ -126,7 +147,7 @@ export default function ShipperHome() {
             {online ? 'Chạm để tạm nghỉ' : 'Chạm để bật và xem đơn quanh bạn'}
           </AppText>
         </View>
-        {toggle.isPending ? (
+        {isToggling ? (
           <ActivityIndicator color={online ? colors.leaf700 : colors.white} />
         ) : (
           <Power size={20} color={online ? colors.leaf700 : colors.white} />
@@ -194,7 +215,8 @@ export default function ShipperHome() {
         <Button
           title="Bật nhận đơn"
           icon={Power}
-          loading={toggle.isPending}
+          loading={isToggling}
+          disabled={isToggling || status.isPending}
           onPress={() => void switchOnline()}
           className="mt-2 min-h-[48px] self-stretch"
         />

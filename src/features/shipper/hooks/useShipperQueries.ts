@@ -27,7 +27,7 @@ export function useToggleOnline() {
       if (next.online) await shipperService.goOnline(next.at.latitude, next.at.longitude)
       else await shipperService.goOffline()
     },
-    onSuccess: () => void qc.invalidateQueries({ queryKey: shipperKeys.status() }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: shipperKeys.all }),
   })
 }
 

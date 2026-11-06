@@ -1,3 +1,4 @@
+import { ENV } from '@/utils/env'
 import type { LatLng } from '../utils/trackingRules'
 
 /** Trạng thái app gửi xuống trang bản đồ mỗi lần có thay đổi */
@@ -17,8 +18,8 @@ export interface MapState {
 export type MapEvent = { type: 'ready' } | { type: 'userMoved' } | { type: 'error'; message: string }
 
 /**
- * Trang Leaflet chạy trong WebView (native) hoặc iframe (web). Dùng bản đồ nền CARTO
- * (dữ liệu OpenStreetMap, không cần API key) và OSRM để vẽ tuyến, giống chế độ dự phòng của web.
+ * Trang Leaflet chạy trong WebView (native) hoặc iframe (web). Dùng bản đồ nền Google Maps
+ * (kèm API key đồng bộ từ FE) với fallback OpenStreetMap và OSRM để vẽ tuyến lộ trình.
  * App gọi window.__capnong(state) hoặc postMessage(state); trang báo ngược qua MapEvent.
  */
 export const MAP_HTML = `<!doctype html>
@@ -48,10 +49,23 @@ export const MAP_HTML = `<!doctype html>
   if (!window.L) { send({ type: 'error', message: 'Không tải được thư viện bản đồ' }); return; }
 
   var map = L.map('map', { zoomControl: false, attributionControl: true }).setView([10.81, 106.71], 13);
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-    maxZoom: 19, subdomains: 'abcd',
-    attribution: '&copy; OpenStreetMap &copy; CARTO'
+  var gKey = '${ENV.GOOGLE_MAPS_API_KEY}';
+  var googleUrl = 'https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}' + (gKey ? '&key=' + encodeURIComponent(gKey) : '');
+  var baseLayer = L.tileLayer(googleUrl, {
+    maxZoom: 20,
+    subdomains: '0123',
+    attribution: '&copy; Google Maps'
   }).addTo(map);
+
+  baseLayer.on('tileerror', function () {
+    if (!map.__osmFallback) {
+      map.__osmFallback = true;
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; OpenStreetMap contributors'
+      }).addTo(map);
+    }
+  });
   map.on('dragstart', function () { send({ type: 'userMoved' }); });
 
   function pin(cls, emoji) {
