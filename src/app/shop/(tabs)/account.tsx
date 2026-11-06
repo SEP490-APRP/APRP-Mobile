@@ -13,6 +13,7 @@ import {
   Phone,
   TicketPercent,
   type LucideIcon,
+  MessageCircle,
 } from 'lucide-react-native'
 import { Pressable, RefreshControl, ScrollView, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -23,6 +24,7 @@ import { useAuth } from '@/stores'
 import { colors } from '@/theme/colors'
 
 const TOOLS = [
+  { icon: MessageCircle, label: 'Tin nhắn', hint: 'Trao đổi với khách hàng', href: '/shop/messages' },
   { icon: TicketPercent, label: 'Mã giảm giá', hint: 'Tạo, tạm dừng mã ưu đãi của vườn', href: '/shop/vouchers' },
   { icon: BookOpen, label: 'Chuyện nhà vườn', hint: 'Viết bài kể chuyện mùa vụ cho khách', href: '/shop/blogs' },
 ] as const

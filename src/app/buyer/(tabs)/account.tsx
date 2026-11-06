@@ -14,6 +14,7 @@ import {
   Truck,
   UserRound,
   type LucideIcon,
+  MessageCircle,
 } from 'lucide-react-native'
 import { Pressable, RefreshControl, ScrollView, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -32,6 +33,7 @@ const ORDER_SHORTCUTS: { tab: OrderTab; icon: LucideIcon; label: string }[] = [
 ]
 
 const MENU: { icon: LucideIcon; label: string; href: Href }[] = [
+  { icon: MessageCircle, label: 'Tin nhắn', href: '/buyer/messages' },
   { icon: UserRound, label: 'Hồ sơ cá nhân', href: '/buyer/profile' },
   { icon: MapPin, label: 'Sổ địa chỉ', href: '/buyer/addresses' },
   { icon: Ticket, label: 'Kho voucher của tôi', href: '/buyer/vouchers' },

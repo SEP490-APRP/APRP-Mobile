@@ -2,6 +2,7 @@ import { Stack } from 'expo-router'
 import { View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Toast } from '@/components/ui'
+import { ChatbotFab, useChatbotSession } from '@/features/chatbot'
 import { orderIdOf } from '@/features/order/utils/orderStatus'
 import { useActiveOrders, useBroadcastLocation } from '@/features/shipper'
 
@@ -11,11 +12,13 @@ export default function ShipperLayout() {
   // Đang cầm đơn thì gửi vị trí liên tục, dù tài xế đang ở tab nào.
   const current = useActiveOrders().data?.[0]
   useBroadcastLocation(current ? orderIdOf(current) : undefined, current?.status)
+  useChatbotSession()
   return (
     <View className="flex-1 bg-paper">
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(tabs)" />
       </Stack>
+      <ChatbotFab role="shipper" />
       {/* Nằm trên thanh tab (cao khoảng 66) */}
       <Toast bottom={insets.bottom + 78} />
     </View>

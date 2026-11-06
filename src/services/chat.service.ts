@@ -1,64 +1,31 @@
-import type { ChatMessage, Conversation } from '@/types/chat'
-import { mockChatHistories, mockConversationsList } from '@/mocks/chat.mock'
+import { unwrap } from '@/services/api/apiUtils'
+import axiosInstance from '@/services/api/axiosInstance'
+import type { PageResponse } from '@/types'
+import type { ChatMessage, ChatMessageRequest, Conversation } from '@/types/chat'
 
-const listeners: ((msg: ChatMessage) => void)[] = []
-
+/** Chép từ APRP-FE/src/services/api/chat.api.ts. Realtime nằm ở features/chat/hooks/useChatSocket.ts. */
 export const chatService = {
-  connect(onConnect?: () => void, _onError?: (err: unknown) => void): void {
-    setTimeout(() => onConnect?.(), 100)
-  },
-
-  disconnect(): void {
-    // disconnected
-  },
-
-  subscribeToConversation(
-    _userId: number,
-    _otherUserId: number,
-    callback: (msg: ChatMessage) => void,
-  ): void {
-    listeners.push(callback)
-  },
-
-  unsubscribeFromConversation(_userId: number, _otherUserId: number): void {
-    // unsubscribe
-  },
-
-  async markAsRead(otherUserId: number): Promise<void> {
-    const conv = mockConversationsList.find((c) => c.otherUserId === otherUserId)
-    if (conv) conv.unreadCount = 0
-  },
-
   async getConversations(): Promise<Conversation[]> {
-    await new Promise((r) => setTimeout(r, 200))
-    return [...mockConversationsList]
+    const res = await axiosInstance.get('/chat/conversations')
+    return unwrap<Conversation[]>(res) ?? []
   },
 
-  async getChatHistory(otherUserId: number): Promise<ChatMessage[]> {
-    await new Promise((r) => setTimeout(r, 150))
-    return [...(mockChatHistories[otherUserId] || [])]
+  async initConversation(receiverId: number): Promise<Conversation> {
+    const res = await axiosInstance.post('/chat/conversations/init', { receiverId })
+    return unwrap<Conversation>(res)
   },
 
-  sendMessage(payload: { receiverId: number; content: string }): void {
-    const newMsg: ChatMessage = {
-      id: `msg-${Date.now()}`,
-      senderId: 1,
-      receiverId: payload.receiverId,
-      content: payload.content,
-      createdAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    }
+  async getMessages(conversationId: number, page = 0, size = 50): Promise<PageResponse<ChatMessage>> {
+    const res = await axiosInstance.get(`/chat/conversations/${conversationId}/messages`, { params: { page, size } })
+    return unwrap<PageResponse<ChatMessage>>(res)
+  },
 
-    if (!mockChatHistories[payload.receiverId]) {
-      mockChatHistories[payload.receiverId] = []
-    }
-    mockChatHistories[payload.receiverId].push(newMsg)
+  async sendMessage(request: ChatMessageRequest): Promise<ChatMessage> {
+    const res = await axiosInstance.post('/chat/messages', request)
+    return unwrap<ChatMessage>(res)
+  },
 
-    const conv = mockConversationsList.find((c) => c.otherUserId === payload.receiverId)
-    if (conv) {
-      conv.lastMessage = payload.content
-      conv.lastMessageTime = newMsg.createdAt
-    }
-
-    listeners.forEach((cb) => cb(newMsg))
+  async markAsRead(conversationId: number): Promise<void> {
+    await axiosInstance.patch(`/chat/conversations/${conversationId}/read`)
   },
 }

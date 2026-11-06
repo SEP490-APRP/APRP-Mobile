@@ -1,6 +1,6 @@
 import { Image } from 'expo-image'
 import { router } from 'expo-router'
-import { Bike, ChevronRight, KeyRound, LogOut, Mail, MapPin, Phone, Wallet, type LucideIcon } from 'lucide-react-native'
+import { Bike, ChevronRight, KeyRound, LogOut, Mail, MapPin, Phone, Wallet, type LucideIcon, MessageCircle } from 'lucide-react-native'
 import { Pressable, RefreshControl, ScrollView, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { AppText, Button, Skeleton } from '@/components/ui'
@@ -12,6 +12,7 @@ import { colors } from '@/theme/colors'
 import { cn } from '@/utils/helpers'
 
 const MENU = [
+  { icon: MessageCircle, label: 'Tin nhắn', hint: 'Trao đổi với khách hàng', href: '/shipper/messages' },
   { icon: Wallet, label: 'Thu nhập và lịch sử', hint: 'Phí giao, chuyến đã chạy theo ngày', href: '/shipper/earnings' },
   { icon: KeyRound, label: 'Đổi mật khẩu', hint: 'Bảo vệ tài khoản tài xế', href: '/shipper/password' },
 ] as const
