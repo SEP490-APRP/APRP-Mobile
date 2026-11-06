@@ -55,3 +55,18 @@ export function greenImpactSummary(impact: GreenImpactDto) {
     ),
   }
 }
+
+/** Số tiền có dấu cho giao dịch ví: "+50.000đ", "−20.000đ". */
+export function signedMoney(amount: number): string {
+  const sign = amount > 0 ? '+' : amount < 0 ? '−' : ''
+  return sign + new Intl.NumberFormat('vi-VN').format(Math.abs(amount)) + 'đ'
+}
+
+/** "14:30 06/11" cho hạn chót; chuỗi rỗng khi BE không gửi hoặc ngày sai. */
+export function formatShortDateTime(iso?: string): string {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${pad(d.getHours())}:${pad(d.getMinutes())} ${pad(d.getDate())}/${pad(d.getMonth() + 1)}`
+}

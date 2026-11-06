@@ -1,4 +1,4 @@
-import { AlertTriangle, ArrowRight, Coins, Copy, CreditCard, ExternalLink, Headphones, MapPin, Phone, ShieldCheck, Truck, Wallet, XCircle } from 'lucide-react-native'
+import { AlertTriangle, ArrowRight, Clock, Coins, Copy, CreditCard, ExternalLink, Headphones, MapPin, Phone, RotateCcw, ShieldCheck, Truck, Wallet, XCircle } from 'lucide-react-native'
 import { View } from 'react-native'
 import { AppText } from '@/components/ui'
 import { money } from '@/features/product'
@@ -11,6 +11,7 @@ import type {
   WalletInfoDto,
 } from '@/services/chatbot.types'
 import { colors } from '@/theme/colors'
+import { cn } from '@/utils/helpers'
 import {
   callPhone,
   copyText,
@@ -19,6 +20,7 @@ import {
   openOrderDetail,
   openPaymentLink,
 } from '../../chatbotLinks'
+import { formatShortDateTime, signedMoney } from '../../utils/chatbotCards'
 import { orderTrackingAction } from '../../utils/chatbotNavigation'
 import { CardText, CardTitle, ChatAction, ChatCard, Chip, InfoRow } from './CardParts'
 
@@ -52,10 +54,36 @@ export function OrderTrackingCard({ tracking }: { tracking: OrderTrackingDto }) 
 }
 
 export function ReturnGuidanceCard({ guidance }: { guidance: ReturnGuidanceDto }) {
+  const latest = guidance.latestReturn
+  const deadline = formatShortDateTime(guidance.returnDeadline)
   return (
     <ChatCard tone="leaf">
       <CardTitle icon={ShieldCheck} title={guidance.policyTitle} />
       <CardText>{guidance.policyContent}</CardText>
+      {!!guidance.orderId && !!deadline && (
+        <View className="flex-row items-center gap-1.5 rounded-card bg-white p-2.5">
+          <Clock size={14} color={colors.leaf700} />
+          <AppText className="flex-1 text-caption">
+            Đơn #{guidance.orderId} còn hạn gửi yêu cầu đến {deadline}
+          </AppText>
+        </View>
+      )}
+      {!!latest && (
+        <View className="gap-1.5 rounded-card bg-white p-2.5">
+          <View className="flex-row items-center gap-2">
+            <RotateCcw size={14} color={colors.leaf700} />
+            <AppText weight="semibold" className="flex-1 text-caption">
+              Yêu cầu #{latest.returnId}
+              {latest.orderId ? ` · Đơn #${latest.orderId}` : ''}
+            </AppText>
+            <Chip tone={latest.active ? 'sun' : 'leaf'} label={latest.statusLabel} />
+          </View>
+          {!!latest.productName && <AppText className="text-caption text-ink-muted">{latest.productName}</AppText>}
+          {!!latest.refundAmount && latest.refundAmount > 0 && (
+            <InfoRow label="Số tiền hoàn:" value={money(latest.refundAmount)} />
+          )}
+        </View>
+      )}
       <ChatAction label={guidance.actionLabel || 'Xem đơn hàng'} icon={ArrowRight} onPress={() => openChatbotUrl(guidance.actionUrl || '/orders')} />
     </ChatCard>
   )
@@ -129,29 +157,65 @@ export function PaymentAssistanceCard({ payment }: { payment: PaymentAssistanceD
 }
 
 export function WalletInfoCard({ wallet }: { wallet: WalletInfoDto }) {
+  const balance = wallet.balance ?? 0
+  const transactions = wallet.recentTransactions ?? []
   return (
     <ChatCard tone="leaf">
-      <CardTitle icon={Wallet} title="Ví Tiện Ích & Điểm Tích Lũy" subtitle={`Trạng thái: ${wallet.walletStatus}`} />
-      <View className="items-center gap-0.5 rounded-card bg-white p-2.5">
-        <View className="flex-row items-center gap-1">
-          <Coins size={15} color={colors.leaf700} />
-          <AppText weight="bold" className="text-base">
+      <CardTitle icon={Wallet} title="Ví CapNong" subtitle={`Trạng thái: ${wallet.walletStatus}`} />
+      <View className="flex-row gap-2">
+        <View className="flex-1 items-center gap-0.5 rounded-card bg-white p-2.5">
+          <AppText weight="bold" className={cn('text-base', balance < 0 && 'text-sale')}>
+            {money(balance)}
+          </AppText>
+          <AppText className="text-caption text-ink-muted">Số dư rút được</AppText>
+        </View>
+        <View className="flex-1 items-center gap-0.5 rounded-card bg-white p-2.5">
+          <AppText weight="bold" className="text-base text-soil-700">
+            {money(wallet.frozenBalance ?? 0)}
+          </AppText>
+          <AppText className="text-caption text-ink-muted">Đang tạm giữ</AppText>
+        </View>
+      </View>
+      {wallet.loyaltyPoints != null && (
+        <View className="flex-row items-center justify-between">
+          <View className="flex-row items-center gap-1">
+            <Coins size={14} color={colors.leaf700} />
+            <AppText className="text-caption text-ink-muted">Điểm tích lũy</AppText>
+          </View>
+          <AppText weight="bold" className="text-caption">
             {wallet.loyaltyPoints}
           </AppText>
         </View>
-        <AppText className="text-caption text-ink-muted">Điểm tích lũy</AppText>
-      </View>
+      )}
+      {transactions.length > 0 && (
+        <View className="gap-1.5 rounded-card bg-white p-2.5">
+          <AppText weight="semibold" className="text-caption">
+            Giao dịch gần đây
+          </AppText>
+          {transactions.map((t, idx) => (
+            <View key={`${t.createdAt}-${idx}`} className="flex-row items-start justify-between gap-2">
+              <AppText numberOfLines={2} className="flex-1 text-caption text-ink-muted">
+                {t.description || 'Giao dịch ví'}
+                {t.hold ? ' (tạm giữ)' : ''}
+              </AppText>
+              <AppText weight="bold" className={cn('text-caption', t.amount < 0 ? 'text-sale' : 'text-leaf-700')}>
+                {signedMoney(t.amount)}
+              </AppText>
+            </View>
+          ))}
+        </View>
+      )}
       {!!wallet.linkedBankName && (
         <InfoRow
-          label="Tài khoản rút/nhận tiền:"
+          label="Tài khoản nhận tiền rút:"
           value={`${wallet.linkedBankName} (${wallet.linkedBankAccount ? `*${wallet.linkedBankAccount.slice(-4)}` : 'Đã kết nối'})`}
         />
       )}
       <CardText muted>{wallet.message}</CardText>
       <ChatAction
-        label={wallet.navigationLabel || 'Xem tài khoản'}
+        label={wallet.navigationLabel || 'Mở Ví của tôi'}
         icon={ArrowRight}
-        onPress={() => openChatbotUrl(wallet.navigationUrl || '/tai-khoan')}
+        onPress={() => openChatbotUrl(wallet.navigationUrl || '/my-wallet')}
       />
     </ChatCard>
   )

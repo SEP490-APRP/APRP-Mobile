@@ -1,10 +1,12 @@
 import {
   greenImpactSummary,
   guidanceLines,
+  formatShortDateTime,
   isFreeshipVoucher,
   itemPrice,
   seasonalBadge,
   seasonalMonth,
+  signedMoney,
 } from './chatbotCards'
 
 describe('itemPrice', () => {
@@ -64,5 +66,24 @@ describe('greenImpactSummary', () => {
     const summary = greenImpactSummary({ totalRescuedKg: 20 })
     expect(summary.co2Kg).toBeCloseTo(36)
     expect(summary.trees).toBe(2)
+  })
+})
+
+describe('signedMoney', () => {
+  it('thêm dấu theo chiều tiền vào/ra ví', () => {
+    expect(signedMoney(50000)).toBe('+50.000đ')
+    expect(signedMoney(-20000)).toBe('−20.000đ')
+    expect(signedMoney(0)).toBe('0đ')
+  })
+})
+
+describe('formatShortDateTime', () => {
+  it('hiện giờ và ngày của hạn chót', () => {
+    expect(formatShortDateTime('2026-11-06T14:05:00')).toBe('14:05 06/11')
+  })
+
+  it('trả chuỗi rỗng khi không có hoặc sai ngày', () => {
+    expect(formatShortDateTime()).toBe('')
+    expect(formatShortDateTime('khong-phai-ngay')).toBe('')
   })
 })

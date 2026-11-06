@@ -6,6 +6,7 @@ describe('resolveChatbotRoute: Khách mua', () => {
     ['/checkout', '/buyer/checkout'],
     ['/orders', '/buyer/orders'],
     ['/orders?tab=PENDING', '/buyer/orders'],
+    ['/orders?tab=REFUND', '/buyer/orders'],
     ['/tai-khoan', '/buyer/account'],
     ['/profile', '/buyer/account'],
     ['/profile?tab=wallet', '/buyer/account'],
@@ -70,6 +71,12 @@ describe('resolveChatbotRoute: Nhà vườn', () => {
       expect(resolveChatbotRoute(url, 'shop')).toBeNull()
     },
   )
+})
+
+describe('resolveChatbotRoute: Ví', () => {
+  it.each(['buyer', 'shop', 'shipper'] as const)('app chưa có màn Ví nên trả null cho %s', (role) => {
+    expect(resolveChatbotRoute('/my-wallet', role)).toBeNull()
+  })
 })
 
 describe('resolveChatbotRoute: Tài xế', () => {

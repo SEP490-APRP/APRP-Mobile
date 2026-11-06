@@ -85,12 +85,28 @@ export interface OrderTrackingDto {
   createdAt?: string
 }
 
+export interface LatestReturnDto {
+  returnId: number
+  orderId?: number
+  productName?: string
+  /** Mã ReturnStatus của BE */
+  status?: string
+  statusLabel: string
+  refundAmount?: number
+  active: boolean
+  createdAt?: string
+}
+
 export interface ReturnGuidanceDto {
+  /** Đơn gần nhất còn trong hạn trả hàng */
   orderId?: number
   policyTitle: string
   policyContent: string
   actionUrl: string
   actionLabel: string
+  /** Hạn chót gửi yêu cầu cho orderId */
+  returnDeadline?: string
+  latestReturn?: LatestReturnDto
 }
 
 export interface OrderCancelDto {
@@ -252,9 +268,25 @@ export interface PaymentAssistanceDto {
   stepInstructions?: string[]
 }
 
+export interface WalletTransactionDto {
+  description?: string
+  /** Dương là cộng, âm là trừ */
+  amount: number
+  /** Bút toán tạm giữ, chưa đổi số dư rút được */
+  hold: boolean
+  createdAt?: string
+}
+
 export interface WalletInfoDto {
   walletStatus: string
-  loyaltyPoints: number
+  walletType?: 'BUYER' | 'SHOP' | 'SHIPPER'
+  /** Số dư rút được; ví Shipper có thể âm khi giữ tiền mặt COD */
+  balance?: number
+  frozenBalance?: number
+  totalWithdrawn?: number
+  recentTransactions?: WalletTransactionDto[]
+  /** Chỉ ví Khách mua */
+  loyaltyPoints?: number
   linkedBankName?: string
   linkedBankAccount?: string
   message: string
