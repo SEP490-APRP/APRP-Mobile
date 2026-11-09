@@ -75,6 +75,17 @@ export interface OrderResponse {
   pickedUpAt?: string
   items: OrderItem[]
   shopOwner?: OrderShopInfo
+  /** Quãng đường shipper → nhà vườn (km), chỉ có ở danh sách đơn mới của shipper */
+  distanceToShopKm?: number | null
+  /** Số tiền COD shipper đã ký quỹ trong ví khi nhận đơn */
+  codReservedAmount?: number | null
+  deliveredAt?: string
+  deliveryProofUrls?: string[]
+  failReason?: string | null
+  failNote?: string | null
+  failCallAttempts?: number | null
+  failProofUrls?: string[]
+  failedAt?: string
 }
 
 /** Response khi BE trả về dạng page */

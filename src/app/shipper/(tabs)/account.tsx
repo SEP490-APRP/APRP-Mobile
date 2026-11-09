@@ -13,6 +13,7 @@ import { cn } from '@/utils/helpers'
 
 const MENU = [
   { icon: MessageCircle, label: 'Tin nhắn', hint: 'Trao đổi với khách hàng', href: '/shipper/messages' },
+  { icon: Wallet, label: 'Ví tài xế', hint: 'Số dư, ký quỹ COD, nạp ví', href: '/shipper/wallet' },
   { icon: Wallet, label: 'Thu nhập và lịch sử', hint: 'Phí giao, chuyến đã chạy theo ngày', href: '/shipper/earnings' },
   { icon: KeyRound, label: 'Đổi mật khẩu', hint: 'Bảo vệ tài khoản tài xế', href: '/shipper/password' },
 ] as const

@@ -88,13 +88,49 @@ export function minutesAgo(iso?: string, now = Date.now()): string {
   return `${Math.floor(m / 1440)} ngày trước`
 }
 
-/** Mã lỗi nghiệp vụ của OrderService đổi sang câu dễ hiểu cho tài xế. */
+const vnd = (n: unknown) => new Intl.NumberFormat('vi-VN').format(Number(n) || 0) + 'đ'
+
+/** Mã lỗi BE (nếu có) */
+export function shipperErrorCode(err: unknown): number | undefined {
+  return (err as { data?: { code?: number } } | null)?.data?.code
+}
+
+/** Mã lỗi nghiệp vụ của OrderService / ví đổi sang câu dễ hiểu cho tài xế. */
 export function shipperErrorMessage(err: unknown, fallback: string): string {
-  const code = (err as { data?: { code?: number } } | null)?.data?.code
-  if (code === 7004) return 'Bạn đang có đơn chưa giao xong. Hoàn tất đơn đó rồi nhận thêm nhé.'
-  if (code === 7002) return 'Đơn này vừa đổi trạng thái, có thể shipper khác đã nhận. Kéo xuống để tải lại.'
-  const msg = (err as { data?: { message?: string } } | null)?.data?.message
-  return msg?.trim() || fallback
+  const data = (err as { data?: { code?: number; message?: string; result?: unknown } } | null)?.data
+  switch (data?.code) {
+    case 7002:
+      return 'Đơn này vừa đổi trạng thái, có thể shipper khác đã nhận. Kéo xuống để tải lại.'
+    case 7004:
+      return 'Bạn đang có đơn chưa giao xong. Hoàn tất đơn đó rồi nhận thêm nhé.'
+    case 7005:
+      return 'Đơn này đã được tài xế khác nhận.'
+    case 7006:
+      return 'Bạn cần bật nhận đơn để xem và nhận đơn.'
+    case 7007:
+      return 'Cần chụp ít nhất 1 ảnh bằng chứng.'
+    case 7009:
+      return 'Cần gọi khách tối thiểu 3 cuộc trước khi báo không liên lạc được.'
+    case 7010:
+      return 'Ghi rõ lý do giao thất bại nhé.'
+    case 16013: {
+      const r = (data.result ?? {}) as { required?: number; available?: number; missing?: number }
+      return `Đơn COD cần ký quỹ ${vnd(r.required)}, ví còn ${vnd(r.available)}. Nạp thêm ${vnd(r.missing)} để nhận đơn.`
+    }
+    case 16014:
+      return 'Ví đang âm do còn tiền COD chưa nộp về sàn. Nạp ví trước khi nhận đơn.'
+  }
+  return data?.message?.trim() || fallback
+}
+
+/**
+ * Ký quỹ đơn COD: số dư khả dụng phải >= tiền thu của khách.
+ * Trả về số tiền cần ký quỹ và số còn thiếu (0 = đủ, hoặc đơn đã trả online).
+ */
+export function codReserveCheck(o: OrderResponse, available?: number | null) {
+  const required = codToCollect(o)
+  const have = Math.max(0, Number(available ?? 0))
+  return { required, missing: required > 0 ? Math.max(0, required - have) : 0 }
 }
 
 /** Link chỉ đường Google Maps tới chặng hiện tại: nhà vườn khi chưa lấy hàng, khách khi đã lấy. */

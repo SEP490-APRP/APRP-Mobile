@@ -8,11 +8,13 @@ import { orderIdOf } from '@/features/order/utils/orderStatus'
 import { money } from '@/features/product'
 import { useMyProfile } from '@/features/profile'
 import {
+  codReserveCheck,
   codToCollect,
   DEFAULT_SHIPPER_COORDS,
   formatKm,
   orderLegs,
   ShipperOrderCard,
+  shipperErrorCode,
   shipperErrorMessage,
   sortReadyOrders,
   useAcceptOrder,
@@ -22,6 +24,7 @@ import {
   useShipperStatus,
   useToggleOnline,
 } from '@/features/shipper'
+import { TopupSheet, useMyWallet } from '@/features/wallet'
 import { useAuth, useUiStore } from '@/stores'
 import { colors } from '@/theme/colors'
 import type { OrderResponse } from '@/types/order.types'
@@ -35,7 +38,9 @@ export default function ShipperHome() {
   const toggle = useToggleOnline()
   const gps = useCurrentPosition()
   const online = status.data?.online === true
-  const ready = useReadyOrders(online)
+  const ready = useReadyOrders(online, gps.position)
+  const wallet = useMyWallet()
+  const [topupOpen, setTopupOpen] = useState(false)
   const active = useActiveOrders()
   const accept = useAcceptOrder()
   const showToast = useUiStore((s) => s.showToast)
@@ -47,6 +52,8 @@ export default function ShipperHome() {
   const current = active.data?.[0]
   const busy = current != null
   const orders = useMemo(() => sortReadyOrders(ready.data?.content ?? [], gps.position), [ready.data, gps.position])
+  const available = wallet.data?.availableBalance ?? wallet.data?.balance
+  const reserve = picked ? codReserveCheck(picked, available) : { required: 0, missing: 0 }
 
   const switchOnline = async () => {
     if (online) {
@@ -98,7 +105,9 @@ export default function ShipperHome() {
         router.navigate('/shipper/delivering')
       },
       onError: (e) => {
-        setPicked(null)
+        // Thiếu tiền ký quỹ: giữ tấm nhận đơn để tài xế bấm Nạp ví
+        if (shipperErrorCode(e) !== 16013) setPicked(null)
+        void wallet.refetch()
         showToast(shipperErrorMessage(e, 'Chưa nhận được đơn, thử lại nhé.'))
       },
     })
@@ -227,7 +236,7 @@ export default function ShipperHome() {
       <EmptyState
         icon={<RefreshCw size={28} color={colors.leaf600} />}
         title="Chưa có đơn nào sẵn sàng"
-        description="Danh sách tự làm mới mỗi 20 giây. Kéo xuống để tải lại ngay."
+        description="Có đơn mới gần bạn, app sẽ báo ngay. Kéo xuống để tải lại."
       />
     )
   }
@@ -296,28 +305,58 @@ export default function ShipperHome() {
               onPress={() => setPicked(null)}
               className="min-h-[48px] flex-1"
             />
-            <Button
-              title="Nhận đơn"
-              loading={accept.isPending}
-              onPress={confirmAccept}
-              className="min-h-[48px] flex-1"
-            />
+            {reserve.missing > 0 ? (
+              <Button title="Nạp ví" variant="primary" onPress={() => setTopupOpen(true)} className="min-h-[48px] flex-1" />
+            ) : (
+              <Button
+                title={reserve.required > 0 ? 'Ký quỹ và nhận' : 'Nhận đơn'}
+                loading={accept.isPending}
+                disabled={wallet.isPending && reserve.required > 0}
+                onPress={confirmAccept}
+                className="min-h-[48px] flex-1"
+              />
+            )}
           </>
         }
       >
-        {picked && <AcceptSummary order={picked} me={gps.position} />}
+        {picked && (
+          <AcceptSummary order={picked} me={gps.position} available={available} missing={reserve.missing} />
+        )}
       </BottomSheet>
+      <TopupSheet
+        visible={topupOpen}
+        missing={reserve.missing}
+        onClose={() => setTopupOpen(false)}
+        onPaid={() => void wallet.refetch()}
+      />
     </SafeAreaView>
   )
 }
 
-function AcceptSummary({ order, me }: { order: OrderResponse; me: Parameters<typeof orderLegs>[1] }) {
+function AcceptSummary({
+  order,
+  me,
+  available,
+  missing,
+}: {
+  order: OrderResponse
+  me: Parameters<typeof orderLegs>[1]
+  available?: number | null
+  missing: number
+}) {
   const legs = orderLegs(order, me)
   const cod = codToCollect(order)
   const rows: [string, string][] = [
     ['Lấy hàng tại', order.shopName || '—'],
     ['Giao cho', `${order.recipientName} · ${order.recipientPhone}`],
-    ['Quãng đường', legs.total != null ? `~${formatKm(legs.total)} (cả 2 chặng)` : `Giao ${formatKm(legs.toBuyer)}`],
+    [
+      'Quãng đường',
+      order.distanceToShopKm != null
+        ? `~${formatKm(order.distanceToShopKm + (legs.toBuyer ?? 0))} (cả 2 chặng)`
+        : legs.total != null
+          ? `~${formatKm(legs.total)} (cả 2 chặng)`
+          : `Giao ${formatKm(legs.toBuyer)}`,
+    ],
     ['Phí ship bạn nhận', money(Number(order.shippingFee ?? 0))],
     ['Thu của khách', cod > 0 ? money(cod) : 'Không (đã trả trước)'],
   ]
@@ -332,9 +371,14 @@ function AcceptSummary({ order, me }: { order: OrderResponse; me: Parameters<typ
         </View>
       ))}
       {cod > 0 && (
-        <View className="rounded-card bg-amber-50 p-3">
-          <AppText className="text-sm leading-relaxed text-amber-900">
-            Đơn trả khi nhận hàng: nhớ thu đủ {money(cod)} của khách trước khi bấm giao thành công.
+        <View className={missing > 0 ? 'gap-1 rounded-card bg-sale-soft p-3' : 'gap-1 rounded-card bg-sun-300/40 p-3'}>
+          <AppText weight="bold" className={missing > 0 ? 'text-sm text-sale' : 'text-sm text-leaf-900'}>
+            Đơn COD: ký quỹ {money(cod)} · ví khả dụng {money(Math.max(0, Number(available ?? 0)))}
+          </AppText>
+          <AppText className={missing > 0 ? 'text-sm leading-relaxed text-sale' : 'text-sm leading-relaxed text-leaf-900'}>
+            {missing > 0
+              ? `Ví còn thiếu ${money(missing)}. Nạp thêm để nhận đơn này.`
+              : 'Tiền được giữ chỗ trong ví khi nhận đơn. Giao xong, tiền mặt bạn thu chính là tiền ký quỹ; giao thất bại thì trả lại ví.'}
           </AppText>
         </View>
       )}

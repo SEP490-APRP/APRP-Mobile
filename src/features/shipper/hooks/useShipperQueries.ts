@@ -2,6 +2,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { orderKeys } from '@/features/order/hooks/useOrderQueries'
 import { shipperService } from '@/services/shipper.service'
 import type { OrderResponse } from '@/types/order.types'
+import type { UploadFile } from '@/types/upload.types'
+import type { DeliveryFailReason } from '@/services/shipper.service'
+import { walletKeys } from '@/features/wallet/hooks/useWalletQueries'
 import type { LatLng } from '../utils/shipperOrders'
 import { ACTIVE_STATUSES, DONE_STATUSES } from '../utils/shipperOrders'
 
@@ -13,8 +16,8 @@ export const shipperKeys = {
   history: () => [...shipperKeys.all, 'history'] as const,
 }
 
-/** Đơn mới hiện ra khi nhà vườn báo sẵn sàng, nên hỏi lại định kỳ khi đang trực tuyến. */
-const READY_POLL_MS = 20_000
+/** Dự phòng khi mất kết nối STOMP: hỏi lại định kỳ khi đang nhận đơn. */
+const READY_POLL_MS = 60_000
 
 export function useShipperStatus() {
   return useQuery({ queryKey: shipperKeys.status(), queryFn: shipperService.getStatus })
@@ -31,10 +34,11 @@ export function useToggleOnline() {
   })
 }
 
-export function useReadyOrders(enabled: boolean) {
+/** Đơn mới quanh shipper. Đơn mới được đẩy qua STOMP (useShipperOffers), polling chỉ là dự phòng */
+export function useReadyOrders(enabled: boolean, coords?: LatLng | null) {
   return useQuery({
     queryKey: shipperKeys.ready(),
-    queryFn: () => shipperService.getReadyOrders(0, 30),
+    queryFn: () => shipperService.getReadyOrders(0, 30, coords),
     enabled,
     refetchInterval: enabled ? READY_POLL_MS : false,
   })
@@ -75,22 +79,37 @@ export function useAcceptOrder() {
     onSettled: () => {
       void qc.invalidateQueries({ queryKey: shipperKeys.all })
       void qc.invalidateQueries({ queryKey: orderKeys.all })
+      void qc.invalidateQueries({ queryKey: walletKeys.all })
     },
   })
 }
 
 export type DeliveryAction = 'pickup' | 'deliver' | 'fail'
 
-/** Lấy hàng, giao thành công hoặc báo thất bại cho đơn đang giao. */
+/** Dữ liệu xác nhận giao (deliver / fail): ảnh chưa upload + lý do */
+export interface DeliveryProof {
+  photos: UploadFile[]
+  reason?: DeliveryFailReason
+  callAttempts?: number
+  note?: string
+}
+
+/** Lấy hàng, giao thành công hoặc báo thất bại cho đơn đang giao (upload ảnh bằng chứng trước). */
 export function useDeliveryAction() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ orderId, action }: { orderId: number; action: DeliveryAction }) =>
-      action === 'pickup'
-        ? shipperService.pickupOrder(orderId)
-        : action === 'deliver'
-          ? shipperService.deliverOrder(orderId)
-          : shipperService.failOrder(orderId),
+    mutationFn: async ({ orderId, action, proof }: { orderId: number; action: DeliveryAction; proof?: DeliveryProof }) => {
+      if (action === 'pickup') return shipperService.pickupOrder(orderId)
+      const urls = await shipperService.uploadProofImages(proof?.photos ?? [])
+      if (urls.length === 0) throw new Error('Không tải được ảnh lên. Vui lòng thử lại.')
+      if (action === 'deliver') return shipperService.deliverOrder(orderId, urls)
+      return shipperService.failOrder(orderId, {
+        reason: proof?.reason ?? 'KHAC',
+        note: proof?.note?.trim() || undefined,
+        callAttempts: proof?.callAttempts ?? 0,
+        proofImageUrls: urls,
+      })
+    },
     onSettled: () => {
       void qc.invalidateQueries({ queryKey: shipperKeys.all })
       void qc.invalidateQueries({ queryKey: orderKeys.all })

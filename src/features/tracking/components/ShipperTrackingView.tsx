@@ -7,6 +7,7 @@ import { colors } from '@/theme/colors'
 import { cn } from '@/utils/helpers'
 import { useShipperLocation } from '../hooks/useShipperLocation'
 import {
+  formatEta,
   bearing,
   effectivePhase,
   formatUpdatedAt,
@@ -178,6 +179,11 @@ export function ShipperTrackingView({ orderId, role, initial, fallback, actions,
               {journeyText(role, phase)}
             </AppText>
           </View>
+          {visible && formatEta(data?.distanceKm, data?.estimatedMinutes) && (
+            <AppText weight="extrabold" className="px-1 text-base text-leaf-700">
+              {formatEta(data?.distanceKm, data?.estimatedMinutes)}
+            </AppText>
+          )}
 
           {role !== 'SHIPPER' && (
             <View className="flex-row items-center gap-3">

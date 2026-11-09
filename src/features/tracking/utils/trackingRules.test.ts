@@ -85,3 +85,37 @@ describe('trackingRules', () => {
     expect(effectivePhase(data, { lat: 10.842, lng: 106.766 }, shop, dest)).toBe('TO_SHOP')
   })
 })
+
+describe('formatEta', () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { formatEta } = require('./trackingRules') as typeof import('./trackingRules')
+
+  it('hiện quãng đường và số phút dự kiến', () => {
+    expect(formatEta(2.3, 6)).toBe('Còn ~2,3 km · khoảng 6 phút')
+  })
+
+  it('dưới 1 km đổi sang mét, còn 1 phút thì báo sắp tới', () => {
+    expect(formatEta(0.42, 1)).toBe('Còn ~400 m · sắp tới nơi')
+  })
+
+  it('chưa có dữ liệu hoặc đã giao xong thì không hiện', () => {
+    expect(formatEta(undefined, undefined)).toBeNull()
+    expect(formatEta(0, 0)).toBeNull()
+  })
+})
+
+describe('pickupCode', () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { pickupCode, needsPickupCode } = require('../../order/utils/orderStatus') as typeof import('../../order/utils/orderStatus')
+
+  it('mã đối soát giống nhau ở màn nhà vườn và tài xế', () => {
+    expect(pickupCode(123)).toBe('#123')
+  })
+
+  it('chỉ hiện mã khi đơn đã xác nhận và chưa bàn giao', () => {
+    expect(needsPickupCode('READY')).toBe(true)
+    expect(needsPickupCode('SHIPPING')).toBe(true)
+    expect(needsPickupCode('PICKED_UP')).toBe(false)
+    expect(needsPickupCode('PENDING')).toBe(false)
+  })
+})

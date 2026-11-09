@@ -36,6 +36,25 @@ export interface ShipperLocationPayload {
   isFake?: boolean
   gpsOff?: boolean
   deliveryPhase?: string
+  /** Quãng đường còn lại tới điểm của chặng hiện tại (km, BE tính) */
+  distanceKm?: number
+  /** Số phút dự kiến tới nơi (BE tính) */
+  estimatedMinutes?: number
+}
+
+/**
+ * Dòng "Còn ~2,3 km · khoảng 6 phút" trên bản đồ (giống bản web, utils/eta.ts).
+ * null khi chưa có dữ liệu hoặc đơn đã giao xong.
+ */
+export function formatEta(distanceKm?: number | null, estimatedMinutes?: number | null): string | null {
+  if (distanceKm == null || !Number.isFinite(distanceKm)) return null
+  if (distanceKm <= 0 && (estimatedMinutes ?? 0) <= 0) return null
+  const dist =
+    distanceKm < 1
+      ? `${Math.max(50, Math.round((distanceKm * 1000) / 50) * 50)} m`
+      : `${distanceKm.toFixed(1).replace('.', ',')} km`
+  const mins = estimatedMinutes ?? 0
+  return `Còn ~${dist} · ${mins <= 1 ? 'sắp tới nơi' : `khoảng ${mins} phút`}`
 }
 
 /** Toạ độ mặc định (TP.HCM) khi đơn chưa được geocode, giống bản web */
