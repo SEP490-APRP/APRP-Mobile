@@ -40,6 +40,10 @@ export interface ShipperLocationPayload {
   distanceKm?: number
   /** Số phút dự kiến tới nơi (BE tính) */
   estimatedMinutes?: number
+  /** Tracking còn đang diễn ra realtime (true) hay đã hoàn tất (false) */
+  trackingActive?: boolean
+  /** Ảnh bằng chứng giao hàng (nếu đã DELIVERED) */
+  proofImageUrls?: string[]
 }
 
 /**
@@ -122,9 +126,24 @@ export function effectivePhase(
   return 'TO_SHOP'
 }
 
-export function isShipperVisible(role: TrackingRole, phase: DeliveryPhase): boolean {
+export function isShipperVisible(
+  role: TrackingRole,
+  phase: DeliveryPhase,
+  trackingActive?: boolean,
+  orderStatus?: string,
+): boolean {
+  if (trackingActive === false) return false
+  if (
+    orderStatus === 'DELIVERED' ||
+    orderStatus === 'COMPLETED' ||
+    orderStatus === 'FAILED' ||
+    orderStatus === 'CANCELLED'
+  ) {
+    return false
+  }
+  if (phase === 'DELIVERED' || phase === 'FAILED') return false
   if (role === 'SHOP') return phase === 'TO_SHOP' || phase === 'AT_SHOP'
-  if (role === 'BUYER') return phase === 'TO_BUYER' || phase === 'DELIVERED'
+  if (role === 'BUYER') return phase === 'TO_BUYER'
   return true
 }
 

@@ -49,7 +49,7 @@ export function ShipperTrackingView({ orderId, role, initial, fallback, actions,
   const { shop, dest } = resolveEndpoints(data, initial)
   const pos = shipperPosition(data)
   const phase = effectivePhase(data, pos, shop, dest)
-  const visible = !!pos && isShipperVisible(role, phase)
+  const visible = !!pos && isShipperVisible(role, phase, data?.trackingActive, data?.orderStatus)
   const routes = routesForRole(role)
 
   if (pos && lastPos.current && (pos.lat !== lastPos.current.lat || pos.lng !== lastPos.current.lng)) {

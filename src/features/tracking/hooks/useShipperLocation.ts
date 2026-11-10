@@ -29,16 +29,22 @@ export function useShipperLocation(orderId: number) {
   const [connected, setConnected] = useState(false)
   const [gpsPaused, setGpsPaused] = useState(false)
 
+  const isFinished =
+    snapshot.data?.trackingActive === false ||
+    snapshot.data?.orderStatus === 'DELIVERED' ||
+    snapshot.data?.orderStatus === 'COMPLETED' ||
+    snapshot.data?.orderStatus === 'FAILED'
+
   const snapshot = useQuery({
     queryKey: trackingKeys.location(orderId),
     queryFn: () => fetchLocation(orderId),
     enabled: Number.isFinite(orderId) && orderId > 0,
-    refetchInterval: connected ? false : POLL_MS,
+    refetchInterval: connected || isFinished ? false : POLL_MS,
     retry: 1,
   })
 
   useEffect(() => {
-    if (!Number.isFinite(orderId) || orderId <= 0) return
+    if (!Number.isFinite(orderId) || orderId <= 0 || isFinished) return
     const client = new Client({
       brokerURL: stompBrokerUrl(ENV.API_URL),
       connectHeaders: token ? { Authorization: `Bearer ${token}` } : {},
@@ -57,6 +63,9 @@ export function useShipperLocation(orderId: number) {
             }
             setGpsPaused(false)
             setLive((prev) => ({ ...prev, ...body }))
+            if (body.trackingActive === false || body.orderStatus === 'DELIVERED' || body.orderStatus === 'FAILED') {
+              void client.deactivate()
+            }
           } catch {
             // Bỏ qua frame hỏng, frame sau sẽ cập nhật lại.
           }
@@ -71,7 +80,7 @@ export function useShipperLocation(orderId: number) {
     return () => {
       void client.deactivate()
     }
-  }, [orderId, token])
+  }, [orderId, token, isFinished])
 
   // REST và WebSocket gộp theo thứ tự đến: bản đến sau là bản mới hơn.
   useEffect(() => {

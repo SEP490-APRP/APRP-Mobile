@@ -114,11 +114,11 @@ export default function ShipperHome() {
   }
 
   const refreshing = ready.isRefetching || active.isRefetching || status.isRefetching
-  const refresh = () => {
+  const refresh = async () => {
     void status.refetch()
     void active.refetch()
+    await gps.refresh()
     if (online) void ready.refetch()
-    void gps.refresh()
   }
 
   const header = (
