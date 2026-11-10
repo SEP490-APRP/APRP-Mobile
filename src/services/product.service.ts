@@ -1,8 +1,10 @@
+import { Platform } from 'react-native'
 import type { ApiResponse, PageResponse } from '@/types'
 import type {
   AiDescriptionSuggestionRequest,
   AiDescriptionSuggestionResponse,
   GetMyProductsParams,
+  ImageSearchResponse,
   ProductCreationRequest,
   ProductImageCreationRequest,
   ProductImageResponse,
@@ -51,11 +53,29 @@ export const productService = {
     page?: number
     size?: number
   }): Promise<ApiResponse<ProductResponse[]>> {
-    // Trang của /products đánh số từ 1 (khác các API phân trang khác).
-    const res = await axiosInstance.get<ApiResponse<PageResponse<any>>>('/products', {
-      params: { status: 'ACTIVE', page: params?.page ?? 1, size: params?.size ?? 50, ...params },
-    })
-    return { code: 1000, result: (res.data.result?.content ?? []).map(normalizeProduct) }
+    try {
+      // Trang của /products đánh số từ 1 (khác các API phân trang khác).
+      const res = await axiosInstance.get<ApiResponse<PageResponse<any>>>('/products', {
+        params: { status: 'ACTIVE', page: params?.page ?? 1, size: params?.size ?? 50, ...params },
+      })
+      const items = (res.data.result?.content ?? []).map(normalizeProduct)
+      if (items.length > 0) {
+        return { code: 1000, result: items }
+      }
+    } catch (e) {
+      console.warn('Cannot fetch products from backend API, using local mock fallback:', e)
+    }
+
+    // Fallback to local mock khi server tắt hoặc timeout
+    let list = [...localFarmerProducts]
+    if (params?.categoryId) {
+      list = list.filter((p: any) => p.categoryId === params.categoryId || p.category?.categoryId === params.categoryId)
+    }
+    if (params?.keyword) {
+      const kw = params.keyword.toLowerCase()
+      list = list.filter((p: any) => (p.name || p.productName || '').toLowerCase().includes(kw))
+    }
+    return { code: 1000, result: list }
   },
 
   async getAllProducts(): Promise<ApiResponse<ProductResponse[]>> {
@@ -67,8 +87,14 @@ export const productService = {
   },
 
   async getById(id: number): Promise<ApiResponse<ProductResponse | null>> {
-    const res = await axiosInstance.get<ApiResponse<any>>(`/products/${id}`)
-    return { code: 1000, result: res.data.result ? normalizeProduct(res.data.result) : null }
+    try {
+      const res = await axiosInstance.get<ApiResponse<any>>(`/products/${id}`)
+      if (res.data?.result) return { code: 1000, result: normalizeProduct(res.data.result) }
+    } catch (e) {
+      console.warn(`Cannot fetch product #${id} from backend API, using local mock fallback`)
+    }
+    const found = localFarmerProducts.find((p) => p.id === id) ?? null
+    return { code: 1000, result: found }
   },
 
   /** Lấy danh sách sản phẩm của nông dân/gian hàng hiện tại (hỗ trợ lọc status, phân trang) */
@@ -386,6 +412,53 @@ export const productService = {
       '/products/ai-suggest-description',
       request,
     )
+    return res.data
+  },
+
+  /** Tìm kiếm nông sản bằng hình ảnh AI (Google Cloud Vision) */
+  async searchByImage(imageAsset: {
+    uri: string
+    fileName?: string
+    mimeType?: string
+    file?: any
+  }): Promise<ApiResponse<ImageSearchResponse>> {
+    const formData = new FormData()
+    const rawUri = imageAsset.uri
+    const filename = imageAsset.fileName || rawUri.split('/').pop() || `produce_${Date.now()}.jpg`
+    const match = /\.(\w+)$/.exec(filename)
+    const type = match ? `image/${match[1] === 'jpg' ? 'jpeg' : match[1]}` : imageAsset.mimeType || 'image/jpeg'
+
+    if (Platform.OS === 'web') {
+      if (imageAsset.file) {
+        formData.append('file', imageAsset.file, filename)
+      } else {
+        const fetchRes = await fetch(rawUri)
+        const blob = await fetchRes.blob()
+        formData.append('file', blob, filename)
+      }
+    } else {
+      formData.append('file', {
+        uri: Platform.OS === 'android' ? rawUri : rawUri.replace('file://', ''),
+        name: filename,
+        type,
+      } as any)
+    }
+
+    const res = await axiosInstance.post<ApiResponse<ImageSearchResponse>>(
+      '/products/search-by-image',
+      formData,
+      {
+        timeout: 60_000,
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      },
+    )
+
+    if (res.data?.result?.products && Array.isArray(res.data.result.products)) {
+      res.data.result.products = res.data.result.products.map(normalizeProduct)
+    }
+
     return res.data
   },
 }

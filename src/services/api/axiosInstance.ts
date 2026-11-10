@@ -28,7 +28,7 @@ function readToken(): string | null {
 // Không đặt Content-Type mặc định: axios tự chọn JSON cho object và multipart cho FormData.
 export const axiosInstance = create({
   baseURL: ENV.API_URL,
-  timeout: 15_000,
+  timeout: 8_000,
 })
 
 axiosInstance.interceptors.request.use((config) => {

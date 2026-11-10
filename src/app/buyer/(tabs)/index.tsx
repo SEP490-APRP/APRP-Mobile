@@ -1,6 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { router } from 'expo-router'
-import { Search } from 'lucide-react-native'
+import { Camera, Search } from 'lucide-react-native'
 import { useState } from 'react'
 import { Image, Pressable, RefreshControl, ScrollView, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -45,15 +45,25 @@ export default function BuyerHome() {
             </AppText>
           </View>
         </View>
-        <Pressable
-          onPress={() => openFresh()}
-          accessibilityRole="search"
-          accessibilityLabel="Tìm nông sản"
-          className="h-11 flex-row items-center gap-2 rounded-xl border border-line bg-white px-3"
-        >
-          <Search size={16} color={colors.inkSubtle} />
-          <AppText className="text-sm text-ink-subtle">Tìm theo tên, nhà vườn…</AppText>
-        </Pressable>
+        <View className="flex-row items-center gap-2">
+          <Pressable
+            onPress={() => openFresh()}
+            accessibilityRole="search"
+            accessibilityLabel="Tìm nông sản"
+            className="h-11 flex-1 flex-row items-center gap-2 rounded-xl border border-line bg-white px-3"
+          >
+            <Search size={16} color={colors.inkSubtle} />
+            <AppText className="text-sm text-ink-subtle">Tìm theo tên, nhà vườn…</AppText>
+          </Pressable>
+          <Pressable
+            onPress={() => router.navigate({ pathname: '/buyer/fresh', params: { openCamera: 'true' } })}
+            accessibilityRole="button"
+            accessibilityLabel="Tìm bằng hình ảnh AI"
+            className="h-11 w-11 items-center justify-center rounded-xl border border-leaf-700 bg-white active:bg-leaf-50"
+          >
+            <Camera size={18} color={colors.leaf700} />
+          </Pressable>
+        </View>
       </View>
 
       <ScrollView

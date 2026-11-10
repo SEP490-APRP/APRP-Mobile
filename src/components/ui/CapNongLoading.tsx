@@ -15,8 +15,10 @@ export type CapNongLoadingProps = {
   size?: 'sm' | 'md' | 'lg'
   /** Phủ toàn màn hình, chặn thao tác bên dưới (VD: đang gửi đơn) */
   fullScreen?: boolean
-  /** light: nền kem ấm, dark: xanh rừng đêm, transparent: không nền */
-  variant?: 'light' | 'dark' | 'transparent'
+  /** compact: không chiếm flex-1 và giảm padding dọc, vừa vặn nhúng modal/card */
+  compact?: boolean
+  /** light: nền kem ấm, dark: xanh rừng đêm, transparent: không nền, transparent-dark: không nền chữ sáng */
+  variant?: 'light' | 'dark' | 'transparent' | 'transparent-dark'
   className?: string
 }
 
@@ -64,6 +66,7 @@ const BG_BY_VARIANT = {
   light: 'bg-[#fcf9f1]',
   dark: 'bg-[#0b140b]',
   transparent: 'bg-transparent',
+  'transparent-dark': 'bg-transparent',
 } as const
 
 const easeInOut = Easing.inOut(Easing.ease)
@@ -75,12 +78,13 @@ export function CapNongLoading({
   subMessage = 'CapNong · Nông sản xấu mã – ngon thật',
   size = 'md',
   fullScreen = false,
+  compact = false,
   variant = 'light',
   className,
 }: CapNongLoadingProps) {
   const cfg = SIZE_CONFIG[size]
   const center = cfg.viewBox / 2
-  const isDark = variant === 'dark'
+  const isDark = variant === 'dark' || variant === 'transparent-dark'
 
   const spin = useLoopAnimation(2200)
   const spinReverse = useLoopAnimation(3000)
@@ -105,9 +109,10 @@ export function CapNongLoading({
       accessibilityLabel={message}
       accessibilityLiveRegion="polite"
       className={cn(
-        'items-center justify-center p-6',
+        'items-center justify-center',
+        compact ? 'p-2' : 'p-6',
         BG_BY_VARIANT[variant],
-        fullScreen ? 'absolute inset-0 z-50' : 'w-full flex-1 py-12',
+        compact ? 'w-full' : fullScreen ? 'absolute inset-0 z-50' : 'w-full flex-1 py-12',
         // Nền overlay hơi trong để còn thấy màn hình phía sau, như backdrop-blur bản web.
         fullScreen && variant === 'light' && 'bg-[#fcf9f1]/90',
         fullScreen && isDark && 'bg-[#0b140b]/95',
@@ -209,7 +214,7 @@ export function CapNongLoading({
         </Animated.View>
       </View>
 
-      <View className="mt-5 items-center px-4">
+      <View className={cn('items-center px-4', compact ? 'mt-3' : 'mt-5')}>
         <AppText
           weight="extrabold"
           className={cn('uppercase tracking-wider', cfg.title)}

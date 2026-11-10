@@ -33,16 +33,20 @@ export const blogService = {
     category?: string
     search?: string
   }): Promise<PageResponse<BlogResponse>> {
-    // Để lỗi mạng/API nổi lên cho màn hình hiện "Thử lại", thay vì giả làm danh sách rỗng.
-    const res = await axiosInstance.get<ApiResponse<PageResponse<BlogResponse>>>('/v1/public/blogs', {
-      params: {
-        page: params?.page ?? 0,
-        size: params?.size ?? 10,
-        ...(params?.category && params.category !== 'all' ? { category: params.category } : {}),
-        ...(params?.search && params.search.trim() ? { search: params.search.trim() } : {}),
-      },
-    })
-    return res.data?.result ?? emptyPage(params?.size)
+    try {
+      const res = await axiosInstance.get<ApiResponse<PageResponse<BlogResponse>>>('/v1/public/blogs', {
+        params: {
+          page: params?.page ?? 0,
+          size: params?.size ?? 10,
+          ...(params?.category && params.category !== 'all' ? { category: params.category } : {}),
+          ...(params?.search && params.search.trim() ? { search: params.search.trim() } : {}),
+        },
+      })
+      if (res.data?.result) return res.data.result
+    } catch (e) {
+      console.warn('Cannot fetch blogs from backend API, returning empty page fallback')
+    }
+    return emptyPage(params?.size)
   },
 
   /** Xem chi tiết bài viết (tự động tăng views) */

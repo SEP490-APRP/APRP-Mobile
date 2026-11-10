@@ -1,8 +1,9 @@
-import { useLocalSearchParams } from 'expo-router'
-import { ArrowUpDown, Leaf, MapPin, RotateCcw, Search, SlidersHorizontal, Truck, X } from 'lucide-react-native'
+import { router, useLocalSearchParams } from 'expo-router'
+import { ArrowUpDown, Camera, Leaf, MapPin, RotateCcw, Search, SlidersHorizontal, Sparkles, Truck, X } from 'lucide-react-native'
 import { useEffect, useMemo, useState } from 'react'
 import { FlatList, ImageBackground, Pressable, RefreshControl, ScrollView, TextInput, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import { ImageSearchModal } from '@/components/common/ImageSearchModal'
 import { AppText, Button, EmptyState, ErrorState } from '@/components/ui'
 import { useAddProductToCart, useCartQuantities } from '@/features/cart'
 import {
@@ -35,11 +36,13 @@ const SKELETONS = Array.from({ length: 6 }, (_, i) => `skeleton-${i}`)
 
 /** Trang Nông sản tươi, chuyển từ pages/Fresh.tsx: tìm, lọc, sắp xếp và lưới 2 cột. */
 export default function FreshScreen() {
-  const params = useLocalSearchParams<{ category?: string }>()
+  const params = useLocalSearchParams<{ category?: string; openCamera?: string }>()
   const [query, setQuery] = useState('')
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS)
   const [sort, setSort] = useState<SortId>('featured')
   const [filtersOpen, setFiltersOpen] = useState(false)
+  const [imageSearchOpen, setImageSearchOpen] = useState(false)
+  const [aiRecognized, setAiRecognized] = useState<string | null>(null)
   const [refreshing, setRefreshing] = useState(false)
 
   const products = useStorefrontProducts()
@@ -50,6 +53,14 @@ export default function FreshScreen() {
   useEffect(() => {
     if (params.category) setFilters({ ...DEFAULT_FILTERS, category: params.category })
   }, [params.category])
+
+  // Mở modal Camera nếu chuyển sang từ nút Camera ở Trang chủ
+  useEffect(() => {
+    if (params.openCamera === 'true') {
+      setImageSearchOpen(true)
+      router.setParams({ openCamera: undefined })
+    }
+  }, [params.openCamera])
 
   const items = useMemo(
     () => applyFilters(products.data ?? [], query, filters, sort),
@@ -63,6 +74,7 @@ export default function FreshScreen() {
     setFilters(DEFAULT_FILTERS)
     setSort('featured')
     setQuery('')
+    setAiRecognized(null)
   }
 
   const refresh = async () => {
@@ -109,6 +121,26 @@ export default function FreshScreen() {
           </AppText>{' '}
           nông sản phù hợp
         </AppText>
+        {!!aiRecognized && (
+          <Pressable
+            onPress={() => {
+              setAiRecognized(null)
+              setQuery('')
+            }}
+            accessibilityRole="button"
+            accessibilityLabel={`Bỏ lọc AI ${aiRecognized}`}
+            className="h-8 flex-row items-center gap-1.5 rounded-full border border-leaf-300 bg-leaf-50 pl-2.5 pr-2"
+          >
+            <Sparkles size={13} color={colors.leaf700} />
+            <AppText weight="bold" className="text-xs text-leaf-800">
+              AI: {aiRecognized}
+            </AppText>
+            <AppText className="text-[10px] italic text-ink-subtle">
+              (tham khảo)
+            </AppText>
+            <X size={13} color={colors.leaf800} />
+          </Pressable>
+        )}
         {chips.map((chip) => (
           <Pressable
             key={chip.key}
@@ -188,14 +220,26 @@ export default function FreshScreen() {
             />
             {!!query && (
               <Pressable
-                onPress={() => setQuery('')}
+                onPress={() => {
+                  setQuery('')
+                  setAiRecognized(null)
+                }}
                 accessibilityRole="button"
                 accessibilityLabel="Xóa từ khóa"
-                className="h-11 w-10 items-center justify-center"
+                className="h-11 w-8 items-center justify-center"
               >
                 <X size={16} color={colors.inkSubtle} />
               </Pressable>
             )}
+            <Pressable
+              onPress={() => setImageSearchOpen(true)}
+              accessibilityRole="button"
+              accessibilityLabel="Tìm bằng hình ảnh AI"
+              hitSlop={8}
+              className="mr-1.5 h-8 w-8 items-center justify-center rounded-lg bg-leaf-50 active:bg-leaf-100"
+            >
+              <Camera size={16} color={colors.leaf700} />
+            </Pressable>
           </View>
           <Pressable
             onPress={() => setFiltersOpen(true)}
@@ -273,6 +317,15 @@ export default function FreshScreen() {
         onChange={setFilters}
         onReset={resetAll}
         onClose={() => setFiltersOpen(false)}
+      />
+
+      <ImageSearchModal
+        visible={imageSearchOpen}
+        onClose={() => setImageSearchOpen(false)}
+        onSelectKeyword={(kw) => {
+          setQuery(kw)
+          setAiRecognized(kw)
+        }}
       />
     </SafeAreaView>
   )
