@@ -2,6 +2,7 @@ import type { ApiResponse } from '@/types'
 import type { UploadFile } from '@/types/upload.types'
 import type { UploadResponse } from './upload.types'
 import { axiosInstance } from './api/axiosInstance'
+import { appendFile, multipartHeaders } from './api/formFile'
 import { ENV } from '@/utils'
 
 export type * from './upload.types'
@@ -9,7 +10,7 @@ export type * from './upload.types'
 export const uploadService = {
   /**
    * Tải ảnh lên Cloudinary qua endpoint Backend `POST /upload/image`, trả về URL CDN ở `result.url`.
-   * Bản React Native gửi { uri, name, type } từ expo-image-picker thay cho File của trình duyệt.
+   * Nhận { uri, name, type } từ expo-image-picker; `appendFile` lo phần khác nhau giữa điện thoại và trình duyệt.
    */
   async uploadImage(file: UploadFile, folder: string = 'products'): Promise<ApiResponse<UploadResponse>> {
     if (ENV.USE_MOCK) {
@@ -18,13 +19,11 @@ export const uploadService = {
     }
 
     const formData = new FormData()
-    formData.append('file', file as unknown as Blob)
+    await appendFile(formData, 'file', file)
     formData.append('folder', folder)
 
     const response = await axiosInstance.post<ApiResponse<UploadResponse>>('/upload/image', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
+      headers: multipartHeaders(),
     })
 
     return response.data

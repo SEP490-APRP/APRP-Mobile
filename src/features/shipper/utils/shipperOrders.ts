@@ -28,6 +28,9 @@ export const buyerPoint = (o: OrderResponse): LatLng | null =>
     ? { latitude: o.shippingLatitude!, longitude: o.shippingLongitude! }
     : null
 
+/** Hệ số quy đổi chim bay sang đường thực tế, khớp GeoUtils.ROAD_FACTOR ở BE */
+export const ROAD_FACTOR = 1.25
+
 /** Khoảng cách đường chim bay (km), công thức haversine. */
 export function straightKm(a: LatLng, b: LatLng): number {
   const R = 6371
@@ -48,7 +51,9 @@ export function formatKm(km?: number | null): string {
 export function orderLegs(o: OrderResponse, me?: LatLng | null) {
   const shop = shopPoint(o)
   const buyer = buyerPoint(o)
-  const toShop = me && shop ? straightKm(me, shop) : undefined
+  // Ưu tiên số BE trả (quãng đường ước tính = chim bay × 1,25, cùng số BE dùng để quyết định mời);
+  // không có thì tự tính cùng công thức
+  const toShop = o.distanceToShopKm ?? (me && shop ? Math.round(straightKm(me, shop) * ROAD_FACTOR * 10) / 10 : undefined)
   const toBuyer = o.distanceKm ?? (shop && buyer ? straightKm(shop, buyer) : undefined)
   const total = toShop != null && toBuyer != null ? toShop + toBuyer : undefined
   return { toShop, toBuyer, total }
@@ -57,7 +62,8 @@ export function orderLegs(o: OrderResponse, me?: LatLng | null) {
 export const isCod = (o: Pick<OrderResponse, 'paymentMethod'>) => (o.paymentMethod ?? '').toUpperCase() === 'COD'
 
 /** Tiền shipper phải thu của khách khi giao: chỉ đơn COD. */
-export const codToCollect = (o: OrderResponse) => (isCod(o) ? Number(o.codAmount ?? o.totalAmount ?? 0) : 0)
+/** Tiền shipper phải thu của khách khi giao: chỉ đơn COD. codAmount = 0 (chưa thu) thì lấy tổng tiền đơn. */
+export const codToCollect = (o: OrderResponse) => (isCod(o) ? Number(o.codAmount || o.totalAmount || 0) : 0)
 
 export function itemsSummary(o: OrderResponse): string {
   const items = o.items ?? []
@@ -120,6 +126,8 @@ export function shipperErrorMessage(err: unknown, fallback: string): string {
     case 16014:
       return 'Ví đang âm do còn tiền COD chưa nộp về sàn. Nạp ví trước khi nhận đơn.'
   }
+  // 9999 = lỗi chưa phân loại ở BE ("Uncategorized Error"): dùng câu dự phòng tiếng Việt
+  if (data?.code === 9999) return fallback
   return data?.message?.trim() || fallback
 }
 

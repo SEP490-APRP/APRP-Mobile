@@ -207,7 +207,7 @@ export default function ShipperHome() {
         <Skeleton className="h-60 rounded-panel" />
       </View>
     )
-  } else if (status.isError || ready.isError) {
+  } else if (status.isError || (online && ready.isError)) {
     empty = <ErrorState onRetry={refresh} />
   } else if (!online) {
     empty = (

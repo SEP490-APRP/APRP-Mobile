@@ -1,4 +1,5 @@
 import { axiosInstance } from './api'
+import { appendFile, multipartHeaders } from './api/formFile'
 import type { ApiResponse } from '@/types/api.types'
 import type { SessionUser, UserRole } from '@/types/auth.types'
 import type { UploadFile } from '@/types/upload.types'
@@ -215,12 +216,9 @@ export const authService = {
    */
   async updateAvatar(file: UploadFile): Promise<ApiResponse<UserResponse>> {
     const formData = new FormData()
-    // React Native FormData nhận { uri, name, type } thay cho đối tượng File của trình duyệt.
-    formData.append('file', file as unknown as Blob)
+    await appendFile(formData, 'file', file)
     const response = await axiosInstance.patch<ApiResponse<UserResponse>>('/users/me/images', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
+      headers: multipartHeaders(),
     })
     return response.data
   },

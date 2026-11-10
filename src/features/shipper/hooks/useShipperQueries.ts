@@ -6,7 +6,8 @@ import type { UploadFile } from '@/types/upload.types'
 import type { DeliveryFailReason } from '@/services/shipper.service'
 import { walletKeys } from '@/features/wallet/hooks/useWalletQueries'
 import type { LatLng } from '../utils/shipperOrders'
-import { ACTIVE_STATUSES, DONE_STATUSES } from '../utils/shipperOrders'
+import { ACTIVE_STATUSES, DONE_STATUSES, shipperErrorCode } from '../utils/shipperOrders'
+import type { ShipperStatus } from '@/services/shipper.service'
 
 export const shipperKeys = {
   all: ['shipper'] as const,
@@ -30,17 +31,29 @@ export function useToggleOnline() {
       if (next.online) await shipperService.goOnline(next.at.latitude, next.at.longitude)
       else await shipperService.goOffline()
     },
-    onSuccess: () => void qc.invalidateQueries({ queryKey: shipperKeys.all }),
+    onSuccess: (_data, next) => {
+      // Cập nhật trạng thái ngay để danh sách đơn mới tắt trước khi tải lại.
+      // Nếu không, app vẫn tưởng còn online, gọi /orders/ready và nhận lỗi 7006 sau khi đã tắt.
+      qc.setQueryData<ShipperStatus>(shipperKeys.status(), (old) => ({ ...old, online: next.online }))
+      if (!next.online) qc.removeQueries({ queryKey: shipperKeys.ready() })
+      void qc.invalidateQueries({ queryKey: shipperKeys.status() })
+      void qc.invalidateQueries({ queryKey: shipperKeys.active() })
+      if (next.online) void qc.invalidateQueries({ queryKey: shipperKeys.ready() })
+    },
   })
 }
 
 /** Đơn mới quanh shipper. Đơn mới được đẩy qua STOMP (useShipperOffers), polling chỉ là dự phòng */
 export function useReadyOrders(enabled: boolean, coords?: LatLng | null) {
+  // Toạ độ (làm tròn ~100 m) nằm trong key: GPS sẵn sàng hoặc đổi vị trí thì tải lại danh sách theo vị trí mới
+  const at = coords ? [Math.round(coords.latitude * 1000) / 1000, Math.round(coords.longitude * 1000) / 1000] : null
   return useQuery({
-    queryKey: shipperKeys.ready(),
+    queryKey: [...shipperKeys.ready(), at] as const,
     queryFn: () => shipperService.getReadyOrders(0, 30, coords),
     enabled,
     refetchInterval: enabled ? READY_POLL_MS : false,
+    // 7006 (chưa trực tuyến) không tự hết khi thử lại; lỗi mạng thì thử lại 1 lần
+    retry: (count, err) => shipperErrorCode(err) !== 7006 && count < 1,
   })
 }
 
