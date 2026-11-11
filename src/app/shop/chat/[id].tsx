@@ -23,7 +23,6 @@ import { BackButton } from '@/features/auth/components'
 import {
   useChatMessages,
   useInitConversation,
-  useMarkConversationRead,
   useSendMessage,
 } from '@/features/chat'
 import { chatService } from '@/services/chat.service'
@@ -71,7 +70,9 @@ export default function ShopChatDetailScreen() {
   const initConv = useInitConversation()
   const { data: serverMessages = [], refetch: refetchMessages } = useChatMessages(convId ?? 0)
   const sendMessageMutation = useSendMessage()
-  const markRead = useMarkConversationRead()
+
+  const markedConvIdRef = useRef<number | null>(null)
+  const initAttemptedRef = useRef(false)
 
   // Đồng bộ tin nhắn từ máy chủ với danh sách cục bộ
   useEffect(() => {
@@ -82,21 +83,23 @@ export default function ShopChatDetailScreen() {
 
   // Khởi tạo cuộc trò chuyện nếu chưa có convId
   useEffect(() => {
-    if (!convId && partnerUserId) {
+    if (!convId && partnerUserId && !initAttemptedRef.current) {
+      initAttemptedRef.current = true
       initConv.mutate(partnerUserId, {
         onSuccess: (data) => {
           if (data?.id) setConvId(Number(data.id))
         },
       })
     }
-  }, [convId, partnerUserId, initConv])
+  }, [convId, partnerUserId])
 
-  // Đánh dấu đã đọc khi mở màn hình
+  // Đánh dấu đã đọc khi mở màn hình (chỉ 1 lần duy nhất cho mỗi convId)
   useEffect(() => {
-    if (convId) {
-      markRead.mutate(convId)
+    if (convId && markedConvIdRef.current !== convId) {
+      markedConvIdRef.current = convId
+      chatService.markAsRead(convId).catch(() => {})
     }
-  }, [convId, markRead])
+  }, [convId])
 
   // Lắng nghe tin nhắn mới qua WebSocket
   useEffect(() => {
@@ -105,13 +108,15 @@ export default function ShopChatDetailScreen() {
       if (Number(msg?.conversationId) === Number(convId)) {
         if (Number(msg?.senderId) !== myUserId) {
           soundService.playMessageChime()
+          if (convId) {
+            chatService.markAsRead(convId).catch(() => {})
+          }
         }
         refetchMessages()
-        if (convId) markRead.mutate(convId)
       }
     })
     return () => unsubscribe()
-  }, [convId, myUserId, refetchMessages, markRead])
+  }, [convId, myUserId, refetchMessages])
 
   const handleSend = () => {
     if (!text.trim() || !partnerUserId) return

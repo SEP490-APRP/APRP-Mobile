@@ -34,7 +34,6 @@ import {
   useChatMessages,
   useDeleteMessage,
   useInitConversation,
-  useMarkConversationRead,
   useSendMessage,
 } from '@/features/chat'
 import { chatService } from '@/services/chat.service'
@@ -120,8 +119,9 @@ export default function BuyerChatDetailScreen() {
   const { data: serverMessages, isLoading } = useChatMessages(conversationId)
   const sendMessageMutation = useSendMessage()
   const initConvMutation = useInitConversation()
-  const markReadMutation = useMarkConversationRead()
   const deleteMessageMutation = useDeleteMessage()
+
+  const markedConvIdRef = useRef<number | null>(null)
 
   // 1. Tải thông tin sản phẩm ghim nếu có productId
   useEffect(() => {
@@ -148,15 +148,20 @@ export default function BuyerChatDetailScreen() {
     }
   }, [conversationId, otherUserId])
 
+  // Đánh dấu đã đọc khi vào cuộc trò chuyện (chỉ 1 lần duy nhất)
+  useEffect(() => {
+    if (conversationId > 0 && markedConvIdRef.current !== conversationId) {
+      markedConvIdRef.current = conversationId
+      chatService.markAsRead(conversationId).catch(() => {})
+    }
+  }, [conversationId])
+
   // 3. Đồng bộ server messages vào local messages và sắp xếp tăng dần
   useEffect(() => {
     if (serverMessages) {
       setLocalMessages(sortChronological(serverMessages))
-      if (conversationId > 0) {
-        markReadMutation.mutate(conversationId)
-      }
     }
-  }, [serverMessages, conversationId])
+  }, [serverMessages])
 
   // 4. Kết nối WebSocket STOMP và lắng nghe tin nhắn trực tiếp
   useEffect(() => {

@@ -15,3 +15,14 @@ jest.mock('expo-secure-store', () => {
 })
 
 jest.mock('expo-crypto', () => ({ randomUUID: () => 'test-uuid' }))
+
+// Mock expo-audio
+jest.mock('expo-audio', () => ({
+  createAudioPlayer: jest.fn(() => ({
+    play: jest.fn(),
+    pause: jest.fn(),
+    seekTo: jest.fn(async () => {}),
+  })),
+  setAudioModeAsync: jest.fn(async () => {}),
+}))
+
