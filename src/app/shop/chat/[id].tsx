@@ -34,6 +34,7 @@ import { AppText } from '@/components/ui'
 import { BackButton } from '@/features/auth/components'
 import {
   useChatMessages,
+  useDeleteMessage,
   useInitConversation,
   useSendMessage,
 } from '@/features/chat'
@@ -84,6 +85,7 @@ export default function ShopChatDetailScreen() {
   const [text, setText] = useState('')
   const [sendingImage, setSendingImage] = useState(false)
   const [previewImage, setPreviewImage] = useState<string | null>(null)
+  const [activeActionMsg, setActiveActionMsg] = useState<ChatMessage | null>(null)
   const [localMessages, setLocalMessages] = useState<ChatMessage[]>([])
   const listRef = useRef<FlatList>(null)
 
@@ -98,6 +100,7 @@ export default function ShopChatDetailScreen() {
   const initConv = useInitConversation()
   const { data: serverMessages = [], refetch: refetchMessages } = useChatMessages(convId ?? 0)
   const sendMessageMutation = useSendMessage()
+  const deleteMessageMutation = useDeleteMessage()
 
   const markedConvIdRef = useRef<number | null>(null)
   const initAttemptedRef = useRef(false)
@@ -129,10 +132,10 @@ export default function ShopChatDetailScreen() {
     }
   }, [convId])
 
-  // Lắng nghe tin nhắn mới qua WebSocket
+  // Lắng nghe tin nhắn mới & tín hiệu xóa/thu hồi tin nhắn qua WebSocket
   useEffect(() => {
     chatService.connect()
-    const unsubscribe = chatService.onMessage((msg) => {
+    const unsubMsg = chatService.onMessage((msg) => {
       if (Number(msg?.conversationId) === Number(convId)) {
         if (Number(msg?.senderId) !== myUserId) {
           soundService.playMessageChime()
@@ -143,8 +146,69 @@ export default function ShopChatDetailScreen() {
         refetchMessages()
       }
     })
-    return () => unsubscribe()
+
+    const unsubNotif = chatService.onNotification((notif) => {
+      if (notif?.type === 'DELETE_MESSAGE') {
+        const deletedId = Number(notif.messageId)
+        if (deletedId) {
+          setLocalMessages((prev) =>
+            prev.filter((m) => {
+              const mNum = typeof m.id === 'number' ? m.id : Number(String(m.id).replace(/\D/g, ''))
+              return mNum !== deletedId && String(m.id) !== String(deletedId)
+            })
+          )
+        }
+      }
+    })
+
+    return () => {
+      unsubMsg()
+      unsubNotif()
+    }
   }, [convId, myUserId, refetchMessages])
+
+  // Thao tác xóa / thu hồi tin nhắn
+  const handlePromptDelete = (msg: ChatMessage) => {
+    try {
+      Vibration.vibrate(40)
+    } catch {}
+
+    Alert.alert(
+      'Thu hồi tin nhắn',
+      'Bạn có chắc chắn muốn thu hồi tin nhắn này? Tin nhắn sẽ được xóa ở cả hai phía hội thoại.',
+      [
+        { text: 'Hủy', style: 'cancel' },
+        {
+          text: 'Thu hồi',
+          style: 'destructive',
+          onPress: () => {
+            const rawId = String(msg.id)
+            const isTemp = rawId.startsWith('temp_')
+
+            // Xóa ngay lập tức trên UI (optimistic)
+            setLocalMessages((prev) => prev.filter((m) => String(m.id) !== rawId))
+
+            if (!isTemp) {
+              const numId = typeof msg.id === 'number' ? msg.id : Number(rawId.replace(/\D/g, ''))
+              if (numId) {
+                deleteMessageMutation.mutate(
+                  { messageId: numId, conversationId: convId ?? undefined },
+                  {
+                    onError: (err: any) => {
+                      Alert.alert(
+                        'Lỗi',
+                        err?.response?.data?.message || 'Không thể thu hồi tin nhắn. Vui lòng thử lại.',
+                      )
+                    },
+                  },
+                )
+              }
+            }
+          },
+        },
+      ],
+    )
+  }
 
   // Dọn dẹp trình phát và bộ ghi âm khi thoát màn hình
   useEffect(() => {
@@ -409,9 +473,18 @@ export default function ShopChatDetailScreen() {
 
             return (
               <View className={cn('flex-row', isMe ? 'justify-end' : 'justify-start')}>
-                <View
+                <Pressable
+                  onLongPress={() => {
+                    if (isMe) {
+                      try {
+                        Vibration.vibrate(25)
+                      } catch {}
+                      setActiveActionMsg(item)
+                    }
+                  }}
+                  delayLongPress={200}
                   className={cn(
-                    'max-w-[82%] rounded-2xl shadow-xs overflow-hidden',
+                    'max-w-[82%] rounded-2xl shadow-xs overflow-hidden active:opacity-90',
                     isImage && !hasText ? 'p-1.5' : 'p-3',
                     isMe
                       ? 'rounded-br-xs bg-leaf-700'
@@ -507,7 +580,7 @@ export default function ShopChatDetailScreen() {
                   >
                     {fmtTime(item.sentAt || item.createdAt)}
                   </AppText>
-                </View>
+                </Pressable>
               </View>
             )
           }}
@@ -607,6 +680,76 @@ export default function ShopChatDetailScreen() {
             />
           )}
         </View>
+      </Modal>
+
+      {/* Modal Tùy chọn tin nhắn phong cách Facebook/Messenger */}
+      <Modal
+        visible={Boolean(activeActionMsg)}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setActiveActionMsg(null)}
+      >
+        <Pressable
+          className="flex-1 justify-end bg-black/45"
+          onPress={() => setActiveActionMsg(null)}
+        >
+          <Pressable
+            className="rounded-t-3xl bg-white px-5 pb-8 pt-3 shadow-2xl"
+            onPress={(e) => e.stopPropagation()}
+          >
+            {/* Thanh kéo gạch ngang nhỏ kiểu iOS/Messenger */}
+            <View className="mb-3 h-1 w-10 self-center rounded-full bg-lineStrong" />
+
+            <AppText weight="bold" className="mb-1 text-center text-sm text-ink">
+              Tùy chọn tin nhắn
+            </AppText>
+            {activeActionMsg?.content &&
+            activeActionMsg.content !== '[Hình ảnh]' &&
+            activeActionMsg.content !== '[Tin nhắn thoại]' ? (
+              <AppText numberOfLines={2} className="mb-4 px-4 text-center text-xs text-ink-muted">
+                "{activeActionMsg.content}"
+              </AppText>
+            ) : (
+              <View className="mb-3" />
+            )}
+
+            <View className="gap-2.5">
+              {/* Nút Thu hồi tin nhắn nổi bật với icon thùng rác màu đỏ */}
+              <Pressable
+                onPress={() => {
+                  if (activeActionMsg) {
+                    const toDelete = activeActionMsg
+                    setActiveActionMsg(null)
+                    handlePromptDelete(toDelete)
+                  }
+                }}
+                className="flex-row items-center gap-3.5 rounded-2xl bg-rose-50 p-3.5 active:bg-rose-100"
+              >
+                <View className="h-10 w-10 items-center justify-center rounded-full bg-rose-100">
+                  <Trash size={20} color={colors.sale} />
+                </View>
+                <View className="flex-1">
+                  <AppText weight="bold" className="text-sm text-rose-600">
+                    Thu hồi tin nhắn
+                  </AppText>
+                  <AppText className="text-[11px] text-rose-500/80">
+                    Xóa tin nhắn này ở cả hai phía cuộc trò chuyện
+                  </AppText>
+                </View>
+              </Pressable>
+
+              {/* Nút Đóng / Hủy */}
+              <Pressable
+                onPress={() => setActiveActionMsg(null)}
+                className="mt-1 items-center rounded-2xl border border-line py-3.5 active:bg-paper"
+              >
+                <AppText weight="medium" className="text-sm text-ink-muted">
+                  Hủy
+                </AppText>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
       </Modal>
     </SafeAreaView>
   )
