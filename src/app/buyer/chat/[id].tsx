@@ -1,10 +1,13 @@
+import { Image } from 'expo-image'
 import * as ImagePicker from 'expo-image-picker'
+import { createAudioPlayer } from 'expo-audio'
 import { useLocalSearchParams } from 'expo-router'
 import {
   Camera,
   Headphones,
   Image as ImageIcon,
   MoreHorizontal,
+  Pause,
   Play,
   Plus,
   Send,
@@ -18,7 +21,6 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
-  Image,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -112,6 +114,42 @@ export default function BuyerChatDetailScreen() {
   const [isUploadingMedia, setIsUploadingMedia] = useState(false)
   const [previewImage, setPreviewImage] = useState<string | null>(null)
   const [activeActionMsg, setActiveActionMsg] = useState<ChatMessage | null>(null)
+  const [playingAudioUrl, setPlayingAudioUrl] = useState<string | null>(null)
+  const activePlayerRef = useRef<ReturnType<typeof createAudioPlayer> | null>(null)
+
+  const togglePlayVoice = async (url: string) => {
+    try {
+      if (playingAudioUrl === url) {
+        activePlayerRef.current?.pause()
+        setPlayingAudioUrl(null)
+        return
+      }
+
+      if (activePlayerRef.current) {
+        try {
+          activePlayerRef.current.pause()
+        } catch {}
+      }
+
+      const p = createAudioPlayer(url)
+      activePlayerRef.current = p
+      setPlayingAudioUrl(url)
+      p.play()
+    } catch {
+      setPlayingAudioUrl(null)
+    }
+  }
+
+  // Dọn dẹp player khi unmount
+  useEffect(() => {
+    return () => {
+      if (activePlayerRef.current) {
+        try {
+          activePlayerRef.current.pause()
+        } catch {}
+      }
+    }
+  }, [])
 
   const flatListRef = useRef<FlatList>(null)
   const typingTimeoutRef = useRef<any>(null)
@@ -336,56 +374,65 @@ export default function BuyerChatDetailScreen() {
         }
         result = await ImagePicker.launchImageLibraryAsync({
           mediaTypes: ['images', 'videos'],
+          allowsMultipleSelection: true,
+          selectionLimit: 5,
           quality: 0.85,
         })
       }
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
-        const asset = result.assets[0]
-        const isVideo = asset.type === 'video' || (asset.fileName && asset.fileName.endsWith('.mp4'))
-
         setIsUploadingMedia(true)
 
-        // Upload lên server qua /upload/media (Cloudinary CDN)
-        const uploadRes = await uploadService.uploadMedia(
-          {
-            uri: asset.uri,
-            name: asset.fileName ?? (isVideo ? 'video.mp4' : 'photo.jpg'),
-            type: asset.mimeType ?? (isVideo ? 'video/mp4' : 'image/jpeg'),
-          },
-          'chat',
-        )
-
-        const mediaUrl = uploadRes.result?.url
-        if (!mediaUrl) {
-          Alert.alert('Lỗi tải file', 'Không thể tải file lên máy chủ. Vui lòng thử lại.')
-          setIsUploadingMedia(false)
-          return
-        }
-
-        const msgType = isVideo ? 'VIDEO' : 'IMAGE'
-        const content = isVideo ? '[Video]' : '[Hình ảnh]'
-
-        const optimisticMsg: ChatMessage = {
-          id: `temp_${Date.now()}`,
-          conversationId,
-          senderId: currentUserId,
-          receiverId: otherUserId,
-          content,
-          type: msgType,
-          attachmentUrl: mediaUrl,
-          sentAt: new Date().toISOString(),
-          isRead: false,
-        }
-        setLocalMessages((prev) => sortChronological([...prev, optimisticMsg]))
+        // 1. Tạo tin nhắn lạc quan cho tất cả các tệp được chọn
+        const newOptimisticMsgs: ChatMessage[] = result.assets.map((asset, i) => {
+          const isVideo = asset.type === 'video' || (asset.fileName && asset.fileName.endsWith('.mp4'))
+          return {
+            id: `temp_${Date.now()}_${i}`,
+            conversationId,
+            senderId: currentUserId,
+            receiverId: otherUserId,
+            content: isVideo ? '[Video]' : '[Hình ảnh]',
+            type: isVideo ? 'VIDEO' : 'IMAGE',
+            attachmentUrl: asset.uri,
+            sentAt: new Date(Date.now() + i * 50).toISOString(),
+            isRead: false,
+          }
+        })
+        setLocalMessages((prev) => sortChronological([...prev, ...newOptimisticMsgs]))
         scrollToBottom()
 
-        await sendMessageMutation.mutateAsync({
-          receiverId: otherUserId,
-          content,
-          type: msgType,
-          attachmentUrl: mediaUrl,
+        // 2. Upload song song lên Cloudinary
+        const uploadPromises = result.assets.map(async (asset) => {
+          const isVideo = asset.type === 'video' || (asset.fileName && asset.fileName.endsWith('.mp4'))
+          const uploadRes = await uploadService.uploadMedia(
+            {
+              uri: asset.uri,
+              name: asset.fileName ?? (isVideo ? `video_${Date.now()}.mp4` : `photo_${Date.now()}.jpg`),
+              type: asset.mimeType ?? (isVideo ? 'video/mp4' : 'image/jpeg'),
+            },
+            'chat',
+          )
+          return {
+            url: uploadRes.result?.url,
+            isVideo,
+          }
         })
+
+        const uploadedResults = await Promise.all(uploadPromises)
+
+        // 3. Gửi lần lượt từng tin nhắn
+        for (const item of uploadedResults) {
+          if (item.url) {
+            const msgType = item.isVideo ? 'VIDEO' : 'IMAGE'
+            const content = item.isVideo ? '[Video]' : '[Hình ảnh]'
+            await sendMessageMutation.mutateAsync({
+              receiverId: otherUserId,
+              content,
+              type: msgType,
+              attachmentUrl: item.url,
+            })
+          }
+        }
       }
     } catch (err: any) {
       console.warn('Media upload error:', err)
@@ -442,7 +489,7 @@ export default function BuyerChatDetailScreen() {
             {isSupport ? (
               <Headphones size={20} color={colors.leaf700} />
             ) : params.avatar ? (
-              <Image source={{ uri: params.avatar }} style={{ width: 40, height: 40 }} resizeMode="cover" />
+              <Image source={{ uri: params.avatar }} style={{ width: 40, height: 40, borderRadius: 20 }} contentFit="cover" />
             ) : (
               <AppText weight="bold" className="text-sm text-leaf-800">
                 {partnerName.charAt(0).toUpperCase()}
@@ -467,7 +514,7 @@ export default function BuyerChatDetailScreen() {
         <View className="flex-row items-center gap-3 border-b border-leaf-200 bg-leaf-50/80 px-4 py-2.5">
           <View className="h-12 w-12 overflow-hidden rounded-xl border border-leaf-200 bg-white">
             {pinnedProduct.imageUrl ? (
-              <Image source={{ uri: pinnedProduct.imageUrl }} className="h-full w-full" resizeMode="cover" />
+              <Image source={{ uri: pinnedProduct.imageUrl }} className="h-full w-full" contentFit="cover" />
             ) : (
               <View className="h-full w-full items-center justify-center bg-leaf-100">
                 <Tag size={16} color={colors.leaf700} />
@@ -531,13 +578,22 @@ export default function BuyerChatDetailScreen() {
 
               const msg = item.data
               const isMine = Number(msg.senderId) === currentUserId
-              const isVideo =
-                msg.type === 'VIDEO' ||
+              const isVoice =
+                msg.type === 'VOICE' ||
                 Boolean(
                   msg.attachmentUrl &&
-                    (msg.attachmentUrl.endsWith('.mp4') || msg.attachmentUrl.endsWith('.mov')),
+                    (msg.attachmentUrl.endsWith('.m4a') ||
+                      msg.attachmentUrl.endsWith('.mp3') ||
+                      msg.attachmentUrl.endsWith('.wav')),
                 )
-              const isImage = msg.type === 'IMAGE' || Boolean(msg.attachmentUrl && !isVideo)
+              const isVideo =
+                !isVoice &&
+                (msg.type === 'VIDEO' ||
+                  Boolean(
+                    msg.attachmentUrl &&
+                      (msg.attachmentUrl.endsWith('.mp4') || msg.attachmentUrl.endsWith('.mov')),
+                  ))
+              const isImage = !isVoice && !isVideo && (msg.type === 'IMAGE' || Boolean(msg.attachmentUrl))
 
               return (
                 <View
@@ -564,6 +620,58 @@ export default function BuyerChatDetailScreen() {
                       !isImage && !isVideo ? 'px-4 py-2.5' : 'p-1',
                     )}
                   >
+                    {/* 0. Tin nhắn thoại (Voice note) */}
+                    {isVoice && msg.attachmentUrl && (
+                      <Pressable
+                        onPress={() => togglePlayVoice(msg.attachmentUrl!)}
+                        className="flex-row items-center gap-3 py-1 px-1 active:opacity-85"
+                      >
+                        <View
+                          className={cn(
+                            'h-9 w-9 items-center justify-center rounded-full',
+                            isMine ? 'bg-white/20' : 'bg-leaf-700/10',
+                          )}
+                        >
+                          {playingAudioUrl === msg.attachmentUrl ? (
+                            <Pause size={17} color={isMine ? '#ffffff' : colors.leaf700} />
+                          ) : (
+                            <Play
+                              size={17}
+                              color={isMine ? '#ffffff' : colors.leaf700}
+                              style={{ marginLeft: 2 }}
+                            />
+                          )}
+                        </View>
+                        <View className="flex-1">
+                          <View className="flex-row items-center gap-1 h-5">
+                            {[10, 16, 22, 14, 18, 12, 20, 9, 15, 22, 16, 11].map((h, i) => (
+                              <View
+                                key={i}
+                                style={{
+                                  height:
+                                    playingAudioUrl === msg.attachmentUrl
+                                      ? Math.max(5, h * (i % 2 === 0 ? 1.2 : 0.8))
+                                      : h,
+                                  width: 3,
+                                  borderRadius: 2,
+                                  backgroundColor: isMine ? '#ffffff' : colors.leaf700,
+                                  opacity: isMine ? 0.85 : 0.7,
+                                }}
+                              />
+                            ))}
+                          </View>
+                          <AppText
+                            className={cn(
+                              'text-[10px] mt-0.5',
+                              isMine ? 'text-white/80' : 'text-ink-subtle',
+                            )}
+                          >
+                            {playingAudioUrl === msg.attachmentUrl ? 'Đang phát...' : 'Tin nhắn thoại'}
+                          </AppText>
+                        </View>
+                      </Pressable>
+                    )}
+
                     {/* 1. Hình ảnh */}
                     {isImage && msg.attachmentUrl && (
                       <Pressable
@@ -581,8 +689,9 @@ export default function BuyerChatDetailScreen() {
                       >
                         <Image
                           source={{ uri: msg.attachmentUrl }}
-                          style={{ width: 220, height: 180, borderRadius: 12 }}
-                          resizeMode="cover"
+                          style={{ width: 220, height: 180, borderRadius: 12, backgroundColor: '#f1f5f9' }}
+                          contentFit="cover"
+                          transition={200}
                         />
                       </Pressable>
                     )}
@@ -745,7 +854,7 @@ export default function BuyerChatDetailScreen() {
             <Image
               source={{ uri: previewImage }}
               style={{ width: '90%', height: '70%' }}
-              resizeMode="contain"
+              contentFit="contain"
             />
           )}
         </View>

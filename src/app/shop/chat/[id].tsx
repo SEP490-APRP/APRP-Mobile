@@ -1,20 +1,32 @@
+import { Image } from 'expo-image'
 import * as ImagePicker from 'expo-image-picker'
+import {
+  createAudioPlayer,
+  RecordingPresets,
+  requestRecordingPermissionsAsync,
+  useAudioRecorder,
+} from 'expo-audio'
 import { router, useLocalSearchParams } from 'expo-router'
 import {
   Image as ImageIcon,
+  Mic,
+  Pause,
+  Play,
   Send,
+  Trash,
   X,
 } from 'lucide-react-native'
 import { useEffect, useRef, useState } from 'react'
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
-  Image,
   KeyboardAvoidingView,
   Modal,
   Platform,
   Pressable,
   TextInput,
+  Vibration,
   View,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -44,6 +56,14 @@ const fmtTime = (iso?: string) => {
   }
 }
 
+const sortChronological = (msgs: ChatMessage[]) => {
+  return [...msgs].sort((a, b) => {
+    const timeA = new Date(a.sentAt || a.createdAt || 0).getTime()
+    const timeB = new Date(b.sentAt || b.createdAt || 0).getTime()
+    return timeA - timeB
+  })
+}
+
 export default function ShopChatDetailScreen() {
   const params = useLocalSearchParams<{
     id: string
@@ -67,6 +87,14 @@ export default function ShopChatDetailScreen() {
   const [localMessages, setLocalMessages] = useState<ChatMessage[]>([])
   const listRef = useRef<FlatList>(null)
 
+  // Voice recording & playback state
+  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY)
+  const [isRecording, setIsRecording] = useState(false)
+  const [recordSeconds, setRecordSeconds] = useState(0)
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const [playingAudioUrl, setPlayingAudioUrl] = useState<string | null>(null)
+  const activePlayerRef = useRef<ReturnType<typeof createAudioPlayer> | null>(null)
+
   const initConv = useInitConversation()
   const { data: serverMessages = [], refetch: refetchMessages } = useChatMessages(convId ?? 0)
   const sendMessageMutation = useSendMessage()
@@ -74,10 +102,10 @@ export default function ShopChatDetailScreen() {
   const markedConvIdRef = useRef<number | null>(null)
   const initAttemptedRef = useRef(false)
 
-  // Đồng bộ tin nhắn từ máy chủ với danh sách cục bộ
+  // Đồng bộ tin nhắn từ máy chủ với danh sách cục bộ (sắp xếp tăng dần theo thời gian)
   useEffect(() => {
-    if (serverMessages.length > 0) {
-      setLocalMessages(serverMessages)
+    if (serverMessages && serverMessages.length > 0) {
+      setLocalMessages(sortChronological(serverMessages))
     }
   }, [serverMessages])
 
@@ -118,12 +146,24 @@ export default function ShopChatDetailScreen() {
     return () => unsubscribe()
   }, [convId, myUserId, refetchMessages])
 
-  const handleSend = () => {
+  // Dọn dẹp trình phát và bộ ghi âm khi thoát màn hình
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current)
+      if (activePlayerRef.current) {
+        try {
+          activePlayerRef.current.pause()
+        } catch {}
+      }
+    }
+  }, [])
+
+  const handleSendText = () => {
     if (!text.trim() || !partnerUserId) return
     const content = text.trim()
     setText('')
 
-    // Thêm tin nhắn lạc quan vào danh sách ngay lập tức
+    // Thêm tin nhắn văn bản lạc quan
     const optimisticMsg: ChatMessage = {
       id: `temp_${Date.now()}`,
       conversationId: convId ?? 0,
@@ -134,43 +174,127 @@ export default function ShopChatDetailScreen() {
       sentAt: new Date().toISOString(),
       isRead: false,
     }
-    setLocalMessages((prev) => [...prev, optimisticMsg])
+    setLocalMessages((prev) => sortChronological([...prev, optimisticMsg]))
 
     sendMessageMutation.mutate({ receiverId: partnerUserId, content, type: 'TEXT' })
   }
 
+  // Chọn 1 hoặc nhiều ảnh cùng lúc (tối đa 5 ảnh)
   const handlePickImage = async () => {
     if (!partnerUserId) return
     const res = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
+      allowsMultipleSelection: true,
+      selectionLimit: 5,
       quality: 0.8,
     })
-    if (res.canceled || !res.assets?.[0]?.uri) return
+    if (res.canceled || !res.assets || res.assets.length === 0) return
 
-    const asset = res.assets[0]
-
-    // Thêm tin nhắn ảnh lạc quan hiển thị ngay ảnh trên khung chat
-    const tempId = `temp_img_${Date.now()}`
-    const optimisticMsg: ChatMessage = {
-      id: tempId,
+    // 1. Thêm tin nhắn lạc quan cho từng ảnh đã chọn
+    const newOptimisticMsgs: ChatMessage[] = res.assets.map((asset, i) => ({
+      id: `temp_img_${Date.now()}_${i}`,
       conversationId: convId ?? 0,
       senderId: myUserId,
       receiverId: partnerUserId,
       content: '[Hình ảnh]',
       type: 'IMAGE',
       attachmentUrl: asset.uri,
-      sentAt: new Date().toISOString(),
+      sentAt: new Date(Date.now() + i * 50).toISOString(),
       isRead: false,
-    }
-    setLocalMessages((prev) => [...prev, optimisticMsg])
-
+    }))
+    setLocalMessages((prev) => sortChronological([...prev, ...newOptimisticMsgs]))
     setSendingImage(true)
+
     try {
+      // 2. Upload song song tất cả ảnh lên Cloudinary
+      const uploadPromises = res.assets.map(async (asset) => {
+        const upRes = await uploadService.uploadMedia(
+          {
+            uri: asset.uri,
+            name: asset.fileName || `chat_img_${Date.now()}.jpg`,
+            type: asset.mimeType || 'image/jpeg',
+          },
+          'chat',
+        )
+        return upRes.result?.url
+      })
+
+      const uploadedUrls = await Promise.all(uploadPromises)
+
+      // 3. Gửi từng tin nhắn ảnh vào hệ thống
+      for (const url of uploadedUrls) {
+        if (url) {
+          await sendMessageMutation.mutateAsync({
+            receiverId: partnerUserId,
+            content: '[Hình ảnh]',
+            type: 'IMAGE',
+            attachmentUrl: url,
+          })
+        }
+      }
+      await refetchMessages()
+    } catch (err) {
+      console.warn('Lỗi khi gửi ảnh chat:', err)
+      Alert.alert('Lỗi gửi ảnh', 'Không thể tải ảnh lên máy chủ. Vui lòng thử lại.')
+    } finally {
+      setSendingImage(false)
+    }
+  }
+
+  // Bắt đầu ghi âm tin nhắn thoại
+  const handleStartRecord = async () => {
+    try {
+      const perm = await requestRecordingPermissionsAsync()
+      if (!perm.granted) {
+        Alert.alert('Quyền ghi âm', 'Vui lòng cấp quyền truy cập micro trong Cài đặt để gửi tin nhắn thoại.')
+        return
+      }
+      try {
+        Vibration.vibrate(50)
+      } catch {}
+      await recorder.prepareToRecordAsync()
+      recorder.record()
+      setIsRecording(true)
+      setRecordSeconds(0)
+      timerRef.current = setInterval(() => {
+        setRecordSeconds((s) => s + 1)
+      }, 1000)
+    } catch (err) {
+      console.warn('Lỗi khi bật ghi âm:', err)
+    }
+  }
+
+  // Dừng ghi âm và gửi tin nhắn thoại
+  const handleStopRecordAndSend = async () => {
+    try {
+      if (timerRef.current) clearInterval(timerRef.current)
+      await recorder.stop()
+      setIsRecording(false)
+
+      const uri = recorder.uri
+      if (!uri || !partnerUserId) return
+
+      // Thêm tin nhắn thoại lạc quan
+      const tempId = `temp_voice_${Date.now()}`
+      const optimisticMsg: ChatMessage = {
+        id: tempId,
+        conversationId: convId ?? 0,
+        senderId: myUserId,
+        receiverId: partnerUserId,
+        content: '[Tin nhắn thoại]',
+        type: 'VOICE',
+        attachmentUrl: uri,
+        sentAt: new Date().toISOString(),
+        isRead: false,
+      }
+      setLocalMessages((prev) => sortChronological([...prev, optimisticMsg]))
+
+      // Tải tệp âm thanh lên Cloudinary
       const upRes = await uploadService.uploadMedia(
         {
-          uri: asset.uri,
-          name: asset.fileName || 'chat_image.jpg',
-          type: asset.mimeType || 'image/jpeg',
+          uri,
+          name: `voice_${Date.now()}.m4a`,
+          type: 'audio/m4a',
         },
         'chat',
       )
@@ -178,16 +302,49 @@ export default function ShopChatDetailScreen() {
       if (url) {
         await sendMessageMutation.mutateAsync({
           receiverId: partnerUserId,
-          content: '[Hình ảnh]',
-          type: 'IMAGE',
+          content: '[Tin nhắn thoại]',
+          type: 'VOICE',
           attachmentUrl: url,
         })
         await refetchMessages()
       }
     } catch (err) {
-      console.warn('Lỗi khi gửi ảnh chat:', err)
-    } finally {
-      setSendingImage(false)
+      console.warn('Lỗi gửi tin nhắn thoại:', err)
+      Alert.alert('Lỗi thoại', 'Không thể gửi tin nhắn thoại. Vui lòng thử lại.')
+    }
+  }
+
+  // Huỷ bỏ đoạn ghi âm hiện tại
+  const handleCancelRecord = async () => {
+    if (timerRef.current) clearInterval(timerRef.current)
+    try {
+      await recorder.stop()
+    } catch {}
+    setIsRecording(false)
+    setRecordSeconds(0)
+  }
+
+  // Phát / Tạm dừng tin nhắn thoại
+  const togglePlayVoice = async (url: string) => {
+    try {
+      if (playingAudioUrl === url) {
+        activePlayerRef.current?.pause()
+        setPlayingAudioUrl(null)
+        return
+      }
+
+      if (activePlayerRef.current) {
+        try {
+          activePlayerRef.current.pause()
+        } catch {}
+      }
+
+      const p = createAudioPlayer(url)
+      activePlayerRef.current = p
+      setPlayingAudioUrl(url)
+      p.play()
+    } catch {
+      setPlayingAudioUrl(null)
     }
   }
 
@@ -203,6 +360,7 @@ export default function ShopChatDetailScreen() {
             <Image
               source={{ uri: params.partnerAvatar }}
               style={{ width: 36, height: 36, borderRadius: 18 }}
+              contentFit="cover"
             />
           ) : (
             <View className="h-9 w-9 items-center justify-center rounded-full bg-sun-200">
@@ -234,41 +392,105 @@ export default function ShopChatDetailScreen() {
           onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
           renderItem={({ item }) => {
             const isMe = Number(item.senderId) === myUserId
-            const imageUrl = item.attachmentUrl || (item as any).mediaUrl || (item as any).imageUrl
-            const isImage = item.type === 'IMAGE' || Boolean(imageUrl)
-            const hasText = !!item.content && item.content !== '[Hình ảnh]'
+            const mediaUrl = item.attachmentUrl || (item as any).mediaUrl || (item as any).imageUrl
+            const isVoice =
+              item.type === 'VOICE' ||
+              (!!mediaUrl &&
+                (mediaUrl.endsWith('.m4a') ||
+                  mediaUrl.endsWith('.mp3') ||
+                  mediaUrl.endsWith('.wav') ||
+                  mediaUrl.endsWith('.aac') ||
+                  mediaUrl.endsWith('.ogg')))
+            const isImage = !isVoice && (item.type === 'IMAGE' || Boolean(mediaUrl))
+            const hasText =
+              !!item.content &&
+              item.content !== '[Hình ảnh]' &&
+              item.content !== '[Tin nhắn thoại]'
 
             return (
               <View className={cn('flex-row', isMe ? 'justify-end' : 'justify-start')}>
                 <View
                   className={cn(
-                    'max-w-[80%] rounded-2xl shadow-xs overflow-hidden',
+                    'max-w-[82%] rounded-2xl shadow-xs overflow-hidden',
                     isImage && !hasText ? 'p-1.5' : 'p-3',
                     isMe
                       ? 'rounded-br-xs bg-leaf-700'
                       : 'rounded-bl-xs border border-line bg-white',
                   )}
                 >
-                  {/* 1. Hình ảnh đính kèm */}
-                  {isImage && !!imageUrl && (
+                  {/* 1. Tin nhắn thoại (Voice note player) */}
+                  {isVoice && !!mediaUrl && (
                     <Pressable
-                      onPress={() => setPreviewImage(imageUrl)}
+                      onPress={() => togglePlayVoice(mediaUrl)}
+                      className="flex-row items-center gap-3 py-1 px-1 active:opacity-85"
+                    >
+                      <View
+                        className={cn(
+                          'h-9 w-9 items-center justify-center rounded-full',
+                          isMe ? 'bg-white/20' : 'bg-leaf-700/10',
+                        )}
+                      >
+                        {playingAudioUrl === mediaUrl ? (
+                          <Pause size={17} color={isMe ? '#ffffff' : colors.leaf700} />
+                        ) : (
+                          <Play
+                            size={17}
+                            color={isMe ? '#ffffff' : colors.leaf700}
+                            style={{ marginLeft: 2 }}
+                          />
+                        )}
+                      </View>
+                      <View className="flex-1">
+                        <View className="flex-row items-center gap-1 h-5">
+                          {[10, 16, 22, 14, 18, 12, 20, 9, 15, 22, 16, 11].map((h, i) => (
+                            <View
+                              key={i}
+                              style={{
+                                height:
+                                  playingAudioUrl === mediaUrl
+                                    ? Math.max(5, h * (i % 2 === 0 ? 1.2 : 0.8))
+                                    : h,
+                                width: 3,
+                                borderRadius: 2,
+                                backgroundColor: isMe ? '#ffffff' : colors.leaf700,
+                                opacity: isMe ? 0.85 : 0.7,
+                              }}
+                            />
+                          ))}
+                        </View>
+                        <AppText
+                          className={cn(
+                            'text-[10px] mt-0.5',
+                            isMe ? 'text-white/80' : 'text-ink-subtle',
+                          )}
+                        >
+                          {playingAudioUrl === mediaUrl ? 'Đang phát...' : 'Tin nhắn thoại'}
+                        </AppText>
+                      </View>
+                    </Pressable>
+                  )}
+
+                  {/* 2. Hình ảnh đính kèm (sử dụng expo-image sắc nét) */}
+                  {isImage && !!mediaUrl && (
+                    <Pressable
+                      onPress={() => setPreviewImage(mediaUrl)}
                       className="overflow-hidden rounded-xl active:opacity-90"
                     >
                       <Image
-                        source={{ uri: imageUrl }}
+                        source={{ uri: mediaUrl }}
                         style={{ width: 220, height: 180, borderRadius: 12, backgroundColor: '#f1f5f9' }}
-                        resizeMode="cover"
+                        contentFit="cover"
+                        transition={200}
                       />
                     </Pressable>
                   )}
 
-                  {/* 2. Nội dung văn bản (nếu không phải nhãn mặc định [Hình ảnh]) */}
+                  {/* 3. Nội dung văn bản */}
                   {hasText && (
                     <AppText
                       className={cn(
                         'text-xs leading-relaxed',
-                        imageUrl && 'mt-1.5',
+                        (mediaUrl || isVoice) && 'mt-1.5',
                         isMe ? 'text-white font-medium' : 'text-ink font-normal',
                       )}
                     >
@@ -276,7 +498,7 @@ export default function ShopChatDetailScreen() {
                     </AppText>
                   )}
 
-                  {/* 3. Thời gian */}
+                  {/* 4. Thời gian */}
                   <AppText
                     className={cn(
                       'mt-1 text-[9px] text-right',
@@ -291,40 +513,80 @@ export default function ShopChatDetailScreen() {
           }}
         />
 
-        {/* Khung Soạn Tin Nhắn */}
-        <View className="flex-row items-center gap-2 border-t border-line bg-white px-3 py-2">
-          <Pressable
-            onPress={handlePickImage}
-            disabled={sendingImage}
-            className="h-10 w-10 items-center justify-center rounded-full bg-paper active:bg-leaf-50"
-          >
-            {sendingImage ? (
-              <ActivityIndicator size="small" color={colors.leaf700} />
-            ) : (
-              <ImageIcon size={20} color={colors.leaf700} />
-            )}
-          </Pressable>
+        {/* Khung Soạn Tin Nhắn & Thanh Ghi Âm */}
+        <View className="border-t border-line bg-white px-3 py-2">
+          {isRecording ? (
+            /* Thanh ghi âm đang hoạt động */
+            <View className="flex-row items-center justify-between rounded-2xl bg-red-50 border border-red-200 px-3.5 py-2">
+              <View className="flex-row items-center gap-2">
+                <View className="h-3 w-3 rounded-full bg-red-500 animate-pulse" />
+                <AppText weight="bold" className="text-xs text-red-600">
+                  Đang ghi âm... {String(Math.floor(recordSeconds / 60)).padStart(2, '0')}:
+                  {String(recordSeconds % 60).padStart(2, '0')}
+                </AppText>
+              </View>
+              <View className="flex-row items-center gap-2">
+                <Pressable
+                  onPress={handleCancelRecord}
+                  className="flex-row items-center gap-1 rounded-lg bg-white border border-red-200 px-2.5 py-1 active:bg-red-100"
+                >
+                  <Trash size={14} color="#dc2626" />
+                  <AppText weight="bold" className="text-[11px] text-red-600">Huỷ</AppText>
+                </Pressable>
+                <Pressable
+                  onPress={handleStopRecordAndSend}
+                  className="rounded-lg bg-leaf-700 px-3 py-1 active:bg-leaf-800"
+                >
+                  <AppText weight="bold" className="text-[11px] text-white">Gửi thoại</AppText>
+                </Pressable>
+              </View>
+            </View>
+          ) : (
+            /* Thanh nhập liệu bình thường */
+            <View className="flex-row items-center gap-2">
+              {/* Nút gửi ảnh */}
+              <Pressable
+                onPress={handlePickImage}
+                disabled={sendingImage}
+                className="h-10 w-10 items-center justify-center rounded-full bg-paper active:bg-leaf-50"
+              >
+                {sendingImage ? (
+                  <ActivityIndicator size="small" color={colors.leaf700} />
+                ) : (
+                  <ImageIcon size={20} color={colors.leaf700} />
+                )}
+              </Pressable>
 
-          <TextInput
-            value={text}
-            onChangeText={setText}
-            placeholder="Nhập tin nhắn tư vấn khách hàng..."
-            placeholderTextColor={colors.inkSubtle}
-            multiline
-            className="max-h-24 min-h-[40px] flex-1 rounded-2xl bg-paper px-3.5 py-2 text-xs text-ink"
-            style={{ fontFamily: fontFamily.regular }}
-          />
+              {/* Nút bắt đầu ghi âm */}
+              <Pressable
+                onPress={handleStartRecord}
+                className="h-10 w-10 items-center justify-center rounded-full bg-paper active:bg-leaf-50"
+              >
+                <Mic size={20} color={colors.leaf700} />
+              </Pressable>
 
-          <Pressable
-            onPress={handleSend}
-            disabled={!text.trim() || sendMessageMutation.isPending}
-            className={cn(
-              'h-10 w-10 items-center justify-center rounded-full',
-              text.trim() ? 'bg-leaf-700 active:bg-leaf-800' : 'bg-paper',
-            )}
-          >
-            <Send size={18} color={text.trim() ? '#ffffff' : colors.inkSubtle} />
-          </Pressable>
+              <TextInput
+                value={text}
+                onChangeText={setText}
+                placeholder="Nhập tin nhắn tư vấn khách hàng..."
+                placeholderTextColor={colors.inkSubtle}
+                multiline
+                className="max-h-24 min-h-[40px] flex-1 rounded-2xl bg-paper px-3.5 py-2 text-xs text-ink"
+                style={{ fontFamily: fontFamily.regular }}
+              />
+
+              <Pressable
+                onPress={handleSendText}
+                disabled={!text.trim() || sendMessageMutation.isPending}
+                className={cn(
+                  'h-10 w-10 items-center justify-center rounded-full',
+                  text.trim() ? 'bg-leaf-700 active:bg-leaf-800' : 'bg-paper',
+                )}
+              >
+                <Send size={18} color={text.trim() ? '#ffffff' : colors.inkSubtle} />
+              </Pressable>
+            </View>
+          )}
         </View>
       </KeyboardAvoidingView>
 
@@ -341,7 +603,7 @@ export default function ShopChatDetailScreen() {
             <Image
               source={{ uri: previewImage }}
               style={{ width: '100%', height: '80%' }}
-              resizeMode="contain"
+              contentFit="contain"
             />
           )}
         </View>
