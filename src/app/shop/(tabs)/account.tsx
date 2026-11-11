@@ -362,7 +362,7 @@ export default function ShopAccountTab() {
               </View>
               <Pressable onPress={() => router.push('/shop/profile-edit')}>
                 <AppText weight="bold" className="text-xs text-leaf-700">
-                  {p?.bankAccountNumber ? 'Sửa' : 'Thêm'}
+                  {p?.bankAccountNumber || p?.bankAccount ? 'Thay đổi' : 'Thêm'}
                 </AppText>
               </Pressable>
             </View>

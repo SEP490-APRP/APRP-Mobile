@@ -154,7 +154,11 @@ export default function EditShopProduct() {
       </View>
 
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} className="flex-1">
-        <ScrollView contentContainerClassName="gap-5 p-4 pb-8" keyboardShouldPersistTaps="handled">
+        <ScrollView
+          contentContainerClassName="gap-5 p-4"
+          contentContainerStyle={{ paddingBottom: 120 }}
+          keyboardShouldPersistTaps="handled"
+        >
           {!!product.rejectReason && (
             <View className="flex-row gap-2.5 rounded-card bg-rose-50 p-3.5">
               <AlertTriangle size={17} color={colors.sale} />

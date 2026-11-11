@@ -97,7 +97,15 @@ export const walletService = {
 
   /** Gửi yêu cầu rút tiền POST /wallets/withdrawals */
   async requestWithdraw(body: WithdrawCreateRequest): Promise<ApiResponse<WithdrawResponse>> {
-    const res = await axiosInstance.post('/wallets/withdrawals', body)
+    const payload = {
+      amount: body.amount,
+      bankName: body.bankName,
+      bankAccountNumber: body.bankAccountNumber,
+      bankAccountHolder: body.bankAccountHolder || body.bankAccountName,
+      bankAccountName: body.bankAccountName || body.bankAccountHolder,
+      note: body.note,
+    }
+    const res = await axiosInstance.post('/wallets/withdrawals', payload)
     return { code: 200, result: unwrap<WithdrawResponse>(res) }
   },
 
@@ -105,7 +113,28 @@ export const walletService = {
   async getMyWithdrawals(): Promise<ApiResponse<WithdrawResponse[]>> {
     try {
       const res = await axiosInstance.get('/wallets/withdrawals/me')
-      return { code: 200, result: unwrap<WithdrawResponse[]>(res) }
+      const data = unwrap<any[]>(res)
+      if (Array.isArray(data)) {
+        return {
+          code: 200,
+          result: data.map((r) => ({
+            id: r.id,
+            walletId: r.walletId || 1,
+            userId: r.userId || 1,
+            amount: r.amount,
+            status: (r.status === 'SUCCESS' ? 'COMPLETED' : r.status) as WithdrawStatus,
+            bankName: r.bankName,
+            bankAccountNumber: r.bankAccountNumber,
+            bankAccountName: r.bankAccountHolder || r.bankAccountName || '',
+            bankAccountHolder: r.bankAccountHolder || r.bankAccountName || '',
+            note: r.note,
+            adminNote: r.adminNote,
+            createdAt: r.createdAt,
+            processedAt: r.processedAt,
+          })),
+        }
+      }
+      return { code: 200, result: [] }
     } catch {
       return {
         code: 200,
@@ -118,6 +147,7 @@ export const walletService = {
           bankName: r.bankName,
           bankAccountNumber: r.bankAccountNumber,
           bankAccountName: r.bankAccountName,
+          bankAccountHolder: r.bankAccountHolder || r.bankAccountName,
           note: r.note,
           adminNote: r.adminNote,
           createdAt: r.createdAt,

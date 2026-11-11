@@ -15,6 +15,7 @@ export interface WithdrawRequestResponse {
   bankName: string
   bankAccountNumber: string
   bankAccountName: string
+  bankAccountHolder?: string
   createdAt: string
   processedAt?: string
   note?: string
@@ -92,6 +93,7 @@ export interface WithdrawCreateRequest {
   bankName: string
   bankAccountNumber: string
   bankAccountName: string
+  bankAccountHolder?: string
   note?: string
 }
 
@@ -106,6 +108,7 @@ export interface WithdrawResponse {
   bankName: string
   bankAccountNumber: string
   bankAccountName: string
+  bankAccountHolder?: string
   note?: string
   adminNote?: string
   createdAt: BackendDateTime

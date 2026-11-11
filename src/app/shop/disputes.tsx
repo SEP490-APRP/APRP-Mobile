@@ -151,14 +151,17 @@ export default function ShopDisputesScreen() {
       ) : isError ? (
         <ErrorState title="Không thể tải danh sách khiếu nại" onRetry={refetch} />
       ) : disputes.length === 0 ? (
-        <EmptyState
-          title="Không có yêu cầu khiếu nại nào"
-          description={
-            filterKey === 'ALL'
-              ? 'Tất cả đơn hàng của gian hàng đang được phục vụ suôn sẻ.'
-              : 'Không có yêu cầu nào thuộc trạng thái này.'
-          }
-        />
+        <View className="flex-1 items-center justify-center px-6">
+          <EmptyState
+            className="border-0 bg-transparent py-0"
+            title="Không có yêu cầu khiếu nại nào"
+            description={
+              filterKey === 'ALL'
+                ? 'Tất cả đơn hàng của gian hàng đang được phục vụ suôn sẻ.'
+                : 'Không có yêu cầu nào thuộc trạng thái này.'
+            }
+          />
+        </View>
       ) : (
         <FlatList
           data={disputes}

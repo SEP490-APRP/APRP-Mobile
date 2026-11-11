@@ -79,6 +79,14 @@ export default function ShopWalletScreen() {
     setWithdrawAmount(String(Math.min(val, availableBalance)))
   }
 
+  const handleOpenWithdraw = () => {
+    if (availableBalance < MIN_WITHDRAW_AMOUNT) {
+      showToast(`Số dư khả dụng cần tối thiểu ${money(MIN_WITHDRAW_AMOUNT)} để tạo lệnh rút tiền (hiện có ${money(availableBalance)}).`)
+      return
+    }
+    setModalOpen(true)
+  }
+
   const handleSubmitWithdraw = async () => {
     const amt = Number(withdrawAmount.replace(/\D/g, ''))
     if (!amt || amt < MIN_WITHDRAW_AMOUNT) {
@@ -102,6 +110,7 @@ export default function ShopWalletScreen() {
         bankName,
         bankAccountNumber: bankNumber,
         bankAccountName: bankHolder,
+        bankAccountHolder: bankHolder,
         note: withdrawNote.trim() || undefined,
       })
       showToast('Gửi yêu cầu rút tiền thành công! Vui lòng chờ kế toán duyệt.')
@@ -175,12 +184,19 @@ export default function ShopWalletScreen() {
         </View>
 
         {/* Nút hành động Rút Tiền */}
-        <Button
-          title="Rút tiền về ngân hàng"
-          icon={ArrowDownToLine}
-          onPress={() => setModalOpen(true)}
-          disabled={availableBalance < MIN_WITHDRAW_AMOUNT}
-        />
+        <View className="gap-1.5">
+          <Button
+            title="Rút tiền về ngân hàng"
+            icon={ArrowDownToLine}
+            onPress={handleOpenWithdraw}
+            className="bg-leaf-700 active:bg-leaf-800"
+          />
+          {availableBalance < MIN_WITHDRAW_AMOUNT && (
+            <AppText className="text-center text-[11px] text-ink-muted">
+              Cần tối thiểu {money(MIN_WITHDRAW_AMOUNT)} khả dụng để rút tiền
+            </AppText>
+          )}
+        </View>
 
         {/* Tổng doanh thu & chính sách */}
         <View className="flex-row gap-3">
