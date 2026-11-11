@@ -10,6 +10,7 @@ import { router, useLocalSearchParams } from 'expo-router'
 import {
   Image as ImageIcon,
   Mic,
+  MoreHorizontal,
   Pause,
   Play,
   Send,
@@ -571,15 +572,31 @@ export default function ShopChatDetailScreen() {
                     </AppText>
                   )}
 
-                  {/* 4. Thời gian */}
-                  <AppText
-                    className={cn(
-                      'mt-1 text-[9px] text-right',
-                      isMe ? 'text-leaf-200' : 'text-ink-subtle',
+                  {/* 4. Footer: Thời gian & Icon ba chấm thu hồi tin nhắn */}
+                  <View className="mt-1 flex-row items-center justify-end gap-1.5">
+                    <AppText
+                      className={cn(
+                        'text-[9px]',
+                        isMe ? 'text-leaf-200' : 'text-ink-subtle',
+                      )}
+                    >
+                      {fmtTime(item.sentAt || item.createdAt)}
+                    </AppText>
+                    {isMe && (
+                      <Pressable
+                        onPress={() => {
+                          try {
+                            Vibration.vibrate(25)
+                          } catch {}
+                          setActiveActionMsg(item)
+                        }}
+                        className="rounded-full p-0.5 active:bg-white/20"
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      >
+                        <MoreHorizontal size={13} color={isMe ? '#bbf7d0' : colors.inkSubtle} />
+                      </Pressable>
                     )}
-                  >
-                    {fmtTime(item.sentAt || item.createdAt)}
-                  </AppText>
+                  </View>
                 </Pressable>
               </View>
             )
