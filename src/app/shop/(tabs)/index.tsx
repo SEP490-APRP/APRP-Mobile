@@ -108,17 +108,101 @@ export default function ShopDashboard() {
     setRefreshing(false)
   }
 
-  // Bảng dữ liệu thống kê theo tuần (phong cách CapNong_Exe2 TongQuan.jsx)
-  const chartDays = [
-    { day: 'T2', completed: 6, processing: 2, cancelled: 0, revenue: '1.2tr' },
-    { day: 'T3', completed: 8, processing: 3, cancelled: 1, revenue: '1.8tr' },
-    { day: 'T4', completed: 5, processing: 1, cancelled: 0, revenue: '950k' },
-    { day: 'T5', completed: 9, processing: 4, cancelled: 0, revenue: '2.1tr' },
-    { day: 'T6', completed: 12, processing: 3, cancelled: 1, revenue: '2.8tr' },
-    { day: 'T7', completed: 15, processing: 5, cancelled: 0, revenue: '3.6tr' },
-    { day: 'CN', completed: 11, processing: 2, cancelled: 0, revenue: '2.4tr' },
-  ]
-  const maxDayTotal = 20
+  // Tính toán biểu đồ 7 ngày trong tuần từ danh sách đơn hàng thực tế của Shop
+  const chartDays = useMemo(() => {
+    const dayNames = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN']
+    const result = dayNames.map((day) => ({
+      day,
+      completed: 0,
+      processing: 0,
+    }))
+
+    const orderList = orders.data?.content ?? []
+    const now = new Date()
+    const currentDayOfWeek = (now.getDay() + 6) % 7 // 0 là T2, 6 là CN
+    const monday = new Date(now)
+    monday.setDate(now.getDate() - currentDayOfWeek)
+    monday.setHours(0, 0, 0, 0)
+
+    const sunday = new Date(monday)
+    sunday.setDate(monday.getDate() + 6)
+    sunday.setHours(23, 59, 59, 999)
+
+    orderList.forEach((order) => {
+      const dateStr = (order as any).createdAt || (order as any).orderDate || (order as any).sentAt
+      if (!dateStr) return
+      const orderDate = new Date(dateStr)
+      if (orderDate >= monday && orderDate <= sunday) {
+        const orderDayIndex = (orderDate.getDay() + 6) % 7
+        if (orderDayIndex >= 0 && orderDayIndex < 7) {
+          if (order.status === 'COMPLETED' || order.status === 'DELIVERED') {
+            result[orderDayIndex].completed += 1
+          } else if (
+            order.status === 'CONFIRMED' ||
+            order.status === 'READY' ||
+            order.status === 'SHIPPING' ||
+            order.status === 'PICKED_UP' ||
+            order.status === 'PENDING' ||
+            order.status === 'PAID'
+          ) {
+            result[orderDayIndex].processing += 1
+          }
+        }
+      }
+    })
+
+    return result
+  }, [orders.data?.content])
+
+  const maxDayTotal = useMemo(() => {
+    const max = Math.max(...chartDays.map((d) => d.completed + d.processing), 5)
+    return max
+  }, [chartDays])
+
+  // Tổng sản lượng nông sản giải cứu (kg) từ các đơn hàng thành công thực tế
+  const totalRescueKg = useMemo(() => {
+    const orderList = orders.data?.content ?? []
+    let total = 0
+    orderList.forEach((order) => {
+      if (order.status === 'COMPLETED' || order.status === 'DELIVERED') {
+        order.items?.forEach((item) => {
+          total += Number(item.quantityKg || item.quantity || 1)
+        })
+      }
+    })
+    return total
+  }, [orders.data?.content])
+
+  // Doanh thu thực tế theo kỳ lọc
+  const displayRevenue = useMemo(() => {
+    const allRevenue = wallet?.totalRevenueAllTime ?? wallet?.balance ?? 0
+    if (period === 'all') return allRevenue
+
+    const orderList = orders.data?.content ?? []
+    const now = new Date()
+    const cutoff = new Date(now)
+    if (period === 'week') {
+      const currentDayOfWeek = (now.getDay() + 6) % 7
+      cutoff.setDate(now.getDate() - currentDayOfWeek)
+      cutoff.setHours(0, 0, 0, 0)
+    } else {
+      // Month
+      cutoff.setDate(1)
+      cutoff.setHours(0, 0, 0, 0)
+    }
+
+    let periodRev = 0
+    orderList.forEach((order) => {
+      const dateStr = (order as any).createdAt || (order as any).orderDate
+      if (dateStr && new Date(dateStr) >= cutoff) {
+        if (order.status === 'COMPLETED' || order.status === 'DELIVERED') {
+          periodRev += Number(order.totalAmount || 0)
+        }
+      }
+    })
+
+    return periodRev > 0 ? periodRev : allRevenue
+  }, [wallet?.totalRevenueAllTime, wallet?.balance, period, orders.data?.content])
 
   const rows =
     tab === 'PRODUCT'
@@ -340,12 +424,14 @@ export default function ShopDashboard() {
               <View className="flex-row gap-2.5">
                 <View className="flex-1 rounded-2xl bg-paper p-3 border border-line/60">
                   <AppText weight="bold" className="text-[10px] text-ink-muted uppercase">
-                    Doanh thu
+                    Doanh thu {period === 'week' ? 'tuần' : period === 'month' ? 'tháng' : ''}
                   </AppText>
                   <AppText weight="extrabold" numberOfLines={1} className="mt-1 text-base text-leaf-800">
-                    {money(wallet?.totalRevenueAllTime ?? 14280000)}
+                    {money(displayRevenue)}
                   </AppText>
-                  <AppText className="mt-0.5 text-[9px] text-leaf-700 font-bold">↗ +18% tuần này</AppText>
+                  <AppText className="mt-0.5 text-[9px] text-leaf-700 font-bold">
+                    {period === 'week' ? 'Theo đơn tuần này' : period === 'month' ? 'Theo đơn tháng này' : 'Toàn thời gian'}
+                  </AppText>
                 </View>
 
                 <View className="flex-1 rounded-2xl bg-paper p-3 border border-line/60">
@@ -355,7 +441,9 @@ export default function ShopDashboard() {
                   <AppText weight="extrabold" numberOfLines={1} className="mt-1 text-base text-ink">
                     {stats.completedCount} đơn
                   </AppText>
-                  <AppText className="mt-0.5 text-[9px] text-blue-700 font-bold">100% giao thành công</AppText>
+                  <AppText className="mt-0.5 text-[9px] text-blue-700 font-bold">
+                    {stats.total > 0 ? `${Math.round((stats.completedCount / stats.total) * 100)}% thành công` : 'Chưa có đơn'}
+                  </AppText>
                 </View>
               </View>
 
@@ -367,7 +455,9 @@ export default function ShopDashboard() {
                   <AppText weight="extrabold" numberOfLines={1} className="mt-1 text-base text-ink">
                     {avgRating.toFixed(1)} ⭐
                   </AppText>
-                  <AppText className="mt-0.5 text-[9px] text-amber-700 font-bold">Rất tích cực</AppText>
+                  <AppText className="mt-0.5 text-[9px] text-amber-700 font-bold">
+                    {avgRating >= 4.5 ? 'Rất tích cực' : avgRating >= 3.5 ? 'Tích cực' : 'Cần cải thiện'}
+                  </AppText>
                 </View>
 
                 <View className="flex-1 rounded-2xl bg-paper p-3 border border-line/60">
@@ -375,9 +465,11 @@ export default function ShopDashboard() {
                     Nông sản giải cứu
                   </AppText>
                   <AppText weight="extrabold" numberOfLines={1} className="mt-1 text-base text-leaf-800">
-                    1,250 kg
+                    {totalRescueKg > 0 ? `${totalRescueKg.toLocaleString('vi-VN')} kg` : '0 kg'}
                   </AppText>
-                  <AppText className="mt-0.5 text-[9px] text-leaf-700 font-bold">Giảm thất thoát 95%</AppText>
+                  <AppText className="mt-0.5 text-[9px] text-leaf-700 font-bold">
+                    {totalRescueKg > 0 ? 'Đã giao tới khách' : 'Chờ hoàn tất đơn'}
+                  </AppText>
                 </View>
               </View>
             </View>
@@ -402,15 +494,20 @@ export default function ShopDashboard() {
 
               <View className="h-32 flex-row items-end justify-between px-2 pt-4">
                 {chartDays.map((d, idx) => {
-                  const compHeight = Math.max(8, (d.completed / maxDayTotal) * 80)
+                  const compHeight = Math.max(6, (d.completed / maxDayTotal) * 80)
                   const procHeight = Math.max(4, (d.processing / maxDayTotal) * 40)
+                  const hasData = d.completed > 0 || d.processing > 0
                   return (
                     <View key={idx} className="flex-1 items-center justify-end gap-1.5">
                       <View className="w-5 items-center justify-end">
-                        <View style={{ height: compHeight + procHeight }} className="w-full rounded-t-md overflow-hidden">
-                          <View style={{ height: procHeight }} className="w-full bg-amber-400" />
-                          <View style={{ height: compHeight }} className="w-full bg-leaf-700" />
-                        </View>
+                        {hasData ? (
+                          <View style={{ height: compHeight + procHeight }} className="w-full rounded-t-md overflow-hidden">
+                            <View style={{ height: procHeight }} className="w-full bg-amber-400" />
+                            <View style={{ height: compHeight }} className="w-full bg-leaf-700" />
+                          </View>
+                        ) : (
+                          <View className="h-1.5 w-full rounded-full bg-line" />
+                        )}
                       </View>
                       <AppText weight="bold" className="text-[10px] text-ink-muted">
                         {d.day}
