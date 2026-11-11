@@ -294,7 +294,7 @@ export default function ShopAccountTab() {
         {/* Quick Wallet Widget (Ví tiền & Rút tiền nhanh) */}
         <Pressable
           onPress={() => router.push('/shop/wallet' as any)}
-          className="rounded-panel border border-leaf-200 bg-gradient-to-r from-leaf-50 to-white p-4 active:bg-leaf-100/50 shadow-xs"
+          className="rounded-panel border border-leaf-200 bg-white p-4 active:bg-leaf-50 shadow-2xs"
         >
           <View className="flex-row items-center justify-between">
             <View className="flex-row items-center gap-2">
