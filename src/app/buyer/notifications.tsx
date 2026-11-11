@@ -25,6 +25,7 @@ import {
   useMyNotifications,
 } from '@/features/notification'
 import type { NotificationItem } from '@/services/notification.types'
+import { useAuthStore } from '@/stores/useAuthStore'
 import { colors } from '@/theme/colors'
 import { cn } from '@/utils/helpers'
 
@@ -88,6 +89,10 @@ export default function BuyerNotificationsScreen() {
     return notifications
   }, [notifications, filter])
 
+  const user = useAuthStore((s) => s.user)
+  const isShop = user?.role === 'shop'
+  const isShipper = user?.role === 'shipper'
+
   const handlePressItem = (item: NotificationItem) => {
     if (!item.isRead) {
       markRead.mutate(item.id)
@@ -96,16 +101,61 @@ export default function BuyerNotificationsScreen() {
     // Tự động phân tích và điều hướng đến màn hình đích tương ứng
     const text = `${item.title} ${item.message} ${item.evidence || ''}`.toLowerCase()
 
+    // Khiếu nại / Đổi trả
+    if (
+      text.includes('khiếu nại') ||
+      text.includes('đổi trả') ||
+      text.includes('hoàn tiền') ||
+      text.includes('dispute') ||
+      text.includes('return')
+    ) {
+      if (isShop) {
+        router.push('/shop/disputes' as any)
+        return
+      }
+    }
+
+    // Ví tiền / Quyết toán
+    if (
+      text.includes('ví tiền') ||
+      text.includes('rút tiền') ||
+      text.includes('quyết toán') ||
+      text.includes('wallet')
+    ) {
+      if (isShop) {
+        router.push('/shop/wallet' as any)
+        return
+      }
+    }
+
+    // Đánh giá
+    if (text.includes('đánh giá') || text.includes('review') || text.includes('phản hồi')) {
+      if (isShop) {
+        router.push('/shop/reviews' as any)
+        return
+      }
+    }
+
     // 1. Kiểm tra mã đơn hàng (VD: đơn hàng #123 hoặc id trong evidence)
     const orderMatch = text.match(/đơn hàng.*?#?(\d+)/i) || (item.evidence && item.evidence.match(/order.*?(\d+)/i))
     if (orderMatch && orderMatch[1]) {
-      router.push({ pathname: '/buyer/order/[id]', params: { id: orderMatch[1] } })
+      if (isShop) {
+        router.push({ pathname: '/shop/order/[id]' as any, params: { id: orderMatch[1] } })
+      } else if (isShipper) {
+        router.push({ pathname: '/shipper/order/[id]' as any, params: { id: orderMatch[1] } })
+      } else {
+        router.push({ pathname: '/buyer/order/[id]', params: { id: orderMatch[1] } })
+      }
       return
     }
 
     // 2. Kiểm tra voucher
     if (text.includes('voucher') || text.includes('khuyến mãi')) {
-      router.push('/buyer/vouchers')
+      if (isShop) {
+        router.push('/shop/vouchers' as any)
+      } else {
+        router.push('/buyer/vouchers')
+      }
       return
     }
   }

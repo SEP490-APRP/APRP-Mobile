@@ -197,7 +197,7 @@ export default function ShopDashboard() {
             {/* Các icon thao tác trên Header: Thông báo & Tin nhắn */}
             <View className="flex-row items-center gap-2">
               <Pressable
-                onPress={() => router.push('/buyer/notifications')}
+                onPress={() => router.push('/shop/notifications' as any)}
                 accessibilityLabel="Thông báo"
                 className="h-10 w-10 items-center justify-center rounded-full bg-white/15 active:bg-white/25"
               >
