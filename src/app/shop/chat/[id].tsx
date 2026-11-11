@@ -3,6 +3,7 @@ import { router, useLocalSearchParams } from 'expo-router'
 import {
   Image as ImageIcon,
   Send,
+  X,
 } from 'lucide-react-native'
 import { useEffect, useRef, useState } from 'react'
 import {
@@ -10,6 +11,7 @@ import {
   FlatList,
   Image,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   Pressable,
   TextInput,
@@ -30,6 +32,7 @@ import { uploadService } from '@/services/upload.service'
 import { useAuth } from '@/stores'
 import { colors } from '@/theme/colors'
 import { fontFamily } from '@/theme/fonts'
+import type { ChatMessage } from '@/types/chat'
 import { cn } from '@/utils/helpers'
 
 const fmtTime = (iso?: string) => {
@@ -61,12 +64,21 @@ export default function ShopChatDetailScreen() {
 
   const [text, setText] = useState('')
   const [sendingImage, setSendingImage] = useState(false)
+  const [previewImage, setPreviewImage] = useState<string | null>(null)
+  const [localMessages, setLocalMessages] = useState<ChatMessage[]>([])
   const listRef = useRef<FlatList>(null)
 
   const initConv = useInitConversation()
-  const { data: messages = [], refetch: refetchMessages } = useChatMessages(convId ?? 0)
+  const { data: serverMessages = [], refetch: refetchMessages } = useChatMessages(convId ?? 0)
   const sendMessageMutation = useSendMessage()
   const markRead = useMarkConversationRead()
+
+  // Đồng bộ tin nhắn từ máy chủ với danh sách cục bộ
+  useEffect(() => {
+    if (serverMessages.length > 0) {
+      setLocalMessages(serverMessages)
+    }
+  }, [serverMessages])
 
   // Khởi tạo cuộc trò chuyện nếu chưa có convId
   useEffect(() => {
@@ -105,7 +117,21 @@ export default function ShopChatDetailScreen() {
     if (!text.trim() || !partnerUserId) return
     const content = text.trim()
     setText('')
-    sendMessageMutation.mutate({ receiverId: partnerUserId, content })
+
+    // Thêm tin nhắn lạc quan vào danh sách ngay lập tức
+    const optimisticMsg: ChatMessage = {
+      id: `temp_${Date.now()}`,
+      conversationId: convId ?? 0,
+      senderId: myUserId,
+      receiverId: partnerUserId,
+      content,
+      type: 'TEXT',
+      sentAt: new Date().toISOString(),
+      isRead: false,
+    }
+    setLocalMessages((prev) => [...prev, optimisticMsg])
+
+    sendMessageMutation.mutate({ receiverId: partnerUserId, content, type: 'TEXT' })
   }
 
   const handlePickImage = async () => {
@@ -116,17 +142,45 @@ export default function ShopChatDetailScreen() {
     })
     if (res.canceled || !res.assets?.[0]?.uri) return
 
+    const asset = res.assets[0]
+
+    // Thêm tin nhắn ảnh lạc quan hiển thị ngay ảnh trên khung chat
+    const tempId = `temp_img_${Date.now()}`
+    const optimisticMsg: ChatMessage = {
+      id: tempId,
+      conversationId: convId ?? 0,
+      senderId: myUserId,
+      receiverId: partnerUserId,
+      content: '[Hình ảnh]',
+      type: 'IMAGE',
+      attachmentUrl: asset.uri,
+      sentAt: new Date().toISOString(),
+      isRead: false,
+    }
+    setLocalMessages((prev) => [...prev, optimisticMsg])
+
     setSendingImage(true)
     try {
-      const asset = res.assets[0]
-      const upRes = await uploadService.uploadImage(
-        { uri: asset.uri, name: asset.fileName || 'chat.jpg', type: 'image/jpeg' },
+      const upRes = await uploadService.uploadMedia(
+        {
+          uri: asset.uri,
+          name: asset.fileName || 'chat_image.jpg',
+          type: asset.mimeType || 'image/jpeg',
+        },
         'chat',
       )
       const url = upRes.result?.url
       if (url) {
-        sendMessageMutation.mutate({ receiverId: partnerUserId, content: '[Hình ảnh]', attachmentUrl: url })
+        await sendMessageMutation.mutateAsync({
+          receiverId: partnerUserId,
+          content: '[Hình ảnh]',
+          type: 'IMAGE',
+          attachmentUrl: url,
+        })
+        await refetchMessages()
       }
+    } catch (err) {
+      console.warn('Lỗi khi gửi ảnh chat:', err)
     } finally {
       setSendingImage(false)
     }
@@ -169,46 +223,62 @@ export default function ShopChatDetailScreen() {
       >
         <FlatList
           ref={listRef}
-          data={messages}
+          data={localMessages}
           keyExtractor={(item, idx) => String(item.id || idx)}
           contentContainerClassName="p-4 gap-3"
           onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
           renderItem={({ item }) => {
             const isMe = Number(item.senderId) === myUserId
+            const imageUrl = item.attachmentUrl || (item as any).mediaUrl || (item as any).imageUrl
+            const isImage = item.type === 'IMAGE' || Boolean(imageUrl)
+            const hasText = !!item.content && item.content !== '[Hình ảnh]'
+
             return (
               <View className={cn('flex-row', isMe ? 'justify-end' : 'justify-start')}>
                 <View
                   className={cn(
-                    'max-w-[78%] rounded-2xl p-3 shadow-xs',
+                    'max-w-[80%] rounded-2xl shadow-xs overflow-hidden',
+                    isImage && !hasText ? 'p-1.5' : 'p-3',
                     isMe
-                      ? 'rounded-br-xs bg-leaf-700 text-white'
+                      ? 'rounded-br-xs bg-leaf-700'
                       : 'rounded-bl-xs border border-line bg-white',
                   )}
                 >
-                  {item.mediaUrl && (
-                    <Image
-                      source={{ uri: item.mediaUrl }}
-                      style={{ width: 180, height: 180, borderRadius: 12, marginBottom: 4 }}
-                      resizeMode="cover"
-                    />
+                  {/* 1. Hình ảnh đính kèm */}
+                  {isImage && !!imageUrl && (
+                    <Pressable
+                      onPress={() => setPreviewImage(imageUrl)}
+                      className="overflow-hidden rounded-xl active:opacity-90"
+                    >
+                      <Image
+                        source={{ uri: imageUrl }}
+                        style={{ width: 220, height: 180, borderRadius: 12, backgroundColor: '#f1f5f9' }}
+                        resizeMode="cover"
+                      />
+                    </Pressable>
                   )}
-                  {!!item.content && item.content !== '[Hình ảnh]' && (
+
+                  {/* 2. Nội dung văn bản (nếu không phải nhãn mặc định [Hình ảnh]) */}
+                  {hasText && (
                     <AppText
                       className={cn(
                         'text-xs leading-relaxed',
+                        imageUrl && 'mt-1.5',
                         isMe ? 'text-white font-medium' : 'text-ink font-normal',
                       )}
                     >
                       {item.content}
                     </AppText>
                   )}
+
+                  {/* 3. Thời gian */}
                   <AppText
                     className={cn(
                       'mt-1 text-[9px] text-right',
                       isMe ? 'text-leaf-200' : 'text-ink-subtle',
                     )}
                   >
-                    {fmtTime(item.createdAt)}
+                    {fmtTime(item.sentAt || item.createdAt)}
                   </AppText>
                 </View>
               </View>
@@ -252,6 +322,25 @@ export default function ShopChatDetailScreen() {
           </Pressable>
         </View>
       </KeyboardAvoidingView>
+
+      {/* Modal Xem Ảnh Toàn Màn Hình */}
+      <Modal visible={!!previewImage} transparent animationType="fade">
+        <View className="flex-1 bg-black/95 items-center justify-center p-4">
+          <Pressable
+            onPress={() => setPreviewImage(null)}
+            className="absolute top-12 right-4 z-10 h-10 w-10 items-center justify-center rounded-full bg-white/20 active:bg-white/30"
+          >
+            <X size={22} color="#ffffff" />
+          </Pressable>
+          {previewImage && (
+            <Image
+              source={{ uri: previewImage }}
+              style={{ width: '100%', height: '80%' }}
+              resizeMode="contain"
+            />
+          )}
+        </View>
+      </Modal>
     </SafeAreaView>
   )
 }
