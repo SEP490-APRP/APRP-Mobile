@@ -1,7 +1,7 @@
 import { router, useLocalSearchParams } from 'expo-router'
 import { ArrowUpDown, Camera, Leaf, MapPin, RotateCcw, Search, SlidersHorizontal, Sparkles, Truck, X } from 'lucide-react-native'
 import { useEffect, useMemo, useState } from 'react'
-import { FlatList, ImageBackground, Pressable, RefreshControl, ScrollView, TextInput, View } from 'react-native'
+import { FlatList, Image, Pressable, RefreshControl, ScrollView, StyleSheet, TextInput, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { ImageSearchModal } from '@/components/common/ImageSearchModal'
 import { AppText, Button, EmptyState, ErrorState } from '@/components/ui'
@@ -94,13 +94,13 @@ export default function FreshScreen() {
 
   const listHeader = (
     <View className="gap-4 pb-4">
-      <ImageBackground
-        source={bannerImage}
-        resizeMode="cover"
-        accessibilityLabel="Bà con nông dân thu hoạch nông sản tươi"
-        imageStyle={{ borderRadius: 24 }}
-        className="overflow-hidden rounded-panel"
-      >
+      <View className="relative overflow-hidden rounded-panel">
+        <Image
+          source={bannerImage}
+          resizeMode="cover"
+          accessibilityLabel="Bà con nông dân thu hoạch nông sản tươi"
+          style={[StyleSheet.absoluteFill, { borderRadius: 24 }]}
+        />
         <View className="items-center gap-2 rounded-panel bg-black/55 px-5 py-8">
           <AppText weight="bold" className="text-xs text-sun-300">
             Trang chủ › {categoryLabel}
@@ -112,7 +112,7 @@ export default function FreshScreen() {
             Thu hoạch trong ngày từ các nông hộ và hợp tác xã liên kết, giữ trọn độ tươi giòn.
           </AppText>
         </View>
-      </ImageBackground>
+      </View>
 
       <View className="flex-row flex-wrap items-center gap-2">
         <AppText accessibilityLiveRegion="polite" className="mr-auto text-sm text-ink-muted">
@@ -128,12 +128,12 @@ export default function FreshScreen() {
               setQuery('')
             }}
             accessibilityRole="button"
-            accessibilityLabel={`Bỏ lọc AI ${aiRecognized}`}
+            accessibilityLabel={`Bỏ lọc ${aiRecognized}`}
             className="h-8 flex-row items-center gap-1.5 rounded-full border border-leaf-300 bg-leaf-50 pl-2.5 pr-2"
           >
             <Sparkles size={13} color={colors.leaf700} />
             <AppText weight="bold" className="text-xs text-leaf-800">
-              AI: {aiRecognized}
+              {aiRecognized}
             </AppText>
             <AppText className="text-[10px] italic text-ink-subtle">
               (tham khảo)
@@ -234,7 +234,7 @@ export default function FreshScreen() {
             <Pressable
               onPress={() => setImageSearchOpen(true)}
               accessibilityRole="button"
-              accessibilityLabel="Tìm bằng hình ảnh AI"
+              accessibilityLabel="Tìm bằng hình ảnh"
               hitSlop={8}
               className="mr-1.5 h-8 w-8 items-center justify-center rounded-lg bg-leaf-50 active:bg-leaf-100"
             >

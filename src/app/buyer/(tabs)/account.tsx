@@ -1,6 +1,7 @@
 import { Image } from 'expo-image'
 import { router, type Href } from 'expo-router'
 import {
+  Bell,
   BookOpen,
   ChevronRight,
   CircleCheckBig,
@@ -9,6 +10,7 @@ import {
   KeyRound,
   LogOut,
   MapPin,
+  MessageSquare,
   Sprout,
   Ticket,
   Truck,
@@ -19,6 +21,8 @@ import { Pressable, RefreshControl, ScrollView, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { AppText, Button } from '@/components/ui'
 import { useLogout } from '@/features/auth'
+import { useChatUnreadCount } from '@/features/chat'
+import { useNotificationUnreadCount } from '@/features/notification'
 import type { OrderTab } from '@/features/order'
 import { rescueTier, useMyProfile } from '@/features/profile'
 import { useAuth } from '@/stores'
@@ -31,8 +35,10 @@ const ORDER_SHORTCUTS: { tab: OrderTab; icon: LucideIcon; label: string }[] = [
   { tab: 'COMPLETED', icon: CircleCheckBig, label: 'Hoàn thành' },
 ]
 
-const MENU: { icon: LucideIcon; label: string; href: Href }[] = [
+const MENU: { icon: LucideIcon; label: string; href: Href; badgeKey?: 'notif' | 'chat' }[] = [
   { icon: UserRound, label: 'Hồ sơ cá nhân', href: '/buyer/profile' },
+  { icon: Bell, label: 'Thông báo của tôi', href: '/buyer/notifications' as any, badgeKey: 'notif' },
+  { icon: MessageSquare, label: 'Tin nhắn & Hỗ trợ', href: '/buyer/chat' as any, badgeKey: 'chat' },
   { icon: MapPin, label: 'Sổ địa chỉ', href: '/buyer/addresses' },
   { icon: Ticket, label: 'Kho voucher của tôi', href: '/buyer/vouchers' },
   { icon: BookOpen, label: 'Chuyện nhà nông', href: '/buyer/stories' },
@@ -44,6 +50,8 @@ export default function AccountTab() {
   const { user } = useAuth()
   const logout = useLogout()
   const profile = useMyProfile()
+  const { data: notifUnread = 0 } = useNotificationUnreadCount()
+  const { data: chatUnread = 0 } = useChatUnreadCount()
   const p = profile.data
   const name = p?.fullName || user?.name || 'Thành viên CapNong'
   const avatar = p?.logoUrl || p?.avatar || user?.avatar
@@ -145,18 +153,28 @@ export default function AccountTab() {
 
         {/* Cài đặt */}
         <View className="overflow-hidden rounded-panel border border-line bg-white">
-          {MENU.map(({ icon: Icon, label, href }, i) => (
-            <Pressable
-              key={label}
-              onPress={() => router.push(href)}
-              accessibilityRole="button"
-              className={`min-h-[56px] flex-row items-center gap-3 px-4 active:bg-paper ${i > 0 ? 'border-t border-line' : ''}`}
-            >
-              <Icon size={20} color={colors.leaf700} />
-              <AppText className="flex-1 text-sm">{label}</AppText>
-              <ChevronRight size={16} color={colors.inkSubtle} />
-            </Pressable>
-          ))}
+          {MENU.map(({ icon: Icon, label, href, badgeKey }, i) => {
+            const count = badgeKey === 'notif' ? notifUnread : badgeKey === 'chat' ? chatUnread : 0
+            return (
+              <Pressable
+                key={label}
+                onPress={() => router.push(href)}
+                accessibilityRole="button"
+                className={`min-h-[56px] flex-row items-center gap-3 px-4 active:bg-paper ${i > 0 ? 'border-t border-line' : ''}`}
+              >
+                <Icon size={20} color={colors.leaf700} />
+                <AppText className="flex-1 text-sm">{label}</AppText>
+                {count > 0 && (
+                  <View className="mr-1 h-5 min-w-[20px] items-center justify-center rounded-full bg-sale px-1.5">
+                    <AppText weight="bold" className="text-[10px] text-white">
+                      {count > 99 ? '99+' : count}
+                    </AppText>
+                  </View>
+                )}
+                <ChevronRight size={16} color={colors.inkSubtle} />
+              </Pressable>
+            )
+          })}
         </View>
 
         <Button
