@@ -32,4 +32,5 @@ export const WALLET_TX_LABEL: Record<string, string> = {
   TOP_UP: 'Nạp ví qua PayOS',
   WITHDRAW_REQUESTED: 'Rút tiền về ngân hàng',
   WITHDRAW_REFUNDED: 'Hoàn lệnh rút bị từ chối',
+  REFERRAL_COMMISSION: 'Hoa hồng tiếp thị liên kết',
 }
