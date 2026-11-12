@@ -1,5 +1,15 @@
 import type { ApiResponse } from '@/types'
-import type { WalletResponse, WithdrawRequestResponse } from './wallet.types'
+import type {
+  MyWalletResponse,
+  SpringPage,
+  WalletResponse,
+  WalletTopupCreateRequest,
+  WalletTopupResponse,
+  WalletTransactionResponse,
+  WithdrawRequestResponse,
+} from './wallet.types'
+import { axiosInstance } from './api/axiosInstance'
+import { unwrap } from './api/apiUtils'
 import { mockWithdrawRequests } from '@/mocks/wallet.mock'
 import { freshResponses } from '@/mocks/fresh'
 
@@ -89,3 +99,31 @@ export const walletService = freshResponses({
     return { code: 200, result: true, message: 'Đã từ chối lệnh rút tiền' }
   },
 })
+
+/** Ví và nạp ví thật từ backend (WalletController). Chép từ walletApi của APRP-FE, giữ endpoint */
+export const walletApi = {
+  /** Ví của người đang đăng nhập (Shipper / Shop) */
+  async getMyWallet(): Promise<MyWalletResponse> {
+    return unwrap<MyWalletResponse>(await axiosInstance.get('/wallets/me'))
+  },
+  async getMyTransactions(page = 0, size = 20): Promise<SpringPage<WalletTransactionResponse>> {
+    return unwrap<SpringPage<WalletTransactionResponse>>(
+      await axiosInstance.get('/wallets/me/transactions', { params: { page, size } }),
+    )
+  },
+  /** Tạo link PayOS nạp tiền vào ví */
+  async createTopup(body: WalletTopupCreateRequest): Promise<WalletTopupResponse> {
+    return unwrap<WalletTopupResponse>(await axiosInstance.post('/wallets/topups', body))
+  },
+  async getMyTopups(): Promise<WalletTopupResponse[]> {
+    return unwrap<WalletTopupResponse[]>(await axiosInstance.get('/wallets/topups/me'))
+  },
+  /** Quay lại từ PayOS: BE hỏi PayOS và cộng ví nếu đã trả (gọi nhiều lần an toàn) */
+  async confirmTopup(orderCode: string): Promise<WalletTopupResponse> {
+    return unwrap<WalletTopupResponse>(await axiosInstance.post(`/wallets/topups/${orderCode}/confirm`))
+  },
+}
+
+/** Giới hạn nạp ví (khớp capnong.wallet.min-topup / max-topup ở backend) */
+export const MIN_TOPUP_AMOUNT = 10_000
+export const MAX_TOPUP_AMOUNT = 20_000_000
