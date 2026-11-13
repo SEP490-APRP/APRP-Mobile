@@ -6,11 +6,17 @@ import { Stack } from 'expo-router'
 import * as SplashScreen from 'expo-splash-screen'
 import { StatusBar } from 'expo-status-bar'
 import { useEffect } from 'react'
+import * as Notifications from 'expo-notifications'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
 import { CapNongLoading } from '@/components/ui'
 import { queryClient, setupReactQueryForMobile } from '@/lib/queryClient'
 import { useAuth } from '@/stores'
 import { appFonts } from '@/theme/fonts'
+import {
+  registerForPushNotificationsAsync,
+  handleNotificationDeepLink,
+} from '@/services/pushNotification'
+import { useNotificationListener } from '@/services/useNotificationListener'
 
 SplashScreen.preventAutoHideAsync().catch(() => {})
 
@@ -19,11 +25,60 @@ export default function RootLayout() {
   const { hasHydrated, isAuthenticated, user } = useAuth()
   const fontsReady = fontsLoaded || !!fontError
 
+  // Lắng nghe WebSocket thông báo thời gian thực để kích hoạt banner native
+  useNotificationListener()
+
   useEffect(() => setupReactQueryForMobile(), [])
 
   useEffect(() => {
     if (fontsReady) SplashScreen.hideAsync().catch(() => {})
   }, [fontsReady])
+
+  // Tự động đăng ký Push Token với Backend khi người dùng đã có phiên đăng nhập hợp lệ
+  useEffect(() => {
+    if (isAuthenticated) {
+      registerForPushNotificationsAsync().catch((err) => {
+        console.warn('[RootLayout] Auto push token registration failed:', err)
+      })
+    }
+  }, [isAuthenticated])
+
+  // Kiểm tra Cold-start: Người dùng bấm vào thông báo khi app đang tắt hoàn toàn hoặc chạy ngầm bị kill
+  useEffect(() => {
+    if (!hasHydrated || !isAuthenticated) return
+
+    Notifications.getLastNotificationResponseAsync()
+      .then((response) => {
+        if (response) {
+          const data = response.notification.request.content.data
+          console.log('[RootLayout] Cold-start notification tap detected:', data)
+          handleNotificationDeepLink(data, user?.role)
+        }
+      })
+      .catch((err) => {
+        console.warn('[RootLayout] Error reading cold-start notification response:', err)
+      })
+  }, [hasHydrated, isAuthenticated, user?.role])
+
+  // Lắng nghe sự kiện thông báo (khi mở app & khi bấm vào banner ngoài màn hình khóa/khay thông báo)
+  useEffect(() => {
+    const receivedSubscription = Notifications.addNotificationReceivedListener((notification) => {
+      // Cập nhật lại cache danh sách và badge số lượng chưa đọc khi có thông báo mới
+      queryClient.invalidateQueries({ queryKey: ['notifications'] })
+      queryClient.invalidateQueries({ queryKey: ['notifications', 'unread-count'] })
+    })
+
+    const responseSubscription = Notifications.addNotificationResponseReceivedListener((response) => {
+      const data = response.notification.request.content.data
+      console.log('[RootLayout] Warm/Foreground notification tap detected:', data)
+      handleNotificationDeepLink(data, user?.role)
+    })
+
+    return () => {
+      receivedSubscription.remove()
+      responseSubscription.remove()
+    }
+  }, [user?.role])
 
   // Giữ splash tới khi có font; sau đó hiện CapNongLoading (như PageLoading bản web)
   // cho tới khi đọc xong phiên từ SecureStore, tránh nháy màn đăng nhập.
