@@ -21,8 +21,11 @@ import { useSavedAddresses } from '@/features/address'
 import { cartItemName, isItemAvailable, useMyCart } from '@/features/cart'
 import {
   AddressSheet,
+  isStockShortageError,
   isVoucherEligible,
   normalizeCode,
+  parseStockShortages,
+  StockShortageSheet,
   toggleVoucherCode,
   useCheckoutPreview,
   useCheckoutVouchers,
@@ -31,6 +34,7 @@ import {
   usePayosCheckout,
   VoucherSheet,
   type CheckoutVoucher,
+  type StockShortageItem,
 } from '@/features/checkout'
 import { money } from '@/features/product'
 import { useAuth, useUiStore } from '@/stores'
@@ -75,6 +79,8 @@ export default function CheckoutScreen() {
   const [method, setMethod] = useState<PaymentMethod>('PAYOS')
   const [note, setNote] = useState('')
   const [submitError, setSubmitError] = useState<string | null>(null)
+  const [shortageItems, setShortageItems] = useState<StockShortageItem[]>([])
+  const [shortageMessage, setShortageMessage] = useState<string | undefined>()
 
   // Món được chọn ở giỏ, nhóm theo shop; bỏ món hết hàng.
   const shops = useMemo(
@@ -122,6 +128,18 @@ export default function CheckoutScreen() {
     { shippingAddress: delivery?.shippingAddress, voucherCodes: codes, items: itemRequests, cartItemIds },
     items.length > 0 && !!delivery?.shippingAddress,
   )
+
+  // Phát hiện lỗi thiếu tồn kho từ bước tính thử chi phí
+  useEffect(() => {
+    if (preview.isError && isStockShortageError(preview.error)) {
+      const shortages = parseStockShortages(preview.error)
+      if (shortages.length > 0) {
+        setShortageItems(shortages)
+        setShortageMessage(getErrorMessage(preview.error, 'Một số mặt hàng trong kho không đủ số lượng.'))
+      }
+    }
+  }, [preview.isError, preview.error])
+
   const p = preview.data
   const goods = p?.totalGoodsAmount ?? p?.subtotal ?? goodsTotal
   const shipping = p?.totalShippingFee ?? p?.shippingFee
@@ -186,6 +204,14 @@ export default function CheckoutScreen() {
         cartItemIds,
       })
     } catch (err) {
+      if (isStockShortageError(err)) {
+        const shortages = parseStockShortages(err)
+        if (shortages.length > 0) {
+          setShortageItems(shortages)
+          setShortageMessage(getErrorMessage(err, 'Một số mặt hàng trong kho không đủ số lượng.'))
+          return
+        }
+      }
       const msg = getErrorMessage(err, 'Có lỗi khi tạo đơn hàng. Vui lòng kiểm tra lại.')
       setSubmitError(msg)
       showToast(msg)
@@ -405,6 +431,13 @@ export default function CheckoutScreen() {
             value={preview.isFetching && shipping == null ? '…' : shipping == null ? 'Chọn địa chỉ để tính' : money(shipping)}
           />
           {discount > 0 && <Line label="Giảm giá voucher" value={`-${money(discount)}`} tone="leaf" />}
+          {p?.voucherDiscountsDetail && Object.keys(p.voucherDiscountsDetail).length > 1 && (
+            <View className="pl-3 border-l-2 border-leaf-200 gap-1 my-0.5">
+              {Object.entries(p.voucherDiscountsDetail).map(([vcCode, val]) => (
+                <Line key={vcCode} label={`Mã ${vcCode}`} value={`-${money(Number(val))}`} tone="leaf" />
+              ))}
+            </View>
+          )}
           <View className="mt-1 flex-row items-baseline justify-between border-t border-line pt-3">
             <AppText weight="bold" className="text-base">
               Tổng thanh toán
@@ -485,6 +518,12 @@ export default function CheckoutScreen() {
         onSave={saveVoucher}
         onApplyCode={(c) => void applyCode(c)}
         onClose={() => setVoucherOpen(false)}
+      />
+      <StockShortageSheet
+        visible={shortageItems.length > 0}
+        items={shortageItems}
+        message={shortageMessage}
+        onClose={() => setShortageItems([])}
       />
     </SafeAreaView>
   )

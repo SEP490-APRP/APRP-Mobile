@@ -21,6 +21,8 @@ export const ORDER_STATUS_LABELS: Record<string, string> = {
   PAID: 'Đã thanh toán',
   CANCELLED: 'Đã huỷ',
   FAILED: 'Giao thất bại',
+  REFUND_REQUESTED: 'Đang yêu cầu trả hàng',
+  REFUNDED: 'Đã hoàn tiền',
 }
 
 export const orderStatusLabel = (status?: string | null) =>
@@ -44,17 +46,19 @@ export function orderStatusTone(status?: string | null): StatusTone {
     case 'AWAITING_CONFIRMATION':
     case 'PREPARING':
     case 'QUALITY_CHECKING':
+    case 'REFUND_REQUESTED':
       return 'amber'
     case 'CANCELLED':
     case 'FAILED':
     case 'QUALITY_REJECTED':
       return 'rose'
+    case 'REFUNDED':
     default:
       return 'gray'
   }
 }
 
-export type OrderTab = 'ALL' | 'AWAITING_PAYMENT' | 'PENDING' | 'SHIPPING' | 'COMPLETED' | 'CANCELLED'
+export type OrderTab = 'ALL' | 'AWAITING_PAYMENT' | 'PENDING' | 'SHIPPING' | 'COMPLETED' | 'REFUND' | 'CANCELLED'
 
 /** Các thẻ lọc và nhóm trạng thái gửi lên GET /orders/my, như bản web. */
 export const ORDER_TABS: { key: OrderTab; label: string; statuses?: OrderStatus[] }[] = [
@@ -63,6 +67,7 @@ export const ORDER_TABS: { key: OrderTab; label: string; statuses?: OrderStatus[
   { key: 'PENDING', label: 'Chờ xác nhận', statuses: ['PENDING', 'PAID'] },
   { key: 'SHIPPING', label: 'Đang giao', statuses: ['CONFIRMED', 'READY', 'SHIPPING', 'PICKED_UP'] },
   { key: 'COMPLETED', label: 'Hoàn thành', statuses: ['DELIVERED', 'COMPLETED'] },
+  { key: 'REFUND', label: 'Trả hàng / Hoàn tiền', statuses: ['REFUND_REQUESTED', 'REFUNDED'] },
   { key: 'CANCELLED', label: 'Đã huỷ', statuses: ['CANCELLED', 'FAILED'] },
 ]
 
@@ -77,8 +82,28 @@ export const isUnpaidOrder = (o: Pick<OrderResponse, 'status' | 'paymentMethod'>
 /** Người mua chỉ tự huỷ được khi shop chưa xác nhận. */
 export const canCancelOrder = (o: Pick<OrderResponse, 'status'>) => o.status === 'AWAITING_PAYMENT' || o.status === 'PENDING'
 
+/** Người mua xác nhận đã nhận đủ hàng khi shipper đã giao: DELIVERED -> COMPLETED */
+export const canCompleteOrder = (status?: string | null) => status === 'DELIVERED'
+
+/** Người mua có thể yêu cầu trả hàng / hoàn tiền khi đơn đã giao hoặc hoàn thành */
+export const canRequestReturn = (status?: string | null) => status === 'DELIVERED' || status === 'COMPLETED'
+
+/** Người mua có thể đánh giá sản phẩm sau khi đơn hoàn thành */
+export const canReviewItem = (orderStatus?: string | null, isReviewed?: boolean) =>
+  orderStatus === 'COMPLETED' && !isReviewed
+
 export const paymentMethodLabel = (method?: string) =>
   isOnlinePayment(method) ? 'Chuyển khoản PayOS' : 'Thanh toán khi nhận hàng'
+
+/** Lý do hủy đơn hàng của Buyer, đồng bộ với web */
+export const ORDER_CANCEL_REASONS = [
+  'Tôi muốn thay đổi thông tin nhận hàng (địa chỉ, số điện thoại)',
+  'Tôi muốn đổi sản phẩm hoặc thêm nông sản khác',
+  'Thời gian giao hàng không phù hợp với tôi',
+  'Tìm thấy giá ưu đãi hơn ở nguồn khác',
+  'Tôi đổi ý, hiện chưa có nhu cầu mua nữa',
+  'Lý do khác',
+] as const
 
 /** Tìm theo mã đơn, tên shop hoặc tên món. */
 export function matchOrder(o: OrderResponse, keyword: string) {
