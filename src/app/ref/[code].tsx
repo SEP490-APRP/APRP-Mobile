@@ -44,6 +44,8 @@ export default function ReferralDeepLinkScreen() {
           void referralService.claimReferral(code).catch(() => {})
           if (data.targetType === 'PRODUCT') {
             router.replace({ pathname: '/buyer/product/[id]', params: { id: String(data.targetId) } })
+          } else if (data.targetType === 'BUILD_COMBO' || data.targetType === 'MYSTERY_BOX') {
+            router.replace({ pathname: '/buyer/combo/[id]', params: { id: String(data.targetId), kind: data.targetType } })
           } else {
             router.replace({ pathname: '/buyer/shop/[id]', params: { id: String(data.targetId) } })
           }
@@ -93,6 +95,8 @@ export default function ReferralDeepLinkScreen() {
   const navigateToTarget = () => {
     if (resolveData.targetType === 'PRODUCT') {
       router.replace({ pathname: '/buyer/product/[id]', params: { id: String(resolveData.targetId) } })
+    } else if (resolveData.targetType === 'BUILD_COMBO' || resolveData.targetType === 'MYSTERY_BOX') {
+      router.replace({ pathname: '/buyer/combo/[id]', params: { id: String(resolveData.targetId), kind: resolveData.targetType } })
     } else {
       router.replace({ pathname: '/buyer/shop/[id]', params: { id: String(resolveData.targetId) } })
     }
@@ -114,7 +118,13 @@ export default function ReferralDeepLinkScreen() {
             </AppText>
           </View>
           <AppText weight="extrabold" className="mt-2 text-lg text-white text-center">
-            {resolveData.targetType === 'PRODUCT' ? 'Sản phẩm chia sẻ' : 'Gian hàng chia sẻ'}
+            {resolveData.targetType === 'PRODUCT'
+              ? 'Sản phẩm chia sẻ'
+              : resolveData.targetType === 'BUILD_COMBO'
+                ? 'Combo nông sản chia sẻ'
+                : resolveData.targetType === 'MYSTERY_BOX'
+                  ? 'Túi mù may mắn chia sẻ'
+                  : 'Gian hàng chia sẻ'}
           </AppText>
           <AppText className="text-xs text-white/90 text-center">
             Từ người bạn: <AppText weight="bold" className="text-white">{resolveData.referrerName}</AppText>
