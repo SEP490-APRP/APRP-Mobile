@@ -3,6 +3,7 @@ import {
   ChevronDown,
   Leaf,
   MapPin,
+  MessageCircle,
   Package,
   Share2,
   ShieldCheck,
@@ -461,7 +462,31 @@ export default function ProductDetailScreen() {
       </ScrollView>
 
       {/* Thanh mua hàng cố định dưới cùng */}
-      <View className="flex-row items-center gap-3 border-t border-line bg-white px-4 pt-3">
+      <View className="flex-row items-center gap-2.5 border-t border-line bg-white px-4 pt-3">
+        <Pressable
+          onPress={() => {
+            const sid = productShopId(product) || product.shopId
+            if (sid) {
+              router.push({
+                pathname: '/buyer/chat/[id]',
+                params: {
+                  id: '-1',
+                  receiverId: String(sid),
+                  name: (product as any).farm || product.shopName || 'Chủ nông trại',
+                  role: 'SHOP',
+                  productId: String(product.id),
+                },
+              })
+            }
+          }}
+          accessibilityRole="button"
+          accessibilityLabel="Nhắn tin cho Shop"
+          hitSlop={6}
+          className="h-11 w-11 items-center justify-center rounded-xl border border-line bg-white active:bg-leaf-50"
+        >
+          <MessageCircle size={20} color={colors.leaf700} />
+        </Pressable>
+
         <QuantityStepper
           value={quantity}
           min={minOrder}

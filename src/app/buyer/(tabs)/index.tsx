@@ -1,13 +1,15 @@
 import { useQueryClient } from '@tanstack/react-query'
-import { router } from 'expo-router'
-import { Search } from 'lucide-react-native'
-import { useState } from 'react'
+import { router, useFocusEffect } from 'expo-router'
+import { Bell, Camera, MessageSquare, Search } from 'lucide-react-native'
+import { useCallback, useState } from 'react'
 import { Image, Pressable, RefreshControl, ScrollView, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { AppText } from '@/components/ui'
 import { blogKeys } from '@/features/blog'
 import { useAddProductToCart, useCartQuantities } from '@/features/cart'
+import { chatKeys, useChatUnreadCount } from '@/features/chat'
 import { CombosTeaser, HomeCategories, HomeHero, StoriesTeaser, TodayRescue } from '@/features/home'
+import { notificationKeys, useNotificationUnreadCount } from '@/features/notification'
 import { useStorefrontProducts } from '@/features/product'
 import { useAuth } from '@/stores'
 import { colors } from '@/theme/colors'
@@ -25,6 +27,16 @@ export default function BuyerHome() {
   const { addProduct, pendingId } = useAddProductToCart()
   const queryClient = useQueryClient()
   const [refreshing, setRefreshing] = useState(false)
+  const { data: notifUnreadCount = 0 } = useNotificationUnreadCount()
+  const { data: chatUnreadCount = 0 } = useChatUnreadCount()
+
+  // Làm mới số đếm chưa đọc mỗi khi quay về Trang chủ
+  useFocusEffect(
+    useCallback(() => {
+      queryClient.invalidateQueries({ queryKey: chatKeys.unreadCount() })
+      queryClient.invalidateQueries({ queryKey: notificationKeys.unreadCount() })
+    }, [queryClient]),
+  )
 
   const refresh = async () => {
     setRefreshing(true)
@@ -44,16 +56,61 @@ export default function BuyerHome() {
               {user?.name ?? 'bạn'}
             </AppText>
           </View>
+
+          {/* Icon Thông báo & Chat */}
+          <View className="flex-row items-center gap-2">
+            <Pressable
+              onPress={() => router.push('/buyer/notifications')}
+              accessibilityRole="button"
+              accessibilityLabel="Xem thông báo"
+              className="relative h-10 w-10 items-center justify-center rounded-xl border border-line bg-white active:bg-leaf-50"
+            >
+              <Bell size={18} color={colors.ink} />
+              {notifUnreadCount > 0 && (
+                <View className="absolute -right-1 -top-1 h-4 min-w-[16px] items-center justify-center rounded-full bg-sale px-1">
+                  <AppText weight="extrabold" className="text-[9px] text-white">
+                    {notifUnreadCount > 99 ? '99+' : notifUnreadCount}
+                  </AppText>
+                </View>
+              )}
+            </Pressable>
+
+            <Pressable
+              onPress={() => router.push('/buyer/chat' as any)}
+              accessibilityRole="button"
+              accessibilityLabel="Hộp thư tin nhắn"
+              className="relative h-10 w-10 items-center justify-center rounded-xl border border-line bg-white active:bg-leaf-50"
+            >
+              <MessageSquare size={18} color={colors.ink} />
+              {chatUnreadCount > 0 && (
+                <View className="absolute -right-1 -top-1 h-4 min-w-[16px] items-center justify-center rounded-full bg-sale px-1">
+                  <AppText weight="extrabold" className="text-[9px] text-white">
+                    {chatUnreadCount > 99 ? '99+' : chatUnreadCount}
+                  </AppText>
+                </View>
+              )}
+            </Pressable>
+          </View>
         </View>
-        <Pressable
-          onPress={() => openFresh()}
-          accessibilityRole="search"
-          accessibilityLabel="Tìm nông sản"
-          className="h-11 flex-row items-center gap-2 rounded-xl border border-line bg-white px-3"
-        >
-          <Search size={16} color={colors.inkSubtle} />
-          <AppText className="text-sm text-ink-subtle">Tìm theo tên, nhà vườn…</AppText>
-        </Pressable>
+        <View className="flex-row items-center gap-2">
+          <Pressable
+            onPress={() => openFresh()}
+            accessibilityRole="search"
+            accessibilityLabel="Tìm nông sản"
+            className="h-11 flex-1 flex-row items-center gap-2 rounded-xl border border-line bg-white px-3"
+          >
+            <Search size={16} color={colors.inkSubtle} />
+            <AppText className="text-sm text-ink-subtle">Tìm theo tên, nhà vườn…</AppText>
+          </Pressable>
+          <Pressable
+            onPress={() => router.navigate({ pathname: '/buyer/fresh', params: { openCamera: 'true' } })}
+            accessibilityRole="button"
+            accessibilityLabel="Tìm bằng hình ảnh AI"
+            className="h-11 w-11 items-center justify-center rounded-xl border border-leaf-700 bg-white active:bg-leaf-50"
+          >
+            <Camera size={18} color={colors.leaf700} />
+          </Pressable>
+        </View>
       </View>
 
       <ScrollView

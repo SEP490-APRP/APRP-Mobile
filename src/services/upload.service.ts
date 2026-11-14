@@ -24,6 +24,28 @@ export const uploadService = {
 
     const response = await axiosInstance.post<ApiResponse<UploadResponse>>('/upload/image', formData, {
       headers: multipartHeaders(),
+      timeout: 60_000,
+    })
+
+    return response.data
+  },
+
+  /**
+   * Tải đa phương tiện (ảnh, video, ghi âm thoại) lên Cloudinary qua endpoint Backend `POST /upload/media`, trả về URL CDN ở `result.url`.
+   */
+  async uploadMedia(file: UploadFile, folder: string = 'chat'): Promise<ApiResponse<UploadResponse>> {
+    if (ENV.USE_MOCK) {
+      await new Promise((r) => setTimeout(r, 300))
+      return { code: 1000, message: 'Upload mock thành công', result: { url: file.uri } }
+    }
+
+    const formData = new FormData()
+    await appendFile(formData, 'file', file)
+    formData.append('folder', folder)
+
+    const response = await axiosInstance.post<ApiResponse<UploadResponse>>('/upload/media', formData, {
+      headers: multipartHeaders(),
+      timeout: 120_000,
     })
 
     return response.data

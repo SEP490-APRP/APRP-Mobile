@@ -97,7 +97,7 @@ export default function ShopAccountTab() {
           {TOOLS.map(({ icon: Icon, label, hint, href }, i) => (
             <Pressable
               key={href}
-              onPress={() => router.push(href)}
+              onPress={() => router.push(href as any)}
               accessibilityRole="button"
               className={`min-h-[64px] flex-row items-center gap-3 px-4 py-3 active:bg-leaf-50 ${i > 0 ? 'border-t border-line' : ''}`}
             >
