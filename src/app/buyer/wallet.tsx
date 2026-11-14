@@ -234,6 +234,9 @@ export default function BuyerWalletScreen() {
                 <AppText weight="extrabold" className="mt-1 text-lg text-ink">
                   {formatRate(d?.defaultCommissionRate)}
                 </AppText>
+                <AppText className="mt-0.5 text-[9px] text-ink-muted">
+                  Hiệu lực 7 ngày · Không giới hạn đơn
+                </AppText>
               </View>
             </View>
 

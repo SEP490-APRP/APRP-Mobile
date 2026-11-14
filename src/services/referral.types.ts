@@ -1,4 +1,4 @@
-export type ReferralTargetType = 'PRODUCT' | 'SHOP'
+export type ReferralTargetType = 'PRODUCT' | 'SHOP' | 'BUILD_COMBO' | 'MYSTERY_BOX'
 
 export type CommissionStatus = 'PENDING' | 'COMPLETED' | 'CANCELLED'
 
