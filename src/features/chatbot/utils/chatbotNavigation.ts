@@ -23,9 +23,9 @@ const TAB_ROUTES = new Set<string>([
 export const isTabRoute = (href: Href): boolean => typeof href === 'string' && TAB_ROUTES.has(href)
 
 export const chatbotRoute: Record<ChatbotRole, Href> = {
-  buyer: '/buyer/chatbot',
-  shop: '/shop/chatbot',
-  shipper: '/shipper/chatbot',
+  buyer: '/buyer/chatbot' as Href,
+  shop: '/shop/chatbot' as Href,
+  shipper: '/shipper/chatbot' as Href,
 }
 
 export const homeRoute: Record<ChatbotRole, Href> = {
@@ -35,9 +35,9 @@ export const homeRoute: Record<ChatbotRole, Href> = {
 }
 
 export const messagesRoute: Record<ChatbotRole, Href> = {
-  buyer: '/buyer/messages',
-  shop: '/shop/messages',
-  shipper: '/shipper/messages',
+  buyer: '/buyer/messages' as Href,
+  shop: '/shop/messages' as Href,
+  shipper: '/shipper/messages' as Href,
 }
 
 function parseUrl(url: string): { path: string; query: Record<string, string> } {
@@ -112,7 +112,7 @@ function shopRoute(first: string | undefined, query: Record<string, string>): Hr
     case 'profile':
       return '/shop/profile-edit'
     case 'messages':
-      return '/shop/messages'
+      return '/shop/messages' as Href
     default:
       return null
   }

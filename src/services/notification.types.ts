@@ -7,11 +7,11 @@ export interface NotificationItem {
   targetRole?: string
   receiverType?: string
   receiverTypes?: string[]
-  createAt?: string
-  createdAt?: string
   isRead?: boolean
   adminId?: number
   adminName?: string
+  createAt?: string
+  createdAt?: string
   /** NEW_ORDER | ORDER_STATUS | SHIPPER_OFFER | DISPATCH_TIMEOUT | CHAT_MESSAGE... */
   type?: string | null
   /** Id đối tượng liên quan (vd. orderId) */
