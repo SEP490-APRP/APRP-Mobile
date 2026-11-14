@@ -38,6 +38,14 @@ const formatRate = (rate?: number) => {
   return `${pct.toFixed(1)}%`
 }
 
+const formatTxDate = (v?: string | number[] | null) => {
+  if (!v) return 'Gần đây'
+  if (Array.isArray(v)) {
+    return new Date(v[0], (v[1] || 1) - 1, v[2] || 1).toLocaleDateString('vi-VN')
+  }
+  return new Date(v).toLocaleDateString('vi-VN')
+}
+
 const formatDateText = (dateVal?: unknown) => {
   if (!dateVal) return 'Gần đây'
   if (Array.isArray(dateVal)) {
@@ -439,7 +447,7 @@ export default function BuyerWalletScreen() {
                             {WALLET_TX_LABEL[item.type] || item.description || 'Giao dịch ví'}
                           </AppText>
                           <AppText className="text-[10px] text-ink-muted">
-                            {item.createdAt ? new Date(item.createdAt).toLocaleDateString('vi-VN') : 'Gần đây'}
+                            {formatTxDate(item.createdAt)}
                           </AppText>
                         </View>
                       </View>

@@ -1,4 +1,4 @@
-import { ImageBackground, View } from 'react-native'
+import { Image, StyleSheet, View } from 'react-native'
 import { ShoppingBasket } from 'lucide-react-native'
 import { AppText, Button } from '@/components/ui'
 
@@ -13,13 +13,13 @@ const STATS = [
 /** Bản gọn của Hero trang chủ web: ảnh nông dân, khẩu hiệu, nút mua và số liệu. */
 export function HomeHero({ onShop }: { onShop: () => void }) {
   return (
-    <ImageBackground
-      source={heroImage}
-      resizeMode="cover"
-      accessibilityLabel="Hai cô chú nông dân tươi cười với nông sản vừa thu hoạch"
-      imageStyle={{ borderRadius: 24 }}
-      className="overflow-hidden rounded-panel"
-    >
+    <View className="relative overflow-hidden rounded-panel">
+      <Image
+        source={heroImage}
+        resizeMode="cover"
+        accessibilityLabel="Hai cô chú nông dân tươi cười với nông sản vừa thu hoạch"
+        style={[StyleSheet.absoluteFill, { borderRadius: 24 }]}
+      />
       <View className="gap-3 rounded-panel bg-black/60 p-5">
         <AppText weight="extrabold" className="text-3xl leading-tight text-white">
           Nông sản xấu mã –{'\n'}
@@ -43,6 +43,6 @@ export function HomeHero({ onShop }: { onShop: () => void }) {
           ))}
         </View>
       </View>
-    </ImageBackground>
+    </View>
   )
 }

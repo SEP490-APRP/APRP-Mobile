@@ -73,7 +73,7 @@ export default function ShopVouchers() {
             Mã giảm giá của vườn
           </AppText>
           <AppText className="text-xs text-ink-muted">
-            {vouchers.data ? `${running} mã đang chạy · ${list.length} mã` : 'Thu hút khách mua nông sản của bạn'}
+            {vouchers.data ? `${running} đang chạy · Tổng số ${list.length} mã` : 'Thu hút khách mua nông sản của bạn'}
           </AppText>
         </View>
       </View>

@@ -1,9 +1,7 @@
+export * from './hooks/useChat'
+export * from './hooks/useBuyerRealtimeSync'
 export {
-  chatKeys,
   openConversation,
-  useChatMessages,
-  useConversations,
-  useMarkConversationRead,
   useSendChatMessage,
   useStartConversation,
 } from './hooks/useChatQueries'

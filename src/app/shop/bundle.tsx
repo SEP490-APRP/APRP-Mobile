@@ -215,7 +215,11 @@ export default function ShopBundleEditor() {
     <SafeAreaView className="flex-1 bg-paper" edges={['top', 'bottom']}>
       {header}
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} className="flex-1">
-        <ScrollView contentContainerClassName="gap-5 p-4 pb-8" keyboardShouldPersistTaps="handled">
+        <ScrollView
+          contentContainerClassName="gap-5 p-4"
+          contentContainerStyle={{ paddingBottom: 120 }}
+          keyboardShouldPersistTaps="handled"
+        >
           {/* Ảnh đại diện */}
           <Pressable
             onPress={() => setImageSheet(true)}

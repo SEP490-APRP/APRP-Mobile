@@ -54,9 +54,9 @@ export function openConversation(conversation: Conversation) {
     name: conversation.otherUserName ?? '',
     otherUserId: String(conversation.otherUserId),
   }
-  if (role === 'shop') router.push({ pathname: '/shop/messages/[id]', params })
-  else if (role === 'shipper') router.push({ pathname: '/shipper/messages/[id]', params })
-  else router.push({ pathname: '/buyer/messages/[id]', params })
+  if (role === 'shop') router.push({ pathname: '/shop/messages/[id]' as any, params })
+  else if (role === 'shipper') router.push({ pathname: '/shipper/messages/[id]' as any, params })
+  else router.push({ pathname: '/buyer/messages/[id]' as any, params })
 }
 
 /** Mở hội thoại với một người (tạo mới nếu chưa có). */

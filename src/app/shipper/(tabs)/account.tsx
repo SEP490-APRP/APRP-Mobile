@@ -102,7 +102,7 @@ export default function ShipperAccount() {
           {MENU.map(({ icon: Icon, label, hint, href }, i) => (
             <Pressable
               key={href}
-              onPress={() => router.push(href)}
+              onPress={() => router.push(href as any)}
               accessibilityRole="button"
               className={cn(
                 'min-h-[64px] flex-row items-center gap-3 px-4 py-3 active:bg-leaf-50',

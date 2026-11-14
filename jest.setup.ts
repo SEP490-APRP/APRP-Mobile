@@ -15,3 +15,27 @@ jest.mock('expo-secure-store', () => {
 })
 
 jest.mock('expo-crypto', () => ({ randomUUID: () => 'test-uuid' }))
+
+// Mock expo-audio
+jest.mock('expo-audio', () => ({
+  createAudioPlayer: jest.fn(() => ({
+    play: jest.fn(),
+    pause: jest.fn(),
+    seekTo: jest.fn(async () => {}),
+  })),
+  setAudioModeAsync: jest.fn(async () => {}),
+  useAudioRecorder: jest.fn(() => ({
+    currentTime: 0,
+    isRecording: false,
+    uri: null,
+    prepareToRecordAsync: jest.fn(async () => {}),
+    record: jest.fn(),
+    stop: jest.fn(async () => {}),
+  })),
+  requestRecordingPermissionsAsync: jest.fn(async () => ({ granted: true })),
+  RecordingPresets: {
+    HIGH_QUALITY: {},
+    LOW_QUALITY: {},
+  },
+}))
+

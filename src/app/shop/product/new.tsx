@@ -83,7 +83,11 @@ export default function NewShopProduct() {
       </View>
 
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} className="flex-1">
-        <ScrollView contentContainerClassName="gap-5 p-4 pb-8" keyboardShouldPersistTaps="handled">
+        <ScrollView
+          contentContainerClassName="gap-5 p-4"
+          contentContainerStyle={{ paddingBottom: 120 }}
+          keyboardShouldPersistTaps="handled"
+        >
           <View className="gap-1.5">
             <AppText weight="semibold" className="text-sm text-ink">
               Ảnh đại diện *

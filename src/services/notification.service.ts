@@ -1,37 +1,49 @@
-import type { ApiResponse } from '@/types'
+import axiosInstance from './api/axiosInstance'
+import type { ApiResponse, PageResponse } from '@/types'
 import type { NotificationItem } from './notification.types'
-import { mockNotifications } from '@/mocks/notification.mock'
-import { freshResponses } from '@/mocks/fresh'
 
 export type * from './notification.types'
 
-export const notificationService = freshResponses({
-  async getAllNotifications(): Promise<ApiResponse<NotificationItem[]>> {
-    await new Promise((r) => setTimeout(r, 150))
-    return { code: 200, result: [...mockNotifications] }
-  },
-
+export const notificationService = {
+  /** Lấy danh sách thông báo của người dùng */
   async getMyNotifications(): Promise<ApiResponse<NotificationItem[]>> {
-    await new Promise((r) => setTimeout(r, 150))
-    return { code: 200, result: [...mockNotifications] }
+    const res = await axiosInstance.get<ApiResponse<NotificationItem[]>>('/notifications/my')
+    return res.data
   },
 
-  async adminSendToGroups(payload: {
-    title: string
-    message: string
-    receiverTypes: string[]
-  }): Promise<ApiResponse<NotificationItem>> {
-    await new Promise((r) => setTimeout(r, 300))
-    const newNotif: NotificationItem = {
-      id: Date.now(),
-      title: payload.title,
-      message: payload.message,
-      receiverTypes: payload.receiverTypes,
-      receiverType: payload.receiverTypes.join(', '),
-      createdAt: new Date().toISOString(),
-      createAt: new Date().toISOString(),
-    }
-    mockNotifications.unshift(newNotif)
-    return { code: 200, result: newNotif }
+  /** Lấy danh sách thông báo phân trang */
+  async getMyNotificationsPaged(
+    page = 0,
+    size = 15,
+  ): Promise<ApiResponse<PageResponse<NotificationItem>>> {
+    const res = await axiosInstance.get<ApiResponse<PageResponse<NotificationItem>>>(
+      '/notifications/my/paged',
+      { params: { page, size } },
+    )
+    return res.data
   },
-})
+
+  /** Đếm số lượng thông báo chưa đọc */
+  async getMyUnreadCount(): Promise<ApiResponse<number>> {
+    const res = await axiosInstance.get<ApiResponse<number>>('/notifications/unread-count')
+    return res.data
+  },
+
+  /** Đánh dấu 1 thông báo là đã đọc */
+  async markAsRead(id: number): Promise<ApiResponse<void>> {
+    const res = await axiosInstance.put<ApiResponse<void>>(`/notifications/${id}/read`)
+    return res.data
+  },
+
+  /** Đánh dấu tất cả thông báo là đã đọc */
+  async markAllAsRead(): Promise<ApiResponse<void>> {
+    const res = await axiosInstance.put<ApiResponse<void>>('/notifications/read-all')
+    return res.data
+  },
+
+  /** Xóa mềm thông báo */
+  async deleteNotification(id: number): Promise<ApiResponse<void>> {
+    const res = await axiosInstance.delete<ApiResponse<void>>(`/notifications/${id}`)
+    return res.data
+  },
+}
