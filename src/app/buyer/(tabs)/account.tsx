@@ -16,6 +16,7 @@ import {
   Truck,
   UserRound,
   type LucideIcon,
+  Wallet,
 } from 'lucide-react-native'
 import { Pressable, RefreshControl, ScrollView, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -36,6 +37,7 @@ const ORDER_SHORTCUTS: { tab: OrderTab; icon: LucideIcon; label: string }[] = [
 ]
 
 const MENU: { icon: LucideIcon; label: string; href: Href; badgeKey?: 'notif' | 'chat' }[] = [
+  { icon: Wallet, label: 'Ví của tôi & Tiếp thị liên kết', href: '/buyer/wallet' as Href },
   { icon: UserRound, label: 'Hồ sơ cá nhân', href: '/buyer/profile' },
   { icon: Bell, label: 'Thông báo của tôi', href: '/buyer/notifications' as any, badgeKey: 'notif' },
   { icon: MessageSquare, label: 'Tin nhắn & Hỗ trợ', href: '/buyer/chat' as any, badgeKey: 'chat' },

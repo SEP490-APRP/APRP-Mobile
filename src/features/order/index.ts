@@ -1,5 +1,6 @@
 export { OrderCard } from './components/OrderCard'
 export { OrderStatusBadge } from './components/OrderStatusBadge'
+export { PickupCodeTag } from './components/PickupCodeTag'
 export { ResumePaymentSheet } from './components/ResumePaymentSheet'
 export { orderKeys, useCancelOrder, useMyOrders, useOrder } from './hooks/useOrderQueries'
 export { usePayOrder } from './hooks/usePayOrder'

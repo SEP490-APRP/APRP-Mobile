@@ -13,6 +13,7 @@ import {
   Phone,
   TicketPercent,
   type LucideIcon,
+  MessageCircle,
 } from 'lucide-react-native'
 import { Pressable, RefreshControl, ScrollView, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -23,6 +24,7 @@ import { useAuth } from '@/stores'
 import { colors } from '@/theme/colors'
 
 const TOOLS = [
+  { icon: MessageCircle, label: 'Tin nhắn', hint: 'Trao đổi với khách hàng', href: '/shop/messages' },
   { icon: TicketPercent, label: 'Mã giảm giá', hint: 'Tạo, tạm dừng mã ưu đãi của vườn', href: '/shop/vouchers' },
   { icon: BookOpen, label: 'Chuyện nhà vườn', hint: 'Viết bài kể chuyện mùa vụ cho khách', href: '/shop/blogs' },
 ] as const
@@ -95,7 +97,7 @@ export default function ShopAccountTab() {
           {TOOLS.map(({ icon: Icon, label, hint, href }, i) => (
             <Pressable
               key={href}
-              onPress={() => router.push(href)}
+              onPress={() => router.push(href as any)}
               accessibilityRole="button"
               className={`min-h-[64px] flex-row items-center gap-3 px-4 py-3 active:bg-leaf-50 ${i > 0 ? 'border-t border-line' : ''}`}
             >

@@ -1,8 +1,10 @@
+import { unwrap } from '@/services/api/apiUtils'
 import axiosInstance from './api/axiosInstance'
 import type { ApiResponse, PageResponse } from '@/types'
 import type { ChatMessage, ChatMessageRequest, Conversation } from '@/types/chat'
 import { chatSocketService } from './websocket/chatSocket.service'
 
+/** Chép từ APRP-FE/src/services/api/chat.api.ts. Realtime nằm ở features/chat/hooks/useChatSocket.ts & websocket/chatSocket.service.ts. */
 export const chatService = {
   /**
    * Kết nối WebSocket Realtime
@@ -49,19 +51,21 @@ export const chatService = {
   /**
    * Lấy danh sách cuộc trò chuyện của người dùng
    */
-  async getConversations(): Promise<ApiResponse<Conversation[]>> {
+  async getConversations(): Promise<Conversation[] & { result: Conversation[] }> {
     const res = await axiosInstance.get<ApiResponse<Conversation[]>>('/chat/conversations')
-    return res.data
+    const data = unwrap<Conversation[]>(res) ?? []
+    return Object.assign(data, { result: data, code: 1000 })
   },
 
   /**
    * Khởi tạo hoặc lấy cuộc trò chuyện với 1 người dùng (Chủ shop/Admin)
    */
-  async initConversation(receiverId: number): Promise<ApiResponse<Conversation>> {
+  async initConversation(receiverId: number): Promise<Conversation & { result: Conversation }> {
     const res = await axiosInstance.post<ApiResponse<Conversation>>('/chat/conversations/init', {
       receiverId,
     })
-    return res.data
+    const data = unwrap<Conversation>(res)
+    return Object.assign(data, { result: data, code: 1000 })
   },
 
   /**
@@ -71,32 +75,32 @@ export const chatService = {
     conversationId: number,
     page = 0,
     size = 50,
-  ): Promise<ApiResponse<PageResponse<ChatMessage>>> {
+  ): Promise<PageResponse<ChatMessage> & { result: PageResponse<ChatMessage> }> {
     const res = await axiosInstance.get<ApiResponse<PageResponse<ChatMessage>>>(
       `/chat/conversations/${conversationId}/messages`,
       { params: { page, size } },
     )
-    return res.data
+    const data = unwrap<PageResponse<ChatMessage>>(res)
+    return Object.assign(data, { result: data, code: 1000 })
   },
 
   /**
    * Gửi tin nhắn mới (hỗ trợ text, ảnh, video, voice)
    */
   async sendMessage(
-    receiverId: number,
-    content: string,
+    reqOrReceiverId: ChatMessageRequest | number,
+    content = '',
     type = 'TEXT',
     attachmentUrl?: string,
-  ): Promise<ApiResponse<ChatMessage>> {
-    const payload: ChatMessageRequest = {
-      receiverId,
-      content,
-      type,
-      attachmentUrl,
-    }
+  ): Promise<ChatMessage & { result: ChatMessage }> {
+    const payload: ChatMessageRequest =
+      typeof reqOrReceiverId === 'number'
+        ? { receiverId: reqOrReceiverId, content, type, attachmentUrl }
+        : reqOrReceiverId
 
     const res = await axiosInstance.post<ApiResponse<ChatMessage>>('/chat/messages', payload)
-    return res.data
+    const data = unwrap<ChatMessage>(res)
+    return Object.assign(data, { result: data, code: 1000 })
   },
 
   /**
