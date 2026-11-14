@@ -114,3 +114,13 @@ export function orderStepIndex(status?: string | null): number {
       return -1
   }
 }
+
+/**
+ * Mã đối soát khi bàn giao hàng: nhà vườn ghi/dán lên túi hàng, tài xế so khớp trước khi bấm "Đã lấy hàng".
+ * Cùng định dạng với bản web (utils/orderCode.ts).
+ */
+export const pickupCode = (orderId: number | string) => `#${orderId}`
+
+/** Nhà vườn cần dán mã lên túi hàng: đã xác nhận, chưa bàn giao cho tài xế */
+export const needsPickupCode = (status?: string | null) =>
+  status === 'CONFIRMED' || status === 'READY' || status === 'SHIPPING'

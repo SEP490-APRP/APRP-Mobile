@@ -30,7 +30,7 @@ export interface Conversation {
 
 export interface ChatMessageRequest {
   receiverId: number
-  content: string
+  content?: string
   type?: string
   referenceId?: number
   attachmentUrl?: string

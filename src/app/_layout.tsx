@@ -37,6 +37,9 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <StatusBar style="dark" />
         <Stack screenOptions={{ headerShown: false }}>
+          {/* Màn hình Deep Link tiếp thị mở cho cả khách vãng lai và người dùng đã đăng nhập */}
+          <Stack.Screen name="ref/[code]" />
+
           {/* Thay cho RequireRole.tsx: mỗi khu vực chỉ mở khi đúng vai trò; sai thì Expo Router đưa về index. */}
           <Stack.Protected guard={!isAuthenticated}>
             <Stack.Screen name="(auth)" />

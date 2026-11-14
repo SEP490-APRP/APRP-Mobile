@@ -1,5 +1,6 @@
 import { useMutation } from '@tanstack/react-query'
 import { authService, buildSessionUser, mapBackendRoleToFrontend } from '@/services/auth.service'
+import { claimPendingReferral } from '@/services/referral.service'
 import type { UserResponse } from '@/services/user.types'
 import { useAuthStore } from '@/stores/useAuthStore'
 import type { SessionUser } from '@/types'
@@ -53,6 +54,9 @@ async function processAuthToken(token: string, fallbackEmail: string): Promise<S
         }
 
     useAuthStore.getState().login(sessionUser, token)
+    if (role === 'buyer') {
+      void claimPendingReferral().catch(() => {})
+    }
     return sessionUser
   } catch (error) {
     useAuthStore.setState({ token: null })

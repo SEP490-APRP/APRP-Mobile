@@ -15,7 +15,8 @@ import { useState } from 'react'
 import { Pressable, View } from 'react-native'
 import { AppText, Button, Checkbox } from '@/components/ui'
 import { OrderStatusBadge } from '@/features/order/components/OrderStatusBadge'
-import { orderIdOf } from '@/features/order/utils/orderStatus'
+import { needsPickupCode, orderIdOf } from '@/features/order/utils/orderStatus'
+import { PickupCodeTag } from '@/features/order/components/PickupCodeTag'
 import { money } from '@/features/product'
 import { colors } from '@/theme/colors'
 import type { OrderItem, OrderResponse } from '@/types/order.types'
@@ -170,6 +171,7 @@ export function ShopOrderCard({
             )}
           </View>
           <AppText className="text-xs text-ink-subtle">{orderTime(order.createdAt)}</AppText>
+          {needsPickupCode(order.status) && <PickupCodeTag orderId={id} variant="shop" className="mt-1" />}
         </View>
 
         <View className="px-4 py-1">

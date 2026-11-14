@@ -4,10 +4,12 @@ import { useState } from 'react'
 import { Linking, Pressable, RefreshControl, ScrollView, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { AppText, Button, ConfirmDialog, EmptyState, ErrorState, Skeleton } from '@/components/ui'
-import { orderIdOf } from '@/features/order/utils/orderStatus'
+import { orderIdOf, pickupCode } from '@/features/order/utils/orderStatus'
+import { PickupCodeTag } from '@/features/order/components/PickupCodeTag'
 import { money } from '@/features/product'
 import {
   codToCollect,
+  DeliveryResultSheet,
   directionsUrl,
   ShipperOrderCard,
   shipperErrorMessage,
@@ -17,6 +19,7 @@ import {
   useDeliveryAction,
   type BroadcastState,
   type DeliveryAction,
+  type DeliveryProof,
 } from '@/features/shipper'
 import { useUiStore } from '@/stores'
 import { colors } from '@/theme/colors'
@@ -24,9 +27,17 @@ import type { OrderResponse } from '@/types/order.types'
 import { cn } from '@/utils/helpers'
 
 const ASK: Record<DeliveryAction, { title: string; confirm: string; done: string }> = {
-  pickup: { title: 'Đã lấy hàng ở nhà vườn?', confirm: 'Đã lấy hàng', done: 'Đã lấy hàng. Giao cho khách nhé!' },
-  deliver: { title: 'Đã giao cho khách?', confirm: 'Giao thành công', done: 'Giao thành công. Cảm ơn bạn!' },
-  fail: { title: 'Báo giao thất bại?', confirm: 'Báo thất bại', done: 'Đã báo giao thất bại. Hàng được hoàn kho.' },
+  pickup: { title: 'Đối soát mã đơn', confirm: 'Mã trùng, đã lấy hàng', done: 'Đã lấy hàng. Giao cho khách nhé!' },
+  deliver: {
+    title: 'Đã giao cho khách?',
+    confirm: 'Giao thành công',
+    done: 'Giao thành công! Cước giao đã được cộng thẳng vào số dư khả dụng của bạn.',
+  },
+  fail: {
+    title: 'Báo giao thất bại?',
+    confirm: 'Báo thất bại',
+    done: 'Đã báo giao thất bại. Hàng được hoàn kho, tiền ký quỹ COD đã trả lại ví.',
+  },
 }
 
 /** Đơn đang giao, chuyển từ thẻ "Đơn đang giao" trong pages/shipper/Dashboard.tsx. */
@@ -38,11 +49,11 @@ export default function ShipperDelivering() {
   const showToast = useUiStore((s) => s.showToast)
   const [ask, setAsk] = useState<{ order: OrderResponse; action: DeliveryAction } | null>(null)
 
-  const run = () => {
+  const run = (proof?: DeliveryProof) => {
     if (!ask) return
     const { order, action } = ask
     act.mutate(
-      { orderId: orderIdOf(order), action },
+      { orderId: orderIdOf(order), action, proof },
       {
         onSuccess: () => showToast(ASK[action].done),
         onError: (e) => showToast(shipperErrorMessage(e, 'Chưa cập nhật được đơn, thử lại nhé.')),
@@ -58,7 +69,8 @@ export default function ShipperDelivering() {
     if (ask.action === 'deliver')
       return cod > 0 ? `Xác nhận bạn đã thu đủ ${money(cod)} của khách.` : 'Khách đã trả trước, không cần thu tiền.'
     if (ask.action === 'fail') return 'Dùng khi không liên lạc được khách hoặc khách không nhận. Đơn sẽ bị huỷ giao.'
-    return `Bấm khi đã nhận đủ hàng của ${ask.order.shopName || 'nhà vườn'}.`
+    const code = pickupCode(orderIdOf(ask.order))
+    return `Kiểm tra mã trên túi hàng trùng ${code}, rồi bấm khi đã nhận đủ hàng của ${ask.order.shopName || 'nhà vườn'}.`
   })()
 
   return (
@@ -97,6 +109,7 @@ export default function ShipperDelivering() {
             return (
               <View key={orderIdOf(o)} className="gap-3">
                 <Stage picked={picked} />
+                {!picked && <PickupCodeTag orderId={orderIdOf(o)} variant="shipper" />}
                 <SharingChip state={sharing} />
                 <ShipperOrderCard
                   order={o}
@@ -167,15 +180,28 @@ export default function ShipperDelivering() {
         )}
       </ScrollView>
 
+      {/* Giao thành công / thất bại: cần ảnh bằng chứng (và lý do nếu thất bại) */}
+      <DeliveryResultSheet
+        visible={ask != null && ask.action !== 'pickup'}
+        orderId={ask ? orderIdOf(ask.order) : 0}
+        failed={ask?.action === 'fail'}
+        codAmount={ask ? codToCollect(ask.order) : 0}
+        paymentMethod={ask?.order.paymentMethod}
+        stage={ask?.order.status === 'PICKED_UP' ? 'delivery' : 'pickup'}
+        loading={act.isPending}
+        onSubmit={(proof) => run(proof)}
+        onClose={() => setAsk(null)}
+      />
+
       <ConfirmDialog
-        visible={ask != null}
+        visible={ask?.action === 'pickup'}
         title={ask ? ASK[ask.action].title : ''}
         message={askMessage}
         confirmLabel={ask ? ASK[ask.action].confirm : undefined}
         cancelLabel="Chưa"
         destructive={ask?.action === 'fail'}
         loading={act.isPending}
-        onConfirm={run}
+        onConfirm={() => run()}
         onCancel={() => setAsk(null)}
       />
     </SafeAreaView>

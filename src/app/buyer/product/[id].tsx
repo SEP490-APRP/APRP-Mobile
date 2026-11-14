@@ -8,6 +8,7 @@ import {
   Share2,
   ShieldCheck,
   ShoppingCart,
+  Sparkles,
   Store,
   Truck,
   type LucideIcon,
@@ -35,6 +36,8 @@ import {
   useShopReviews,
 } from '@/features/review'
 import { useUser } from '@/features/user'
+import { useCreateReferralLink } from '@/features/referral'
+import { useAuth } from '@/stores'
 import { colors } from '@/theme/colors'
 import { absoluteUrl, cn } from '@/utils/helpers'
 
@@ -77,6 +80,8 @@ export default function ProductDetailScreen() {
 
   const cart = useCartQuantities()
   const { addProduct, pendingId } = useAddProductToCart()
+  const createLink = useCreateReferralLink()
+  const { user, isAuthenticated } = useAuth()
   const [quantity, setQuantity] = useState(1)
   const [tab, setTab] = useState<Tab>('Mô tả')
   const [expanded, setExpanded] = useState(false)
@@ -153,11 +158,29 @@ export default function ProductDetailScreen() {
   ]
 
   async function shareProduct() {
-    const url = absoluteUrl(`/san-pham/${product!.id}`)
+    if (!product) return
+    let url = absoluteUrl(`/san-pham/${product.id}`)
+    let shareText = `${product.productName} chỉ ${vnd(price)}/${unit} tại ${farmName} trên CapNong! Mua ngay: ${url}`
+
+    if (isAuthenticated && user?.role === 'buyer') {
+      try {
+        const link = await createLink.mutateAsync({
+          targetType: 'PRODUCT',
+          targetId: product.id,
+        })
+        if (link?.shareUrl) {
+          url = link.shareUrl
+          shareText = `🌱 Giới thiệu bạn món ${product.productName} tươi ngon từ ${farmName} trên CapNong: ${url}`
+        }
+      } catch {
+        // Fallback to direct URL
+      }
+    }
+
     try {
       await Share.share({
-        title: product!.productName,
-        message: `${product!.productName} chỉ ${vnd(price)}/${unit} tại ${farmName} trên CapNong! ${url}`,
+        title: product.productName,
+        message: shareText,
         url,
       })
     } catch {
@@ -270,6 +293,29 @@ export default function ProductDetailScreen() {
             <Stat value={String(minOrder)} label={`${unit} tối thiểu`} />
           </View>
         </View>
+
+        {/* Affiliate callout banner */}
+        <Pressable
+          onPress={() => void shareProduct()}
+          className="flex-row items-center justify-between rounded-2xl border border-amber-200 bg-amber-50 p-3.5"
+        >
+          <View className="flex-1 pr-2">
+            <View className="flex-row items-center gap-1.5">
+              <Sparkles size={14} color="#d97706" />
+              <AppText weight="bold" className="text-xs text-amber-800">
+                Chia sẻ kiếm hoa hồng 2%
+              </AppText>
+            </View>
+            <AppText className="mt-0.5 text-[11px] text-amber-700">
+              Nhận tiền trực tiếp vào ví khi bạn bè mua qua link của bạn
+            </AppText>
+          </View>
+          <View className="rounded-xl bg-amber-600 px-3 py-1.5">
+            <AppText weight="bold" className="text-xs text-white">
+              Chia sẻ
+            </AppText>
+          </View>
+        </Pressable>
 
         {/* Mô tả ngắn */}
         <View className="gap-1">
