@@ -29,19 +29,27 @@ export function useShipperLocation(orderId: number) {
   const [connected, setConnected] = useState(false)
   const [gpsPaused, setGpsPaused] = useState(false)
 
+  const snapshot = useQuery({
+    queryKey: trackingKeys.location(orderId),
+    queryFn: () => fetchLocation(orderId),
+    enabled: Number.isFinite(orderId) && orderId > 0,
+    refetchInterval: (query) => {
+      const data = query.state.data
+      const done =
+        data?.trackingActive === false ||
+        data?.orderStatus === 'DELIVERED' ||
+        data?.orderStatus === 'COMPLETED' ||
+        data?.orderStatus === 'FAILED'
+      return connected || done ? false : POLL_MS
+    },
+    retry: 1,
+  })
+
   const isFinished =
     snapshot.data?.trackingActive === false ||
     snapshot.data?.orderStatus === 'DELIVERED' ||
     snapshot.data?.orderStatus === 'COMPLETED' ||
     snapshot.data?.orderStatus === 'FAILED'
-
-  const snapshot = useQuery({
-    queryKey: trackingKeys.location(orderId),
-    queryFn: () => fetchLocation(orderId),
-    enabled: Number.isFinite(orderId) && orderId > 0,
-    refetchInterval: connected || isFinished ? false : POLL_MS,
-    retry: 1,
-  })
 
   useEffect(() => {
     if (!Number.isFinite(orderId) || orderId <= 0 || isFinished) return

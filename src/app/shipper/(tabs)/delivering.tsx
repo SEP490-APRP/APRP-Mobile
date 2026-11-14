@@ -31,7 +31,7 @@ const ASK: Record<DeliveryAction, { title: string; confirm: string; done: string
   deliver: {
     title: 'Đã giao cho khách?',
     confirm: 'Giao thành công',
-    done: 'Giao thành công! Cước giao vào ví khi khách xác nhận đã nhận hàng.',
+    done: 'Giao thành công! Cước giao đã được cộng thẳng vào số dư khả dụng của bạn.',
   },
   fail: {
     title: 'Báo giao thất bại?',
@@ -186,6 +186,7 @@ export default function ShipperDelivering() {
         orderId={ask ? orderIdOf(ask.order) : 0}
         failed={ask?.action === 'fail'}
         codAmount={ask ? codToCollect(ask.order) : 0}
+        paymentMethod={ask?.order.paymentMethod}
         stage={ask?.order.status === 'PICKED_UP' ? 'delivery' : 'pickup'}
         loading={act.isPending}
         onSubmit={(proof) => run(proof)}

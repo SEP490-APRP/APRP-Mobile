@@ -21,6 +21,7 @@ export function DeliveryResultSheet({
   orderId,
   failed,
   codAmount = 0,
+  paymentMethod,
   stage,
   loading,
   onSubmit,
@@ -31,6 +32,7 @@ export function DeliveryResultSheet({
   failed: boolean
   /** Tiền mặt cần thu (đơn COD) */
   codAmount?: number
+  paymentMethod?: string
   /** Chưa lấy hàng thì "thất bại" nghĩa là không lấy được hàng */
   stage: 'pickup' | 'delivery'
   loading?: boolean
@@ -38,6 +40,7 @@ export function DeliveryResultSheet({
   onClose: () => void
 }) {
   const showToast = useUiStore((s) => s.showToast)
+  const isCod = codAmount > 0 || paymentMethod?.toUpperCase() === 'COD'
   const [photos, setPhotos] = useState<UploadFile[]>([])
   const [reason, setReason] = useState<DeliveryFailReason | null>(null)
   const [calls, setCalls] = useState(0)
@@ -111,12 +114,38 @@ export function DeliveryResultSheet({
       }
     >
       <View className="gap-4">
-        {!failed && codAmount > 0 && (
-          <View className="rounded-card bg-sun-300/40 p-3">
-            <AppText className="text-sm leading-relaxed text-leaf-900">
-              Thu đủ <AppText weight="extrabold">{money(codAmount)}</AppText> tiền mặt của khách. Số này được trừ vào tiền đã ký quỹ.
-            </AppText>
-          </View>
+        {!failed && (
+          isCod ? (
+            <View className="rounded-2xl border border-amber-300 bg-amber-50 p-4">
+              <View className="flex-row items-center justify-between">
+                <AppText weight="bold" className="text-xs uppercase tracking-wider text-amber-700">
+                  Đơn thu tiền mặt (COD)
+                </AppText>
+                <AppText weight="extrabold" className="text-base text-amber-900">
+                  {money(codAmount)}
+                </AppText>
+              </View>
+              <AppText className="mt-1 text-xs text-amber-800 leading-relaxed">
+                Vui lòng thu đủ <AppText weight="extrabold">{money(codAmount)}</AppText> tiền mặt của khách trước khi bàn giao hàng. Khoản tiền này đã được ký quỹ trong ví.
+              </AppText>
+            </View>
+          ) : (
+            <View className="rounded-2xl border border-emerald-300 bg-emerald-50 p-4">
+              <View className="flex-row items-center justify-between">
+                <AppText weight="bold" className="text-xs uppercase tracking-wider text-emerald-700">
+                  Đã thanh toán online ({paymentMethod || 'VietQR / Ví'})
+                </AppText>
+                <View className="rounded-md bg-emerald-200/80 px-2 py-0.5">
+                  <AppText weight="extrabold" className="text-xs text-emerald-800">
+                    0 đ
+                  </AppText>
+                </View>
+              </View>
+              <AppText weight="semibold" className="mt-1 text-xs text-emerald-800 leading-relaxed">
+                Đơn hàng đã thanh toán 100% online. <AppText weight="extrabold" className="text-emerald-950 underline">TUYỆT ĐỐI KHÔNG THU TIỀN MẶT CỦA KHÁCH.</AppText>
+              </AppText>
+            </View>
+          )
         )}
 
         {failed && (
