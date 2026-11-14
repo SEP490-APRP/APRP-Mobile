@@ -135,7 +135,7 @@ export default function ShopScreen() {
           <Pressable
             onPress={() => {
               router.push({
-                pathname: '/buyer/chat/[id]',
+                pathname: '/buyer/chat/[id]' as any,
                 params: {
                   id: '-1',
                   receiverId: String(shopId),
