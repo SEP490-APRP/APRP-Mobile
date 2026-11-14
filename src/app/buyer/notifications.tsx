@@ -25,6 +25,7 @@ import {
   useMyNotifications,
 } from '@/features/notification'
 import type { NotificationItem } from '@/services/notification.types'
+import { handleNotificationDeepLink } from '@/services/pushNotification'
 import { colors } from '@/theme/colors'
 import { cn } from '@/utils/helpers'
 
@@ -47,6 +48,10 @@ const fmtTime = (iso?: string) => {
 }
 
 const getNotifIcon = (item: NotificationItem) => {
+  const type = (item.type ?? '').toUpperCase()
+  if (type.includes('ORDER') || type.includes('SHIPPER') || type.includes('DISPATCH')) {
+    return { icon: Truck, bg: 'bg-leaf-100', color: colors.leaf700 }
+  }
   const text = `${item.title} ${item.message}`.toLowerCase()
   if (text.includes('đơn hàng') || text.includes('giao hàng') || text.includes('vận chuyển')) {
     return { icon: Truck, bg: 'bg-leaf-100', color: colors.leaf700 }
@@ -93,17 +98,28 @@ export default function BuyerNotificationsScreen() {
       markRead.mutate(item.id)
     }
 
-    // Tự động phân tích và điều hướng đến màn hình đích tương ứng
+    // 1. Nếu có type & referenceId từ push notification / backend notification service
+    if (item.type || item.referenceId) {
+      handleNotificationDeepLink({
+        type: item.type ?? undefined,
+        orderId: item.referenceId ?? undefined,
+        referenceId: item.referenceId ?? undefined,
+        role: 'buyer',
+      })
+      return
+    }
+
+    // 2. Tự động phân tích và điều hướng đến màn hình đích tương ứng (fallback)
     const text = `${item.title} ${item.message} ${item.evidence || ''}`.toLowerCase()
 
-    // 1. Kiểm tra mã đơn hàng (VD: đơn hàng #123 hoặc id trong evidence)
+    // Kiểm tra mã đơn hàng (VD: đơn hàng #123 hoặc id trong evidence)
     const orderMatch = text.match(/đơn hàng.*?#?(\d+)/i) || (item.evidence && item.evidence.match(/order.*?(\d+)/i))
     if (orderMatch && orderMatch[1]) {
       router.push({ pathname: '/buyer/order/[id]', params: { id: orderMatch[1] } })
       return
     }
 
-    // 2. Kiểm tra voucher
+    // Kiểm tra voucher
     if (text.includes('voucher') || text.includes('khuyến mãi')) {
       router.push('/buyer/vouchers')
       return

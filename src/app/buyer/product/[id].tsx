@@ -468,7 +468,7 @@ export default function ProductDetailScreen() {
             const sid = productShopId(product) || product.shopId
             if (sid) {
               router.push({
-                pathname: '/buyer/chat/[id]',
+                pathname: '/buyer/chat/[id]' as any,
                 params: {
                   id: '-1',
                   receiverId: String(sid),
