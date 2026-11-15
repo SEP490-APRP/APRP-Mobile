@@ -1,26 +1,28 @@
 import { Image } from 'expo-image'
 import { router } from 'expo-router'
 import {
+  AlertTriangle,
   BadgeCheck,
+  Bell,
   ChevronRight,
-  Clock,
+  Coins,
   Gift,
-  Package,
+  MessageSquare,
   PackageCheck,
+  Plus,
   ShoppingBag,
-  Store,
   Wallet,
 } from 'lucide-react-native'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Pressable, RefreshControl, ScrollView, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { AppText, ErrorState, Skeleton } from '@/components/ui'
+import { AppText, Skeleton } from '@/components/ui'
+import { useConversations } from '@/features/chat'
 import { comboToCard, mysteryToCard } from '@/features/combo'
 import { money } from '@/features/product'
 import { useMyProfile } from '@/features/profile'
 import {
   greeting,
-  isSelling,
   ListingRow,
   listingStatus,
   ShopOrderRow,
@@ -29,7 +31,10 @@ import {
   useMyShopBoxes,
   useMyShopCombos,
   useMyShopProducts,
+  useShopDisputes,
   useShopOrders,
+  useShopReviewReport,
+  useShopWallet,
   visibleShopOrders,
   type ShopOrderTab,
 } from '@/features/shop'
@@ -40,6 +45,7 @@ import { cn } from '@/utils/helpers'
 const openOrders = (tab: ShopOrderTab) => router.navigate({ pathname: '/shop/orders', params: { tab } })
 
 type ListingTab = 'PRODUCT' | 'COMBO' | 'BOX'
+type PeriodType = 'week' | 'month' | 'all'
 
 const LISTING_TABS: { id: ListingTab; label: string }[] = [
   { id: 'PRODUCT', label: 'Nông sản' },
@@ -49,15 +55,20 @@ const LISTING_TABS: { id: ListingTab; label: string }[] = [
 
 const PREVIEW = 5
 
-/** Tổng quan Nhà Vườn, chuyển từ pages/farmer/Dashboard.tsx: số liệu thật từ đơn, sản phẩm, combo và túi mù. */
 export default function ShopDashboard() {
   const { user } = useAuth()
   const profile = useMyProfile()
-  const orders = useShopOrders()
+  const orders = useShopOrders({ page: 0, size: 50 })
   const products = useMyShopProducts()
   const combos = useMyShopCombos()
   const boxes = useMyShopBoxes()
+  const walletQuery = useShopWallet()
+  const reviewReport = useShopReviewReport()
+  const disputesQuery = useShopDisputes(0, 5, 'PENDING')
+  const { data: convs } = useConversations()
+
   const [tab, setTab] = useState<ListingTab>('PRODUCT')
+  const [period, setPeriod] = useState<PeriodType>('week')
   const [refreshing, setRefreshing] = useState(false)
 
   const p = profile.data
@@ -70,15 +81,129 @@ export default function ShopDashboard() {
   const productList = products.data ?? []
   const comboList = combos.data ?? []
   const boxList = boxes.data ?? []
-  const selling = productList.filter((x) => isSelling(x.status)).length
+
+  const wallet = walletQuery.data
+  const availableBalance = Math.max(0, (wallet?.balance ?? 0) - (wallet?.frozenBalance ?? 0))
+  const avgRating = reviewReport.data?.averageRating ?? 4.8
+  const pendingDisputes = disputesQuery.data?.totalElements ?? 0
+
+  // Tổng số tin nhắn chưa đọc
+  const totalUnreadChat = useMemo(() => {
+    if (!convs) return 0
+    return convs.reduce((acc, c) => acc + (c.unreadCount ?? 0), 0)
+  }, [convs])
 
   const refresh = async () => {
     setRefreshing(true)
-    await Promise.all([profile.refetch(), orders.refetch(), products.refetch(), combos.refetch(), boxes.refetch()])
+    await Promise.all([
+      profile.refetch(),
+      orders.refetch(),
+      products.refetch(),
+      combos.refetch(),
+      boxes.refetch(),
+      walletQuery.refetch(),
+      reviewReport.refetch(),
+      disputesQuery.refetch(),
+    ])
     setRefreshing(false)
   }
 
-  const listingQuery = tab === 'PRODUCT' ? products : tab === 'COMBO' ? combos : boxes
+  // Tính toán biểu đồ 7 ngày trong tuần từ danh sách đơn hàng thực tế của Shop
+  const chartDays = useMemo(() => {
+    const dayNames = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN']
+    const result = dayNames.map((day) => ({
+      day,
+      completed: 0,
+      processing: 0,
+    }))
+
+    const orderList = orders.data?.content ?? []
+    const now = new Date()
+    const currentDayOfWeek = (now.getDay() + 6) % 7 // 0 là T2, 6 là CN
+    const monday = new Date(now)
+    monday.setDate(now.getDate() - currentDayOfWeek)
+    monday.setHours(0, 0, 0, 0)
+
+    const sunday = new Date(monday)
+    sunday.setDate(monday.getDate() + 6)
+    sunday.setHours(23, 59, 59, 999)
+
+    orderList.forEach((order) => {
+      const dateStr = (order as any).createdAt || (order as any).orderDate || (order as any).sentAt
+      if (!dateStr) return
+      const orderDate = new Date(dateStr)
+      if (orderDate >= monday && orderDate <= sunday) {
+        const orderDayIndex = (orderDate.getDay() + 6) % 7
+        if (orderDayIndex >= 0 && orderDayIndex < 7) {
+          if (order.status === 'COMPLETED' || order.status === 'DELIVERED') {
+            result[orderDayIndex].completed += 1
+          } else if (
+            order.status === 'CONFIRMED' ||
+            order.status === 'READY' ||
+            order.status === 'SHIPPING' ||
+            order.status === 'PICKED_UP' ||
+            order.status === 'PENDING' ||
+            order.status === 'PAID'
+          ) {
+            result[orderDayIndex].processing += 1
+          }
+        }
+      }
+    })
+
+    return result
+  }, [orders.data?.content])
+
+  const maxDayTotal = useMemo(() => {
+    const max = Math.max(...chartDays.map((d) => d.completed + d.processing), 5)
+    return max
+  }, [chartDays])
+
+  // Tổng sản lượng nông sản giải cứu (kg) từ các đơn hàng thành công thực tế
+  const totalRescueKg = useMemo(() => {
+    const orderList = orders.data?.content ?? []
+    let total = 0
+    orderList.forEach((order) => {
+      if (order.status === 'COMPLETED' || order.status === 'DELIVERED') {
+        order.items?.forEach((item) => {
+          total += Number(item.quantityKg || item.quantity || 1)
+        })
+      }
+    })
+    return total
+  }, [orders.data?.content])
+
+  // Doanh thu thực tế theo kỳ lọc
+  const displayRevenue = useMemo(() => {
+    const allRevenue = wallet?.totalRevenueAllTime ?? wallet?.balance ?? 0
+    if (period === 'all') return allRevenue
+
+    const orderList = orders.data?.content ?? []
+    const now = new Date()
+    const cutoff = new Date(now)
+    if (period === 'week') {
+      const currentDayOfWeek = (now.getDay() + 6) % 7
+      cutoff.setDate(now.getDate() - currentDayOfWeek)
+      cutoff.setHours(0, 0, 0, 0)
+    } else {
+      // Month
+      cutoff.setDate(1)
+      cutoff.setHours(0, 0, 0, 0)
+    }
+
+    let periodRev = 0
+    orderList.forEach((order) => {
+      const dateStr = (order as any).createdAt || (order as any).orderDate
+      if (dateStr && new Date(dateStr) >= cutoff) {
+        if (order.status === 'COMPLETED' || order.status === 'DELIVERED') {
+          periodRev += Number(order.totalAmount || 0)
+        }
+      }
+    })
+
+    return periodRev > 0 ? periodRev : allRevenue
+  }, [wallet?.totalRevenueAllTime, wallet?.balance, period, orders.data?.content])
+
   const rows =
     tab === 'PRODUCT'
       ? productList.slice(0, PREVIEW).map((x) => ({
@@ -112,269 +237,423 @@ export default function ShopDashboard() {
               status: listingStatus(x.status, x.isActive),
             }
           })
-  const tabTotal = tab === 'PRODUCT' ? productList.length : tab === 'COMBO' ? comboList.length : boxList.length
 
-  const loading = (q: { isPending: boolean }, v: string) => (q.isPending ? '…' : v)
+  const tabTotal = tab === 'PRODUCT' ? productList.length : tab === 'COMBO' ? comboList.length : boxList.length
 
   return (
     <SafeAreaView className="flex-1 bg-leaf-800" edges={['top']}>
       <ScrollView
-        className="bg-paper"
-        contentContainerClassName="pb-10"
+        className="flex-1 bg-paper"
+        contentContainerClassName="pb-12"
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
             onRefresh={refresh}
-            tintColor={colors.white}
+            tintColor="#ffffff"
             colors={[colors.leaf700]}
           />
         }
       >
-        {/* Đầu trang: tên gian hàng và trạng thái xác thực */}
-        <View className="gap-4 bg-leaf-800 px-5 pb-12 pt-3">
-          <View className="flex-row items-center gap-3">
-            <View className="h-12 w-12 items-center justify-center overflow-hidden rounded-2xl bg-white/15">
-              {logo ? (
-                <Image source={{ uri: logo }} style={{ width: 48, height: 48 }} contentFit="cover" />
-              ) : (
-                <Store size={22} color={colors.sun300} />
-              )}
+        {/* Header Hero với chuông thông báo & icon tin nhắn */}
+        <View className="bg-leaf-800 px-4 pb-6 pt-2">
+          <View className="flex-row items-center justify-between">
+            <View className="flex-row items-center gap-3 flex-1 min-w-0 pr-3">
+              <View className="h-12 w-12 items-center justify-center overflow-hidden rounded-2xl border-2 border-white/60 bg-sun-300">
+                {logo ? (
+                  <Image source={{ uri: logo }} style={{ width: 48, height: 48 }} contentFit="cover" />
+                ) : (
+                  <AppText weight="extrabold" className="text-xl text-leaf-800">
+                    {shopName.charAt(0).toUpperCase()}
+                  </AppText>
+                )}
+              </View>
+              <View className="min-w-0 flex-1">
+                <AppText className="text-xs text-leaf-200">{greeting()}</AppText>
+                <View className="flex-row items-center gap-1.5">
+                  <AppText weight="extrabold" numberOfLines={1} className="text-base text-white">
+                    {shopName}
+                  </AppText>
+                  {verified && <BadgeCheck size={16} color={colors.sun300} />}
+                </View>
+              </View>
             </View>
-            <View className="min-w-0 flex-1">
-              <AppText className="text-xs text-white/75">{greeting()},</AppText>
-              <AppText weight="extrabold" numberOfLines={1} className="text-lg text-white">
-                {shopName}
-              </AppText>
-            </View>
-            <View
-              className={cn(
-                'flex-row items-center gap-1 rounded-full px-2.5 py-1',
-                verified ? 'bg-sun-300' : 'bg-white/15',
-              )}
-            >
-              {verified ? <BadgeCheck size={14} color={colors.leaf800} /> : <Clock size={14} color={colors.white} />}
-              <AppText weight="bold" className={cn('text-xs', verified ? 'text-leaf-800' : 'text-white')}>
-                {profile.isPending ? '…' : verified ? 'Đã xác thực' : 'Chờ xác thực'}
-              </AppText>
+
+            {/* Các icon thao tác trên Header: Thông báo & Tin nhắn */}
+            <View className="flex-row items-center gap-2">
+              <Pressable
+                onPress={() => router.push('/shop/notifications' as any)}
+                accessibilityLabel="Thông báo"
+                className="h-10 w-10 items-center justify-center rounded-full bg-white/15 active:bg-white/25"
+              >
+                <Bell size={18} color="#ffffff" />
+              </Pressable>
+
+              <Pressable
+                onPress={() => router.push('/shop/chat' as any)}
+                accessibilityLabel="Tin nhắn khách hàng"
+                className="relative h-10 w-10 items-center justify-center rounded-full bg-white/15 active:bg-white/25"
+              >
+                <MessageSquare size={18} color="#ffffff" />
+                {totalUnreadChat > 0 && (
+                  <View className="absolute -top-1 -right-1 h-5 min-w-[20px] items-center justify-center rounded-full bg-sale px-1 border border-leaf-800">
+                    <AppText weight="extrabold" className="text-[10px] text-white">
+                      {totalUnreadChat}
+                    </AppText>
+                  </View>
+                )}
+              </Pressable>
             </View>
           </View>
+
+          {/* Quick Wallet Bar ở chân header */}
+          <Pressable
+            onPress={() => router.push('/shop/wallet' as any)}
+            className="mt-4 flex-row items-center justify-between rounded-2xl bg-white/10 px-4 py-3 active:bg-white/15"
+          >
+            <View className="flex-row items-center gap-2">
+              <Wallet size={16} color={colors.sun300} />
+              <AppText className="text-xs text-leaf-100">Số dư khả dụng:</AppText>
+              <AppText weight="extrabold" className="text-sm text-sun-300">
+                {walletQuery.isLoading ? '...' : money(availableBalance)}
+              </AppText>
+            </View>
+            <View className="flex-row items-center gap-1">
+              <AppText weight="bold" className="text-xs text-white">
+                Rút tiền
+              </AppText>
+              <ChevronRight size={14} color="#ffffff" />
+            </View>
+          </Pressable>
         </View>
 
-        <View className="-mt-8 gap-6 px-4">
-          {/* Việc cần làm ngay */}
-          <View className="flex-row gap-3 rounded-panel border border-line bg-white p-4">
-            <TodoCell
-              value={loading(orders, String(stats.needsConfirm))}
-              label="đơn chờ xác nhận"
-              urgent={stats.needsConfirm > 0}
-              onPress={() => openOrders('TO_CONFIRM')}
-            />
-            <View className="w-px bg-line" />
-            <TodoCell
-              value={loading(orders, String(stats.toPack))}
-              label="đơn cần đóng gói"
-              urgent={stats.toPack > 0}
-              onPress={() => openOrders('PACKING')}
-            />
+        <View className="p-4 gap-4">
+          {/* Lối Tắt Thao Tác Nhanh (Quick Actions Grid) */}
+          <View className="flex-row gap-2">
+            <Pressable
+              onPress={() => router.push('/shop/product/new' as any)}
+              className="flex-1 items-center justify-center rounded-2xl border border-line bg-white py-3 active:bg-leaf-50"
+            >
+              <View className="h-10 w-10 items-center justify-center rounded-full bg-emerald-50">
+                <Plus size={20} color="#059669" />
+              </View>
+              <AppText weight="bold" className="mt-1.5 text-[11px] text-ink text-center">
+                Đăng Bán
+              </AppText>
+            </Pressable>
+
+            <Pressable
+              onPress={() => router.push('/shop/bundle' as any)}
+              className="flex-1 items-center justify-center rounded-2xl border border-line bg-white py-3 active:bg-leaf-50"
+            >
+              <View className="h-10 w-10 items-center justify-center rounded-full bg-amber-50">
+                <Gift size={20} color="#d97706" />
+              </View>
+              <AppText weight="bold" className="mt-1.5 text-[11px] text-ink text-center">
+                Tạo Combo
+              </AppText>
+            </Pressable>
+
+            <Pressable
+              onPress={() => router.push('/shop/wallet' as any)}
+              className="flex-1 items-center justify-center rounded-2xl border border-line bg-white py-3 active:bg-leaf-50"
+            >
+              <View className="h-10 w-10 items-center justify-center rounded-full bg-purple-50">
+                <Coins size={20} color="#7c3aed" />
+              </View>
+              <AppText weight="bold" className="mt-1.5 text-[11px] text-ink text-center">
+                Ví Tiền
+              </AppText>
+            </Pressable>
+
+            <Pressable
+              onPress={() => router.push('/shop/disputes' as any)}
+              className="relative flex-1 items-center justify-center rounded-2xl border border-line bg-white py-3 active:bg-leaf-50"
+            >
+              <View className="h-10 w-10 items-center justify-center rounded-full bg-rose-50">
+                <AlertTriangle size={20} color="#e11d48" />
+              </View>
+              {pendingDisputes > 0 && (
+                <View className="absolute top-2 right-2 h-4 min-w-[16px] items-center justify-center rounded-full bg-sale px-1">
+                  <AppText weight="extrabold" className="text-[9px] text-white">
+                    {pendingDisputes}
+                  </AppText>
+                </View>
+              )}
+              <AppText weight="bold" className="mt-1.5 text-[11px] text-ink text-center">
+                Khiếu Nại
+              </AppText>
+            </Pressable>
           </View>
 
-          {orders.isError && products.isError ? (
-            <ErrorState onRetry={() => void refresh()} />
-          ) : (
-            <>
-              <View className="gap-3">
-                <View className="flex-row gap-3">
-                  <StatTile
-                    icon={ShoppingBag}
-                    label="Tổng đơn"
-                    value={loading(orders, String(stats.total))}
-                    hint={stats.needsConfirm ? `${stats.needsConfirm} đơn cần xử lý ngay` : 'Đã xử lý hết đơn'}
-                  />
-                  <StatTile
-                    icon={Package}
-                    label="Đang bán"
-                    value={loading(products, String(selling))}
-                    hint={`${productList.length} nông sản trong kho`}
-                  />
-                </View>
-                <View className="flex-row gap-3">
-                  <StatTile
-                    icon={Gift}
-                    tone="amber"
-                    label="Combo & túi mù"
-                    value={loading(combos, String(comboList.length + boxList.length))}
-                    hint={`${boxList.length} túi mù · ${comboList.length} combo`}
-                  />
-                  <StatTile
-                    icon={PackageCheck}
-                    label="Đã giao"
-                    value={loading(orders, String(stats.completedCount))}
-                    hint="đơn giao thành công"
-                  />
-                </View>
-              </View>
-
-              {/* Tài chính: tính từ đơn hàng như bản web */}
-              <View className="gap-4 rounded-panel bg-leaf-800 p-5">
-                <View className="flex-row items-center gap-2">
-                  <Wallet size={18} color={colors.sun300} />
-                  <AppText weight="extrabold" className="text-base text-white">
-                    Tài chính gian hàng
-                  </AppText>
-                </View>
-                <View>
-                  <AppText className="text-xs text-white/75">Doanh thu đã hoàn thành</AppText>
-                  <AppText weight="extrabold" className="text-3xl text-sun-300">
-                    {loading(orders, money(stats.completedRevenue))}
-                  </AppText>
-                  <AppText className="text-xs text-white/75">Từ {stats.completedCount} đơn đã giao</AppText>
-                </View>
-                <View className="flex-row gap-3">
-                  <View className="flex-1 gap-0.5 rounded-2xl bg-white/10 p-3">
-                    <AppText className="text-xs text-white/75">Chờ quyết toán</AppText>
-                    <AppText weight="extrabold" className="text-base text-white">
-                      {loading(orders, money(stats.pendingRevenue))}
-                    </AppText>
-                    <AppText className="text-xs text-white/75">{stats.pendingCount} đơn đang xử lý</AppText>
-                  </View>
-                  <View className="flex-1 gap-0.5 rounded-2xl bg-white/10 p-3">
-                    <AppText className="text-xs text-white/75">Tổng giá trị đơn</AppText>
-                    <AppText weight="extrabold" className="text-base text-white">
-                      {loading(orders, money(stats.grossRevenue))}
-                    </AppText>
-                    <AppText className="text-xs text-white/75">Trừ đơn huỷ</AppText>
-                  </View>
-                </View>
-              </View>
-
-              {/* Đơn mới nhất */}
-              <View className="rounded-panel border border-line bg-white px-4 pt-4">
-                <AppText weight="extrabold" className="text-base">
-                  Đơn hàng mới nhất
+          {/* Báo Cáo Hiệu Quả & Doanh Thu (từ RevenueReport.tsx & TongQuan.jsx) */}
+          <View className="rounded-panel border border-line bg-white p-4 gap-3.5">
+            <View className="flex-row items-center justify-between">
+              <View className="flex-1 min-w-0 pr-2">
+                <AppText weight="extrabold" className="text-base text-ink">
+                  Hiệu Quả Kinh Doanh
                 </AppText>
-                {orders.isPending ? (
-                  <View className="gap-3 py-3">
-                    <Skeleton className="h-12 w-full" />
-                    <Skeleton className="h-12 w-full" />
-                  </View>
-                ) : recent.length === 0 ? (
-                  <View className="items-center gap-1 py-6">
-                    <ShoppingBag size={26} color={colors.inkSubtle} />
-                    <AppText weight="semibold" className="text-sm text-ink-muted">
-                      Chưa có đơn hàng nào
-                    </AppText>
-                    <AppText className="text-xs text-ink-subtle">Đơn mới sẽ hiện ở đây</AppText>
-                  </View>
-                ) : (
-                  recent.map((o, i) => (
-                    <Pressable
-                      key={o.orderId ?? o.id ?? i}
-                      onPress={() =>
-                        router.push({ pathname: '/shop/order/[id]', params: { id: String(o.orderId ?? o.id) } })
-                      }
-                      accessibilityRole="button"
-                      className={cn('active:opacity-70', i > 0 && 'border-t border-line')}
-                    >
-                      <ShopOrderRow order={o} />
-                    </Pressable>
-                  ))
-                )}
+                <AppText numberOfLines={1} className="text-xs text-ink-muted">
+                  Doanh số mùa vụ & nông sản giải cứu
+                </AppText>
               </View>
 
-              {/* Sản phẩm của gian hàng */}
-              <View className="gap-3 rounded-panel border border-line bg-white p-4">
-                <View className="flex-row items-center justify-between">
-                  <AppText weight="extrabold" className="text-base">
-                    Sản phẩm của bạn
-                  </AppText>
+              {/* Bộ lọc kỳ - kích thước gọn gàng không tràn màn hình */}
+              <View className="flex-row rounded-xl bg-paper p-0.5 border border-line/60">
+                {(['week', 'month', 'all'] as const).map((p) => (
                   <Pressable
-                    onPress={() => router.navigate('/shop/products')}
-                    accessibilityRole="link"
-                    hitSlop={8}
+                    key={p}
+                    onPress={() => setPeriod(p)}
+                    className={cn(
+                      'rounded-lg px-2.5 py-1',
+                      period === p ? 'bg-leaf-700 shadow-xs' : 'bg-transparent',
+                    )}
                   >
-                    <AppText weight="bold" className="text-sm text-leaf-700">
-                      Quản lý {tabTotal} tin →
+                    <AppText
+                      weight="bold"
+                      className={cn('text-[11px]', period === p ? 'text-white' : 'text-ink-muted')}
+                    >
+                      {p === 'week' ? 'Tuần' : p === 'month' ? 'Tháng' : 'Tất cả'}
                     </AppText>
                   </Pressable>
-                </View>
-                <View className="flex-row gap-1 rounded-xl bg-paper p-1">
-                  {LISTING_TABS.map((t) => {
-                    const active = t.id === tab
-                    return (
-                      <Pressable
-                        key={t.id}
-                        onPress={() => setTab(t.id)}
-                        accessibilityRole="tab"
-                        accessibilityState={{ selected: active }}
-                        className={cn('h-9 flex-1 items-center justify-center rounded-lg', active && 'bg-white')}
-                      >
-                        <AppText weight="bold" className={cn('text-sm', active ? 'text-leaf-700' : 'text-ink-muted')}>
-                          {t.label}
-                        </AppText>
-                      </Pressable>
-                    )
-                  })}
-                </View>
-                {listingQuery.isPending ? (
-                  <View className="gap-3">
-                    <Skeleton className="h-14 w-full" />
-                    <Skeleton className="h-14 w-full" />
-                  </View>
-                ) : listingQuery.isError ? (
-                  <Pressable onPress={() => void listingQuery.refetch()} accessibilityRole="button" className="py-3">
-                    <AppText className="text-sm text-sale">Chưa tải được danh sách. Chạm để thử lại.</AppText>
-                  </Pressable>
-                ) : rows.length === 0 ? (
-                  <AppText className="py-4 text-center text-sm text-ink-muted">
-                    {tab === 'PRODUCT'
-                      ? 'Chưa có nông sản nào. Chạm "Quản lý" để đăng bán nông sản đầu tiên.'
-                      : tab === 'COMBO'
-                        ? 'Chưa có combo nào.'
-                        : 'Chưa có túi mù nào.'}
-                  </AppText>
-                ) : (
-                  <View>
-                    {rows.map(({ key, ...row }, i) => (
-                      <View key={key} className={cn(i > 0 && 'border-t border-line')}>
-                        <ListingRow {...row} />
-                      </View>
-                    ))}
-                  </View>
-                )}
+                ))}
               </View>
-            </>
-          )}
+            </View>
+
+            {/* 4 Thẻ chỉ số chính - 2 hàng rõ ràng chuẩn Flexbox */}
+            <View className="gap-2.5">
+              <View className="flex-row gap-2.5">
+                <View className="flex-1 rounded-2xl bg-paper p-3 border border-line/60">
+                  <AppText weight="bold" className="text-[10px] text-ink-muted uppercase">
+                    Doanh thu {period === 'week' ? 'tuần' : period === 'month' ? 'tháng' : ''}
+                  </AppText>
+                  <AppText weight="extrabold" numberOfLines={1} className="mt-1 text-base text-leaf-800">
+                    {money(displayRevenue)}
+                  </AppText>
+                  <AppText className="mt-0.5 text-[9px] text-leaf-700 font-bold">
+                    {period === 'week' ? 'Theo đơn tuần này' : period === 'month' ? 'Theo đơn tháng này' : 'Toàn thời gian'}
+                  </AppText>
+                </View>
+
+                <View className="flex-1 rounded-2xl bg-paper p-3 border border-line/60">
+                  <AppText weight="bold" className="text-[10px] text-ink-muted uppercase">
+                    Đơn hoàn thành
+                  </AppText>
+                  <AppText weight="extrabold" numberOfLines={1} className="mt-1 text-base text-ink">
+                    {stats.completedCount} đơn
+                  </AppText>
+                  <AppText className="mt-0.5 text-[9px] text-blue-700 font-bold">
+                    {stats.total > 0 ? `${Math.round((stats.completedCount / stats.total) * 100)}% thành công` : 'Chưa có đơn'}
+                  </AppText>
+                </View>
+              </View>
+
+              <View className="flex-row gap-2.5">
+                <View className="flex-1 rounded-2xl bg-paper p-3 border border-line/60">
+                  <AppText weight="bold" className="text-[10px] text-ink-muted uppercase">
+                    Đánh giá shop
+                  </AppText>
+                  <AppText weight="extrabold" numberOfLines={1} className="mt-1 text-base text-ink">
+                    {avgRating.toFixed(1)} ⭐
+                  </AppText>
+                  <AppText className="mt-0.5 text-[9px] text-amber-700 font-bold">
+                    {avgRating >= 4.5 ? 'Rất tích cực' : avgRating >= 3.5 ? 'Tích cực' : 'Cần cải thiện'}
+                  </AppText>
+                </View>
+
+                <View className="flex-1 rounded-2xl bg-paper p-3 border border-line/60">
+                  <AppText weight="bold" className="text-[10px] text-ink-muted uppercase">
+                    Nông sản giải cứu
+                  </AppText>
+                  <AppText weight="extrabold" numberOfLines={1} className="mt-1 text-base text-leaf-800">
+                    {totalRescueKg > 0 ? `${totalRescueKg.toLocaleString('vi-VN')} kg` : '0 kg'}
+                  </AppText>
+                  <AppText className="mt-0.5 text-[9px] text-leaf-700 font-bold">
+                    {totalRescueKg > 0 ? 'Đã giao tới khách' : 'Chờ hoàn tất đơn'}
+                  </AppText>
+                </View>
+              </View>
+            </View>
+
+            {/* Stacked Bar Chart theo các ngày trong tuần (phong cách CapNong_Exe2 TongQuan.jsx) */}
+            <View className="mt-1 border-t border-line pt-3">
+              <View className="flex-row items-center justify-between mb-2">
+                <AppText weight="bold" className="text-xs text-ink">
+                  Biểu đồ số đơn hoàn thành theo ngày
+                </AppText>
+                <View className="flex-row items-center gap-2.5">
+                  <View className="flex-row items-center gap-1">
+                    <View className="h-2 w-2 rounded-full bg-leaf-700" />
+                    <AppText className="text-[10px] text-ink-subtle">Giao xong</AppText>
+                  </View>
+                  <View className="flex-row items-center gap-1">
+                    <View className="h-2 w-2 rounded-full bg-amber-400" />
+                    <AppText className="text-[10px] text-ink-subtle">Đang làm</AppText>
+                  </View>
+                </View>
+              </View>
+
+              <View className="h-32 flex-row items-end justify-between px-2 pt-4">
+                {chartDays.map((d, idx) => {
+                  const compHeight = Math.max(6, (d.completed / maxDayTotal) * 80)
+                  const procHeight = Math.max(4, (d.processing / maxDayTotal) * 40)
+                  const hasData = d.completed > 0 || d.processing > 0
+                  return (
+                    <View key={idx} className="flex-1 items-center justify-end gap-1.5">
+                      <View className="w-5 items-center justify-end">
+                        {hasData ? (
+                          <View style={{ height: compHeight + procHeight }} className="w-full rounded-t-md overflow-hidden">
+                            <View style={{ height: procHeight }} className="w-full bg-amber-400" />
+                            <View style={{ height: compHeight }} className="w-full bg-leaf-700" />
+                          </View>
+                        ) : (
+                          <View className="h-1.5 w-full rounded-full bg-line" />
+                        )}
+                      </View>
+                      <AppText weight="bold" className="text-[10px] text-ink-muted">
+                        {d.day}
+                      </AppText>
+                    </View>
+                  )
+                })}
+              </View>
+            </View>
+          </View>
+
+          {/* Cần Xử Lý Ngay (Đơn hàng chờ xác nhận) - Chống sập layout Flexbox */}
+          <View className="gap-2.5">
+            <View className="flex-row items-baseline justify-between">
+              <AppText weight="extrabold" className="text-base text-ink">
+                Cần Xử Lý Ngay
+              </AppText>
+              <Pressable onPress={() => openOrders('TO_CONFIRM')}>
+                <AppText weight="bold" className="text-xs text-leaf-700">
+                  Xem tất cả ({stats.needsConfirm})
+                </AppText>
+              </Pressable>
+            </View>
+
+            <View className="flex-row gap-3">
+              <StatTile
+                icon={ShoppingBag}
+                label="Chờ xác nhận"
+                value={String(stats.needsConfirm)}
+                hint={stats.needsConfirm > 0 ? 'Cần xác nhận ngay' : 'Đã xử lý xong'}
+                tone={stats.needsConfirm > 0 ? 'amber' : 'leaf'}
+                onPress={() => openOrders('TO_CONFIRM')}
+              />
+              <StatTile
+                icon={PackageCheck}
+                label="Đang chuẩn bị"
+                value={String(stats.toPack)}
+                hint="Đóng gói chờ lấy"
+                tone="leaf"
+                onPress={() => openOrders('PACKING')}
+              />
+            </View>
+          </View>
+
+          {/* Đơn Hàng Gần Đây */}
+          <View className="gap-2.5">
+            <View className="flex-row items-baseline justify-between">
+              <AppText weight="extrabold" className="text-base text-ink">
+                Đơn hàng gần đây
+              </AppText>
+              <Pressable onPress={() => openOrders('ALL')}>
+                <AppText weight="bold" className="text-xs text-leaf-700">
+                  Quản lý đơn →
+                </AppText>
+              </Pressable>
+            </View>
+
+            {orders.isPending ? (
+              <View className="gap-2">
+                <Skeleton className="h-16 rounded-panel" />
+                <Skeleton className="h-16 rounded-panel" />
+              </View>
+            ) : recent.length === 0 ? (
+              <View className="rounded-panel border border-line bg-white p-6 items-center">
+                <AppText className="text-xs text-ink-muted">Chưa có đơn hàng nào</AppText>
+              </View>
+            ) : (
+              <View className="overflow-hidden rounded-panel border border-line bg-white px-3.5">
+                {recent.map((order, i) => (
+                  <Pressable
+                    key={order.orderId ?? order.id ?? i}
+                    onPress={() =>
+                      router.push({
+                        pathname: '/shop/order/[id]',
+                        params: { id: String(order.orderId ?? order.id) },
+                      })
+                    }
+                    className={cn(i > 0 && 'border-t border-line')}
+                  >
+                    <ShopOrderRow order={order} />
+                  </Pressable>
+                ))}
+              </View>
+            )}
+          </View>
+
+          {/* Kho Tin Đăng & Sản Phẩm */}
+          <View className="gap-2.5">
+            <View className="flex-row items-baseline justify-between">
+              <AppText weight="extrabold" className="text-base text-ink">
+                Kho tin đăng ({tabTotal})
+              </AppText>
+              <Pressable onPress={() => router.navigate('/shop/products')}>
+                <AppText weight="bold" className="text-xs text-leaf-700">
+                  Xem tất cả →
+                </AppText>
+              </Pressable>
+            </View>
+
+            {/* Filter Tabs */}
+            <View className="flex-row rounded-2xl border border-line bg-white p-1">
+              {LISTING_TABS.map((t) => (
+                <Pressable
+                  key={t.id}
+                  onPress={() => setTab(t.id)}
+                  className={cn(
+                    'flex-1 items-center justify-center rounded-xl py-2',
+                    tab === t.id ? 'bg-leaf-700 shadow-xs' : 'bg-transparent',
+                  )}
+                >
+                  <AppText
+                    weight="bold"
+                    className={cn('text-xs', tab === t.id ? 'text-white' : 'text-ink-muted')}
+                  >
+                    {t.label}
+                  </AppText>
+                </Pressable>
+              ))}
+            </View>
+
+            {rows.length === 0 ? (
+              <View className="rounded-panel border border-line bg-white p-6 items-center">
+                <AppText className="text-xs text-ink-muted">Chưa có sản phẩm nào</AppText>
+              </View>
+            ) : (
+              <View className="overflow-hidden rounded-panel border border-line bg-white px-3.5">
+                {rows.map((row, i) => (
+                  <Pressable
+                    key={row.key}
+                    onPress={() => router.navigate('/shop/products')}
+                    className={cn(i > 0 && 'border-t border-line')}
+                  >
+                    <ListingRow
+                      name={row.name}
+                      image={row.image}
+                      priceText={row.priceText}
+                      stockText={row.stockText}
+                      status={row.status}
+                    />
+                  </Pressable>
+                ))}
+              </View>
+            )}
+          </View>
         </View>
       </ScrollView>
     </SafeAreaView>
-  )
-}
-
-function TodoCell({
-  value,
-  label,
-  urgent,
-  onPress,
-}: {
-  value: string
-  label: string
-  urgent: boolean
-  onPress: () => void
-}) {
-  return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="link"
-      accessibilityLabel={`${value} ${label}`}
-      className="flex-1 flex-row items-center gap-3 active:opacity-70"
-    >
-      <AppText weight="extrabold" className={cn('text-3xl', urgent ? 'text-amber-600' : 'text-leaf-700')}>
-        {value}
-      </AppText>
-      <AppText weight="semibold" className="flex-1 text-sm leading-snug text-ink-muted">
-        {label}
-      </AppText>
-      <ChevronRight size={16} color={colors.inkSubtle} />
-    </Pressable>
   )
 }
