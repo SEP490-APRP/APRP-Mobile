@@ -1,6 +1,6 @@
-import axiosInstance from './api/axiosInstance'
+import axiosInstance from '@/services/api/axiosInstance'
 import type { ApiResponse, PageResponse } from '@/types'
-import type { NotificationItem } from './notification.types'
+import type { AdminSendNotificationRequest, NotificationItem } from './notification.types'
 
 export type * from './notification.types'
 
@@ -29,6 +29,12 @@ export const notificationService = {
     return res.data
   },
 
+  /** Lấy tất cả thông báo (dành cho quản trị) */
+  async getAllNotifications(): Promise<ApiResponse<NotificationItem[]>> {
+    const res = await axiosInstance.get<ApiResponse<NotificationItem[]>>('/notifications/all')
+    return res.data
+  },
+
   /** Đánh dấu 1 thông báo là đã đọc */
   async markAsRead(id: number): Promise<ApiResponse<void>> {
     const res = await axiosInstance.put<ApiResponse<void>>(`/notifications/${id}/read`)
@@ -44,6 +50,12 @@ export const notificationService = {
   /** Xóa mềm thông báo */
   async deleteNotification(id: number): Promise<ApiResponse<void>> {
     const res = await axiosInstance.delete<ApiResponse<void>>(`/notifications/${id}`)
+    return res.data
+  },
+
+  /** Gửi thông báo đến các nhóm đối tượng (Admin) */
+  async adminSendToGroups(payload: AdminSendNotificationRequest): Promise<ApiResponse<void>> {
+    const res = await axiosInstance.post<ApiResponse<void>>('/notifications/admin/send-to-groups', payload)
     return res.data
   },
 }
