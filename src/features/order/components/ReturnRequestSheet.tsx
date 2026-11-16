@@ -1,6 +1,6 @@
 import * as ImagePicker from 'expo-image-picker'
 import { Image } from 'expo-image'
-import { Camera, Image as ImageIcon, ShieldCheck, X } from 'lucide-react-native'
+import { Camera, Image as ImageIcon, ShieldCheck, Video, X } from 'lucide-react-native'
 import { useEffect, useState } from 'react'
 import { Pressable, TextInput, View } from 'react-native'
 import { AppText, BottomSheet, Button } from '@/components/ui'
@@ -23,7 +23,10 @@ const RETURN_REASONS = [
   'Lý do khác',
 ] as const
 
-const MAX_IMAGES = 3
+const MAX_MEDIA = 3
+const MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024 // 10MB
+const MAX_VIDEO_SIZE_BYTES = 30 * 1024 * 1024 // 30MB
+const MAX_VIDEO_DURATION_SECONDS = 60 // Tối đa 60 giây
 
 export function ReturnRequestSheet({
   visible,
@@ -64,9 +67,9 @@ export function ReturnRequestSheet({
 
   const displayName = item.itemName || item.productName || item.mysteryBoxType || 'Sản phẩm'
 
-  const pickImage = async (source: 'camera' | 'library') => {
-    if (photos.length >= MAX_IMAGES) {
-      showToast(`Tối đa ${MAX_IMAGES} ảnh minh chứng.`)
+  const pickMedia = async (source: 'camera' | 'library') => {
+    if (photos.length >= MAX_MEDIA) {
+      showToast(`Tối đa ${MAX_MEDIA} hình ảnh hoặc video minh chứng.`)
       return
     }
 
@@ -76,11 +79,15 @@ export function ReturnRequestSheet({
         : await ImagePicker.requestMediaLibraryPermissionsAsync()
 
     if (!perm.granted) {
-      showToast(source === 'camera' ? 'Cần quyền truy cập máy ảnh để chụp bằng chứng.' : 'Cần quyền truy cập thư viện ảnh.')
+      showToast(source === 'camera' ? 'Cần quyền truy cập máy ảnh để chụp ảnh hoặc quay video bằng chứng.' : 'Cần quyền truy cập thư viện để chọn ảnh / video.')
       return
     }
 
-    const options: ImagePicker.ImagePickerOptions = { mediaTypes: ['images'], quality: 0.7 }
+    const options: ImagePicker.ImagePickerOptions = {
+      mediaTypes: ['images', 'videos'],
+      quality: 0.7,
+      videoMaxDuration: MAX_VIDEO_DURATION_SECONDS,
+    }
     const res =
       source === 'camera'
         ? await ImagePicker.launchCameraAsync(options)
@@ -89,14 +96,29 @@ export function ReturnRequestSheet({
     const asset = res.canceled ? undefined : res.assets[0]
     if (!asset) return
 
+    const isVideo = asset.type === 'video' || asset.mimeType?.startsWith('video/')
+    const maxSizeBytes = isVideo ? MAX_VIDEO_SIZE_BYTES : MAX_IMAGE_SIZE_BYTES
+
+    if (asset.fileSize && asset.fileSize > maxSizeBytes) {
+      showToast(
+        isVideo
+          ? `Video vượt quá dung lượng cho phép (${Math.round(MAX_VIDEO_SIZE_BYTES / (1024 * 1024))}MB). Vui lòng chọn video ngắn hơn!`
+          : `Ảnh vượt quá dung lượng cho phép (${Math.round(MAX_IMAGE_SIZE_BYTES / (1024 * 1024))}MB)!`,
+      )
+      return
+    }
+
+    const ext = isVideo ? 'mp4' : 'jpg'
+    const mime = isVideo ? (asset.mimeType ?? 'video/mp4') : (asset.mimeType ?? 'image/jpeg')
+
     setPhotos((prev) => [
       ...prev,
       {
         uri: asset.uri,
-        name: asset.fileName ?? `return-${Date.now()}.jpg`,
-        type: asset.mimeType ?? 'image/jpeg',
+        name: asset.fileName ?? `return-${Date.now()}.${ext}`,
+        type: mime,
       },
-    ].slice(0, MAX_IMAGES))
+    ].slice(0, MAX_MEDIA))
   }
 
   const removePhoto = (index: number) => {
@@ -125,7 +147,7 @@ export function ReturnRequestSheet({
     try {
       const uploadedUrls: string[] = []
       for (const photo of photos) {
-        const uploadRes = await uploadService.uploadImage(photo, 'returns')
+        const uploadRes = await uploadService.uploadMedia(photo, 'returns')
         if (uploadRes.result?.url) {
           uploadedUrls.push(uploadRes.result.url)
         }
@@ -254,40 +276,51 @@ export function ReturnRequestSheet({
           />
         </View>
 
-        {/* Ảnh bằng chứng */}
+        {/* Ảnh / Video bằng chứng */}
         <View className="gap-2">
           <View className="flex-row items-center justify-between">
             <AppText weight="bold" className="text-sm">
-              Hình ảnh / Bằng chứng ({photos.length}/{MAX_IMAGES})
+              Bằng chứng hình ảnh / video ({photos.length}/{MAX_MEDIA})
             </AppText>
-            <AppText className="text-xs text-ink-muted">Tối đa 3 ảnh</AppText>
+            <AppText className="text-[11px] text-ink-muted">Tối đa 3 tệp (Video ≤ 30MB, Ảnh ≤ 10MB)</AppText>
           </View>
 
           <View className="flex-row flex-wrap gap-2">
-            {photos.map((photo, index) => (
-              <View key={index} className="relative h-20 w-20 overflow-hidden rounded-xl border border-line bg-paper">
-                <Image source={{ uri: photo.uri }} style={{ width: 80, height: 80 }} contentFit="cover" />
-                <Pressable
-                  onPress={() => removePhoto(index)}
-                  className="absolute right-1 top-1 h-6 w-6 items-center justify-center rounded-full bg-black/60"
-                  accessibilityLabel="Xóa ảnh"
-                >
-                  <X size={14} color="#ffffff" />
-                </Pressable>
-              </View>
-            ))}
+            {photos.map((photo, index) => {
+              const isVideo = photo.type?.startsWith('video/') || photo.name?.toLowerCase().endsWith('.mp4') || photo.name?.toLowerCase().endsWith('.mov')
+              return (
+                <View key={index} className="relative h-20 w-20 overflow-hidden rounded-xl border border-line bg-stone-900">
+                  <Image source={{ uri: photo.uri }} style={{ width: 80, height: 80 }} contentFit="cover" />
+                  {isVideo && (
+                    <View className="absolute inset-0 items-center justify-center bg-black/40">
+                      <View className="rounded-full bg-black/60 p-1.5">
+                        <Video size={16} color="#fbbf24" />
+                      </View>
+                      <AppText className="mt-0.5 text-[9px] font-bold text-white">Video</AppText>
+                    </View>
+                  )}
+                  <Pressable
+                    onPress={() => removePhoto(index)}
+                    className="absolute right-1 top-1 h-6 w-6 items-center justify-center rounded-full bg-black/70"
+                    accessibilityLabel="Xóa tệp"
+                  >
+                    <X size={14} color="#ffffff" />
+                  </Pressable>
+                </View>
+              )
+            })}
 
-            {photos.length < MAX_IMAGES && (
+            {photos.length < MAX_MEDIA && (
               <View className="flex-row gap-2">
                 <Pressable
-                  onPress={() => void pickImage('camera')}
+                  onPress={() => void pickMedia('camera')}
                   className="h-20 w-20 items-center justify-center gap-1 rounded-xl border border-dashed border-line-strong bg-white active:bg-paper"
                 >
                   <Camera size={20} color={colors.inkSubtle} />
-                  <AppText className="text-[11px] text-ink-muted">Chụp ảnh</AppText>
+                  <AppText className="text-[11px] text-ink-muted">Chụp / Quay</AppText>
                 </Pressable>
                 <Pressable
-                  onPress={() => void pickImage('library')}
+                  onPress={() => void pickMedia('library')}
                   className="h-20 w-20 items-center justify-center gap-1 rounded-xl border border-dashed border-line-strong bg-white active:bg-paper"
                 >
                   <ImageIcon size={20} color={colors.inkSubtle} />

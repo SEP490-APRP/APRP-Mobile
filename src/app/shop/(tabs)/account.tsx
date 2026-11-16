@@ -328,6 +328,21 @@ export default function ShopAccountTab() {
           )}
         </Pressable>
 
+        {/* Cảnh báo Cờ rủi ro vi phạm */}
+        {Number(p?.activeRiskFlags ?? 0) > 0 && (
+          <View className="flex-row items-center gap-3 rounded-2xl border border-amber-300 bg-amber-50 p-4">
+            <AlertTriangle size={20} color="#b45309" />
+            <View className="flex-1">
+              <AppText weight="bold" className="text-xs text-amber-900">
+                Gian hàng có {p?.activeRiskFlags}/3 cờ rủi ro chất lượng
+              </AppText>
+              <AppText className="mt-0.5 text-[11px] text-amber-800 leading-relaxed">
+                Khi tích lũy đủ 3 cờ vi phạm, gian hàng sẽ tự động bị giảm độ hiển thị sản phẩm và trừ 1 sao đánh giá.
+              </AppText>
+            </View>
+          </View>
+        )}
+
         {/* Nút sửa nhanh hồ sơ */}
         <Button
           title="Sửa thông tin hồ sơ gian hàng"

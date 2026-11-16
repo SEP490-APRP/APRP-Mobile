@@ -1,3 +1,4 @@
+import { router } from 'expo-router'
 import {
   AlertTriangle,
   Apple,
@@ -375,6 +376,11 @@ export function MealPlanBridgeCard({ bridge }: { bridge: MealPlanBridgeDto }) {
       {products.map((item) => (
         <ChatItemRow key={`${item.itemType}-${item.itemId}`} item={item} />
       ))}
+      <ChatAction
+        icon={Calendar}
+        label="Lên thực đơn 7 ngày với AI"
+        onPress={() => router.push('/buyer/meal-plan' as any)}
+      />
     </ChatCard>
   )
 }
