@@ -1,8 +1,8 @@
 import * as ImagePicker from 'expo-image-picker'
 import { Image } from 'expo-image'
-import { Camera, Image as ImageIcon, Star, Trash2, X } from 'lucide-react-native'
+import { Camera, Image as ImageIcon, Star, X } from 'lucide-react-native'
 import { useEffect, useState } from 'react'
-import { ActivityIndicator, Alert, Pressable, ScrollView, TextInput, View } from 'react-native'
+import { Pressable, TextInput, View } from 'react-native'
 import { AppText, BottomSheet, Button } from '@/components/ui'
 import { uploadService } from '@/services/upload.service'
 import { useUiStore } from '@/stores'
@@ -11,7 +11,6 @@ import { fontFamily } from '@/theme/fonts'
 import type { OrderItem } from '@/types/order.types'
 import type { UploadFile } from '@/types/upload.types'
 import { getErrorMessage } from '@/utils/errors'
-import { cn } from '@/utils/helpers'
 import { useCreateReview } from '../hooks/useReviewQueries'
 
 const RATING_LABELS: Record<number, string> = {

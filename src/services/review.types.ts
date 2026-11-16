@@ -12,6 +12,7 @@ export interface ReviewResponse {
   buyerId?: number
   fullName?: string
   buyerName?: string
+  buyerAvatar?: string
   orderDetailId?: number
   orderId?: number
   ratingStar: number

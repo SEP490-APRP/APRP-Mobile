@@ -1,15 +1,17 @@
 import { router, useLocalSearchParams } from 'expo-router'
-import { CheckCircle2, Gift, HelpCircle, Package, ShoppingBasket, Store } from 'lucide-react-native'
+import { CheckCircle2, Gift, HelpCircle, Package, Share2, ShoppingBasket, Store } from 'lucide-react-native'
 import { useState } from 'react'
-import { Pressable, RefreshControl, ScrollView, View } from 'react-native'
+import { Pressable, RefreshControl, ScrollView, Share, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { AppText, Button, CapNongLoading, ErrorState } from '@/components/ui'
 import { BackButton } from '@/features/auth/components'
 import { useAddProductToCart } from '@/features/cart'
 import { ComboImage, discountLabel, soldPercent, useComboDetail, type ComboKind } from '@/features/combo'
+import { useCreateReferralLink } from '@/features/referral'
+import { useAuth } from '@/stores'
 import { money, QuantityStepper } from '@/features/product'
 import { colors } from '@/theme/colors'
-import { cn } from '@/utils/helpers'
+import { absoluteUrl, cn } from '@/utils/helpers'
 
 const PERKS = [
   'Thu hoạch và đóng gói trong ngày',
@@ -24,8 +26,43 @@ export default function ComboDetailScreen() {
   const kind: ComboKind = params.kind === 'MYSTERY_BOX' ? 'MYSTERY_BOX' : 'BUILD_COMBO'
   const detail = useComboDetail(kind, id)
   const { addProduct, pendingId } = useAddProductToCart()
+  const { isAuthenticated, user } = useAuth()
+  const createLink = useCreateReferralLink()
   const [qty, setQty] = useState(1)
   const [refreshing, setRefreshing] = useState(false)
+
+  async function shareCombo() {
+    if (!detail.data?.card) return
+    const c = detail.data.card
+    const path = kind === 'MYSTERY_BOX' ? `/mystery-box/${id}` : `/combo/${id}`
+    let url = absoluteUrl(path)
+    let shareText = `${c.name} chỉ ${money(c.price)} tại ${c.shopName || 'CapNong'}! Mua ngay: ${url}`
+
+    if (isAuthenticated && user?.role === 'buyer') {
+      try {
+        const link = await createLink.mutateAsync({
+          targetType: kind,
+          targetId: id,
+        })
+        if (link?.shareUrl) {
+          url = link.shareUrl
+          shareText = `🌱 Giới thiệu bạn gói ${c.name} tươi ngon từ ${c.shopName || 'nhà vườn'} trên CapNong (hoa hồng 2%): ${url}`
+        }
+      } catch {
+        // Fallback to direct URL
+      }
+    }
+
+    try {
+      await Share.share({
+        title: c.name,
+        message: shareText,
+        url,
+      })
+    } catch {
+      // User closed share dialog
+    }
+  }
 
   const back = () => (router.canGoBack() ? router.back() : router.replace('/buyer/combos'))
   const header = (
@@ -34,6 +71,15 @@ export default function ComboDetailScreen() {
       <AppText accessibilityRole="header" weight="extrabold" numberOfLines={1} className="flex-1 text-base">
         {kind === 'MYSTERY_BOX' ? 'Túi mù' : 'Combo'}
       </AppText>
+      <Pressable
+        onPress={shareCombo}
+        hitSlop={8}
+        accessibilityRole="button"
+        accessibilityLabel="Chia sẻ tiếp thị"
+        className="h-9 w-9 items-center justify-center rounded-full bg-white border border-line"
+      >
+        <Share2 size={18} color={colors.leaf700} />
+      </Pressable>
     </View>
   )
 

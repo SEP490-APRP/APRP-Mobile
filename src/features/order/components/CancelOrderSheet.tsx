@@ -1,4 +1,4 @@
-import { AlertTriangle, XCircle } from 'lucide-react-native'
+import { AlertTriangle } from 'lucide-react-native'
 import { useEffect, useState } from 'react'
 import { Pressable, TextInput, View } from 'react-native'
 import { AppText, BottomSheet, Button } from '@/components/ui'
@@ -48,8 +48,7 @@ export function CancelOrderSheet({
           <Button title="Giữ đơn" variant="outline" onPress={onClose} disabled={loading} className="min-h-[44px] flex-1" />
           <Button
             title="Xác nhận huỷ"
-            variant="primary"
-            destructive
+            variant="danger"
             loading={loading}
             onPress={handleConfirm}
             className="min-h-[44px] flex-1"

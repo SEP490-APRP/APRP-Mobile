@@ -1,5 +1,5 @@
 import { router } from 'expo-router'
-import { AlertTriangle, PackageX, ShoppingBag } from 'lucide-react-native'
+import { AlertTriangle, PackageX } from 'lucide-react-native'
 import { View } from 'react-native'
 import { AppText, BottomSheet, Button } from '@/components/ui'
 import { colors } from '@/theme/colors'

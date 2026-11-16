@@ -1,9 +1,9 @@
-import { axiosInstance } from './api/axiosInstance'
+import axiosInstance from '@/services/api/axiosInstance'
 import type { ApiResponse, PageResponse } from '@/types'
 import type {
-  ReviewResponse,
   ReviewCreateRequest,
   ReviewReplyRequest,
+  ReviewResponse,
   ReviewShopReport,
 } from './review.types'
 import { mockReviews } from '@/mocks/review.mock'
@@ -29,18 +29,65 @@ function unwrap<T>(res: unknown): T {
 }
 
 export const reviewService = {
-  async getByProductId(productId: number): Promise<ApiResponse<ReviewResponse[]>> {
-    if (ENV.USE_MOCK) {
-      const list = mockReviews.filter((r) => !r.productId || r.productId === productId)
-      return { code: 200, result: list }
+  /** Lấy danh sách đánh giá của gian hàng mình GET /reviews/my-shop */
+  async getMyShopReviewsPaged(
+    page = 0,
+    size = 10,
+  ): Promise<ApiResponse<PageResponse<ReviewResponse>>> {
+    try {
+      const res = await axiosInstance.get('/reviews/my-shop', { params: { page, size } })
+      return { code: 200, result: unwrap<PageResponse<ReviewResponse>>(res) }
+    } catch {
+      return {
+        code: 200,
+        result: {
+          content: mockReviews as ReviewResponse[],
+          page,
+          size,
+          totalElements: mockReviews.length,
+          totalPages: 1,
+          first: page === 0,
+          last: true,
+        },
+      }
     }
+  },
+
+  /** Báo cáo thống kê đánh giá của Shop GET /reviews/shop/report */
+  async getMyShopReport(): Promise<ApiResponse<ReviewShopReport>> {
+    try {
+      const res = await axiosInstance.get('/reviews/shop/report')
+      return { code: 200, result: unwrap<ReviewShopReport>(res) }
+    } catch {
+      return {
+        code: 200,
+        result: {
+          averageRating: 4.8,
+          totalReviewers: 36,
+          fiveStarNumber: 28,
+          fourStarNumber: 5,
+          threeStarNumber: 2,
+          twoStarNumber: 1,
+          oneStarNumber: 0,
+        },
+      }
+    }
+  },
+
+  /** Shop trả lời đánh giá POST /reviews/{id}/reply */
+  async replyReview(id: number, data: ReviewReplyRequest): Promise<ApiResponse<ReviewResponse>> {
+    const res = await axiosInstance.post(`/reviews/${id}/reply`, data)
+    return { code: 200, result: unwrap<ReviewResponse>(res) }
+  },
+
+  async getByProductId(productId: number): Promise<ApiResponse<ReviewResponse[]>> {
     try {
       const res = await axiosInstance.get(`/reviews/product/${productId}`)
       const result = unwrap<ReviewResponse[]>(res)
       return { code: 200, result: Array.isArray(result) ? result : [] }
     } catch {
       const list = mockReviews.filter((r) => !r.productId || r.productId === productId)
-      return { code: 200, result: list }
+      return { code: 200, result: list as ReviewResponse[] }
     }
   },
 
@@ -56,17 +103,13 @@ export const reviewService = {
   },
 
   async getByShopId(shopId: number): Promise<ApiResponse<ReviewResponse[]>> {
-    if (ENV.USE_MOCK) {
-      const list = mockReviews.filter((r) => !r.shopId || r.shopId === shopId)
-      return { code: 200, result: list }
-    }
     try {
       const res = await axiosInstance.get(`/reviews/shop/${shopId}`)
       const result = unwrap<ReviewResponse[]>(res)
       return { code: 200, result: Array.isArray(result) ? result : [] }
     } catch {
       const list = mockReviews.filter((r) => !r.shopId || r.shopId === shopId)
-      return { code: 200, result: list }
+      return { code: 200, result: list as ReviewResponse[] }
     }
   },
 
@@ -78,14 +121,6 @@ export const reviewService = {
     const res = await axiosInstance.get(`/reviews/shop/${shopId}/paged`, {
       params: { page, size },
     })
-    return { code: 200, result: unwrap<PageResponse<ReviewResponse>>(res) }
-  },
-
-  async getMyShopReviewsPaged(
-    page = 0,
-    size = 10,
-  ): Promise<ApiResponse<PageResponse<ReviewResponse>>> {
-    const res = await axiosInstance.get('/reviews/my-shop', { params: { page, size } })
     return { code: 200, result: unwrap<PageResponse<ReviewResponse>>(res) }
   },
 
@@ -113,6 +148,7 @@ export const reviewService = {
     return { code: 200, result: unwrap<PageResponse<ReviewResponse>>(res) }
   },
 
+  /** Người mua gửi đánh giá */
   async createReview(data: ReviewCreateRequest): Promise<ApiResponse<ReviewResponse>> {
     if (ENV.USE_MOCK) {
       await new Promise((r) => setTimeout(r, 400))
@@ -132,50 +168,17 @@ export const reviewService = {
     return { code: 200, result: unwrap<ReviewResponse>(res) }
   },
 
-  async replyReview(
-    reviewId: number,
-    request: ReviewReplyRequest,
-  ): Promise<ApiResponse<ReviewResponse>> {
-    const res = await axiosInstance.post(`/reviews/${reviewId}/reply`, request)
-    return { code: 200, result: unwrap<ReviewResponse>(res) }
-  },
-
   async reactToReview(
     reviewId: number,
     reactionType: 'LIKE' | 'DISLIKE',
   ): Promise<ApiResponse<ReviewResponse>> {
-    if (ENV.USE_MOCK) {
-      await new Promise((r) => setTimeout(r, 100))
-      const rev = mockReviews.find((r) => r.id === reviewId)
-      if (rev) {
-        if (rev.currentUserReaction === reactionType) {
-          rev.currentUserReaction = null
-          if (reactionType === 'LIKE') rev.likeCount = Math.max(0, (rev.likeCount || 1) - 1)
-          else rev.dislikeCount = Math.max(0, (rev.dislikeCount || 1) - 1)
-        } else {
-          if (rev.currentUserReaction === 'LIKE') rev.likeCount = Math.max(0, (rev.likeCount || 1) - 1)
-          if (rev.currentUserReaction === 'DISLIKE') rev.dislikeCount = Math.max(0, (rev.dislikeCount || 1) - 1)
-          rev.currentUserReaction = reactionType
-          if (reactionType === 'LIKE') rev.likeCount = (rev.likeCount || 0) + 1
-          else rev.dislikeCount = (rev.dislikeCount || 0) + 1
-        }
-        return { code: 200, result: { ...rev } }
-      }
-      return { code: 200, result: mockReviews[0] }
+    try {
+      const res = await axiosInstance.post(`/reviews/${reviewId}/react`, { reactionType })
+      return { code: 200, result: unwrap<ReviewResponse>(res) }
+    } catch {
+      const rev = mockReviews.find((r) => r.id === reviewId) || mockReviews[0]
+      return { code: 200, result: rev as ReviewResponse }
     }
-    const res = await axiosInstance.post(`/reviews/${reviewId}/react`, { reactionType })
-    return { code: 200, result: unwrap<ReviewResponse>(res) }
-  },
-
-  async getShopReport(shopId?: number): Promise<ApiResponse<ReviewShopReport>> {
-    const url = shopId ? `/reviews/shop/${shopId}/report` : '/reviews/shop/report'
-    const res = await axiosInstance.get(url)
-    return { code: 200, result: unwrap<ReviewShopReport>(res) }
-  },
-
-  async getMyShopReport(): Promise<ApiResponse<ReviewShopReport>> {
-    const res = await axiosInstance.get('/reviews/shop/report')
-    return { code: 200, result: unwrap<ReviewShopReport>(res) }
   },
 
   async getAllReviewsAdmin(

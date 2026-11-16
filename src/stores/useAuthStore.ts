@@ -7,6 +7,10 @@ import type { AuthUser, SessionUser, UserRole } from '@/types'
 import { STORAGE_KEYS } from '@/utils/constants'
 import { isTokenValid } from '@/utils/jwt'
 import { readJson, secureStorage } from './storage'
+import {
+  registerForPushNotificationsAsync,
+  unregisterPushNotificationsAsync,
+} from '@/services/pushNotification'
 
 const ROLES: readonly UserRole[] = ['buyer', 'shop', 'shipper', 'admin']
 
@@ -90,8 +94,16 @@ export const useAuthStore = create<AuthState>()(
         const token = nextToken ?? null
         const user = { ...next, id: next.id != null ? String(next.id) : Crypto.randomUUID() }
         set({ user, token })
+        registerForPushNotificationsAsync().catch((err) => {
+          console.warn('[AuthStore] Push token register error on login:', err)
+        })
       },
-      logout: () => set({ user: null, token: null }),
+      logout: () => {
+        unregisterPushNotificationsAsync().catch((err) => {
+          console.warn('[AuthStore] Push token unregister error on logout:', err)
+        })
+        set({ user: null, token: null })
+      },
       setUser: (user) => set({ user }),
     }),
     {

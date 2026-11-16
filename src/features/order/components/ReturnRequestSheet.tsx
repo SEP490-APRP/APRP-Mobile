@@ -1,6 +1,6 @@
 import * as ImagePicker from 'expo-image-picker'
 import { Image } from 'expo-image'
-import { AlertCircle, Camera, Image as ImageIcon, RotateCcw, ShieldCheck, X } from 'lucide-react-native'
+import { Camera, Image as ImageIcon, ShieldCheck, X } from 'lucide-react-native'
 import { useEffect, useState } from 'react'
 import { Pressable, TextInput, View } from 'react-native'
 import { AppText, BottomSheet, Button } from '@/components/ui'
