@@ -15,6 +15,7 @@ import {
   Ticket,
   Truck,
   UserRound,
+  UtensilsCrossed,
   type LucideIcon,
   Wallet,
 } from 'lucide-react-native'
@@ -38,6 +39,7 @@ const ORDER_SHORTCUTS: { tab: OrderTab; icon: LucideIcon; label: string }[] = [
 
 const MENU: { icon: LucideIcon; label: string; href: Href; badgeKey?: 'notif' | 'chat' }[] = [
   { icon: Wallet, label: 'Ví của tôi & Tiếp thị liên kết', href: '/buyer/wallet' as Href },
+  { icon: UtensilsCrossed, label: 'Kế hoạch thực đơn AI', href: '/buyer/meal-plan' as any },
   { icon: UserRound, label: 'Hồ sơ cá nhân', href: '/buyer/profile' },
   { icon: Bell, label: 'Thông báo của tôi', href: '/buyer/notifications' as any, badgeKey: 'notif' },
   { icon: MessageSquare, label: 'Tin nhắn & Hỗ trợ', href: '/buyer/chat' as any, badgeKey: 'chat' },

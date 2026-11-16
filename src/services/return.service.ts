@@ -1,9 +1,11 @@
 import axiosInstance from '@/services/api/axiosInstance'
 import type { ApiResponse, PageResponse } from '@/types'
 import type {
+  AdminReturnDecisionRequest,
   ReturnCreateRequest,
   ReturnRequestResponse,
   ReturnStatus,
+  ShipperReturnActionRequest,
   ShopReturnRespondRequest,
 } from './return.types'
 import { mockDisputes } from '@/mocks/return.mock'
@@ -151,5 +153,88 @@ export const returnService = {
         },
       }
     }
+  },
+
+  /** Admin phân xử khiếu nại (chi tiết) */
+  async adminDecision(
+    id: number,
+    data: AdminReturnDecisionRequest,
+  ): Promise<ApiResponse<ReturnRequestResponse>> {
+    const res = await axiosInstance.post(`/returns/${id}/admin-decision`, data)
+    return { code: 200, result: unwrap<ReturnRequestResponse>(res) }
+  },
+
+  /** Người mua hủy yêu cầu trả hàng */
+  async cancelReturnRequest(id: number): Promise<ApiResponse<ReturnRequestResponse>> {
+    const res = await axiosInstance.post(`/returns/${id}/cancel`)
+    return { code: 200, result: unwrap<ReturnRequestResponse>(res) }
+  },
+
+  /** Lấy danh sách yêu cầu hoàn trả của Người mua */
+  async getBuyerReturns(
+    page = 0,
+    size = 10,
+    status?: ReturnStatus,
+  ): Promise<ApiResponse<PageResponse<ReturnRequestResponse>>> {
+    const res = await axiosInstance.get('/returns/buyer/my-returns', {
+      params: { page, size, status: status || undefined },
+    })
+    return { code: 200, result: unwrap<PageResponse<ReturnRequestResponse>>(res) }
+  },
+
+  /** Shipper nhận đơn giao hàng hoàn trả */
+  async shipperAccept(id: number): Promise<ApiResponse<ReturnRequestResponse>> {
+    const res = await axiosInstance.post(`/returns/${id}/shipper/accept`)
+    return { code: 200, result: unwrap<ReturnRequestResponse>(res) }
+  },
+
+  /** Shipper xác nhận đã lấy hàng hoàn từ Người mua */
+  async shipperPickup(
+    id: number,
+    data?: ShipperReturnActionRequest,
+  ): Promise<ApiResponse<ReturnRequestResponse>> {
+    const res = await axiosInstance.post(`/returns/${id}/shipper/pickup`, data)
+    return { code: 200, result: unwrap<ReturnRequestResponse>(res) }
+  },
+
+  /** Shipper xác nhận đã giao hàng hoàn trả về cho Shop */
+  async shipperDeliver(
+    id: number,
+    data?: ShipperReturnActionRequest,
+  ): Promise<ApiResponse<ReturnRequestResponse>> {
+    const res = await axiosInstance.post(`/returns/${id}/shipper/deliver`, data)
+    return { code: 200, result: unwrap<ReturnRequestResponse>(res) }
+  },
+
+  /** Lấy danh sách đơn hoàn sẵn sàng cho Shipper nhận đơn */
+  async getShipperAvailableReturns(
+    page = 0,
+    size = 10,
+  ): Promise<ApiResponse<PageResponse<ReturnRequestResponse>>> {
+    const res = await axiosInstance.get('/returns/shipper/available', {
+      params: { page, size },
+    })
+    return { code: 200, result: unwrap<PageResponse<ReturnRequestResponse>>(res) }
+  },
+
+  /** Lấy danh sách đơn hoàn Shipper đang phụ trách */
+  async getShipperMyReturns(
+    page = 0,
+    size = 10,
+    status?: ReturnStatus,
+  ): Promise<ApiResponse<PageResponse<ReturnRequestResponse>>> {
+    const res = await axiosInstance.get('/returns/shipper/my-returns', {
+      params: { page, size, status: status || undefined },
+    })
+    return { code: 200, result: unwrap<PageResponse<ReturnRequestResponse>>(res) }
+  },
+
+  /** Shipper báo cáo giao/nhận hàng hoàn thất bại */
+  async shipperFail(
+    id: number,
+    data?: ShipperReturnActionRequest,
+  ): Promise<ApiResponse<ReturnRequestResponse>> {
+    const res = await axiosInstance.post(`/returns/${id}/shipper/fail`, data)
+    return { code: 200, result: unwrap<ReturnRequestResponse>(res) }
   },
 }

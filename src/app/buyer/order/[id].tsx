@@ -1,6 +1,21 @@
 import { Image } from 'expo-image'
 import { router, useLocalSearchParams } from 'expo-router'
-import { Check, CreditCard, MapPin, Navigation, NotebookPen, Phone, ShoppingBasket, Store, User, XCircle } from 'lucide-react-native'
+import {
+  AlertCircle,
+  Check,
+  CreditCard,
+  MapPin,
+  Navigation,
+  NotebookPen,
+  PackageCheck,
+  Phone,
+  RotateCcw,
+  ShoppingBasket,
+  Star,
+  Store,
+  User,
+  XCircle,
+} from 'lucide-react-native'
 import { useState } from 'react'
 import { Pressable, RefreshControl, ScrollView, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -8,6 +23,10 @@ import { AppText, Button, CapNongLoading, ConfirmDialog, ErrorState } from '@/co
 import { BackButton } from '@/features/auth/components'
 import {
   canCancelOrder,
+  canCompleteOrder,
+  canRequestReturn,
+  canReviewItem,
+  CancelOrderSheet,
   isUnpaidOrder,
   ORDER_STEPS,
   orderIdOf,
@@ -15,28 +34,40 @@ import {
   orderStepIndex,
   paymentMethodLabel,
   ResumePaymentSheet,
+  ReturnRequestSheet,
   useCancelOrder,
+  useCompleteOrder,
   useOrder,
   usePayOrder,
 } from '@/features/order'
 import { money } from '@/features/product'
+import { ReviewSheet } from '@/features/review'
 import { canTrackOrder } from '@/features/tracking'
 import { useUiStore } from '@/stores'
 import { colors } from '@/theme/colors'
+import type { OrderItem } from '@/types/order.types'
 import { getErrorMessage } from '@/utils/errors'
 import { cn } from '@/utils/helpers'
 
-/** Chi tiết một đơn: tiến trình, người nhận, món, tiền và thao tác thanh toán / huỷ. */
+/** Chi tiết một đơn: tiến trình, người nhận, món, tiền, đánh giá, hoàn tiền và thao tác. */
 export default function OrderDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const orderId = Number(id)
   const orderQuery = useOrder(orderId)
   const order = orderQuery.data
   const cancel = useCancelOrder()
+  const complete = useCompleteOrder()
   const payment = usePayOrder()
   const showToast = useUiStore((s) => s.showToast)
-  const [confirming, setConfirming] = useState(false)
+
+  const [confirmCancel, setConfirmCancel] = useState(false)
+  const [confirmComplete, setConfirmComplete] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
+
+  // Review Sheet State
+  const [reviewItem, setReviewItem] = useState<OrderItem | null>(null)
+  // Return Request Sheet State
+  const [returnItem, setReturnItem] = useState<OrderItem | null>(null)
 
   const header = (
     <View className="flex-row items-center gap-2 border-b border-line bg-paper px-3 pb-2">
@@ -65,6 +96,7 @@ export default function OrderDetailScreen() {
   const goods = items.reduce((sum, it) => sum + Number(it.subtotal ?? it.unitPrice * it.quantity), 0)
   const unpaid = isUnpaidOrder(order)
   const cancellable = canCancelOrder(order)
+  const completable = canCompleteOrder(order.status)
   const trackable = canTrackOrder(order.status, 'BUYER')
   const openTracking = () => router.push({ pathname: '/buyer/tracking/[id]', params: { id: String(orderId) } })
 
@@ -74,15 +106,29 @@ export default function OrderDetailScreen() {
     setRefreshing(false)
   }
 
-  const doCancel = () =>
+  const doCancel = (reason: string) =>
     cancel.mutate(orderIdOf(order), {
       onSuccess: () => {
-        setConfirming(false)
+        setConfirmCancel(false)
         showToast('Đã huỷ đơn hàng.')
+        void orderQuery.refetch()
       },
       onError: (err) => {
-        setConfirming(false)
+        setConfirmCancel(false)
         showToast(getErrorMessage(err, 'Không thể huỷ đơn này.'))
+      },
+    })
+
+  const doComplete = () =>
+    complete.mutate(orderIdOf(order), {
+      onSuccess: () => {
+        setConfirmComplete(false)
+        showToast('Đã xác nhận nhận đủ hàng. Cảm ơn bạn!')
+        void orderQuery.refetch()
+      },
+      onError: (err) => {
+        setConfirmComplete(false)
+        showToast(getErrorMessage(err, 'Không thể xác nhận hoàn thành đơn.'))
       },
     })
 
@@ -95,6 +141,37 @@ export default function OrderDetailScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.leaf700} colors={[colors.leaf700]} />
         }
       >
+        {/* Thông báo trả hàng / hoàn tiền */}
+        {order.status === 'REFUND_REQUESTED' && (
+          <View className="flex-row items-center gap-3 rounded-panel border border-amber-300 bg-amber-50 p-4">
+            <AlertCircle size={22} color="#b45309" />
+            <View className="flex-1">
+              <AppText weight="bold" className="text-sm text-amber-900">
+                Đang xử lý yêu cầu Trả hàng / Hoàn tiền
+              </AppText>
+              <AppText className="text-xs text-amber-800 leading-relaxed mt-0.5">
+                Nhà vườn hoặc quản trị viên đang xem xét yêu cầu hoàn trả của bạn.
+              </AppText>
+            </View>
+          </View>
+        )}
+
+        {order.status === 'REFUNDED' && (
+          <View className="flex-row items-center gap-3 rounded-panel border border-emerald-300 bg-emerald-50 p-4">
+            <Check size={22} color="#047857" />
+            <View className="flex-1">
+              <AppText weight="bold" className="text-sm text-emerald-900">
+                Đơn hàng đã được hoàn tiền
+              </AppText>
+              {!!order.refundAmount && (
+                <AppText className="text-xs text-emerald-800 mt-0.5">
+                  Số tiền hoàn: {money(order.refundAmount)}
+                </AppText>
+              )}
+            </View>
+          </View>
+        )}
+
         {/* Tiến trình */}
         {step >= 0 ? (
           <View className="flex-row rounded-panel border border-line bg-white px-2 py-4">
@@ -146,7 +223,7 @@ export default function OrderDetailScreen() {
           {!!order.note && <InfoRow icon={NotebookPen} text={order.note} />}
         </View>
 
-        {/* Món */}
+        {/* Danh sách món & thao tác Đánh giá / Trả hàng */}
         <View className="rounded-panel border border-line bg-white p-4">
           <Pressable
             disabled={!order.shopId}
@@ -159,38 +236,95 @@ export default function OrderDetailScreen() {
               {order.shopName || 'Nhà vườn'}
             </AppText>
           </Pressable>
-          {items.map((it, i) => (
-            <View key={i} className={cn('flex-row items-center gap-3 py-2.5', i > 0 && 'border-t border-line')}>
-              <View className="h-14 w-14 overflow-hidden rounded-xl border border-line bg-paper">
-                {it.imageUrl ? (
-                  <Image source={{ uri: it.imageUrl }} style={{ width: 56, height: 56 }} contentFit="cover" />
-                ) : (
-                  <View className="flex-1 items-center justify-center">
-                    <ShoppingBasket size={20} color={colors.inkSubtle} />
+          {items.map((it, i) => {
+            const hasRequestedReturn = it.isRequestedReturn
+            const showReturnBtn = canRequestReturn(order.status) && !hasRequestedReturn
+            const isReviewed = it.isReviewed
+            const showReviewBtn = canReviewItem(order.status, isReviewed)
+
+            return (
+              <View key={i} className={cn('gap-2 py-3', i > 0 && 'border-t border-line')}>
+                <View className="flex-row items-center gap-3">
+                  <View className="h-14 w-14 overflow-hidden rounded-xl border border-line bg-paper">
+                    {it.imageUrl ? (
+                      <Image source={{ uri: it.imageUrl }} style={{ width: 56, height: 56 }} contentFit="cover" />
+                    ) : (
+                      <View className="flex-1 items-center justify-center">
+                        <ShoppingBasket size={20} color={colors.inkSubtle} />
+                      </View>
+                    )}
+                  </View>
+                  <View className="min-w-0 flex-1">
+                    <AppText weight="semibold" numberOfLines={2} className="text-sm">
+                      {it.productName || it.itemName || it.mysteryBoxType || 'Nông sản'}
+                    </AppText>
+                    <AppText className="text-xs text-ink-muted">
+                      {money(Number(it.unitPrice || 0))} × {it.quantity}
+                    </AppText>
+                  </View>
+                  <AppText weight="bold" className="text-sm">
+                    {money(Number(it.subtotal ?? it.unitPrice * it.quantity))}
+                  </AppText>
+                </View>
+
+                {/* Các nút hành động trên từng mặt hàng (Trả hàng / Đánh giá) */}
+                {(hasRequestedReturn || showReturnBtn || isReviewed || showReviewBtn) && (
+                  <View className="flex-row flex-wrap items-center justify-end gap-2 pt-1">
+                    {hasRequestedReturn && (
+                      <View className="rounded-full border border-amber-300 bg-amber-50 px-2.5 py-1">
+                        <AppText weight="semibold" className="text-xs text-amber-800">
+                          ↺ Đang yêu cầu trả hàng
+                        </AppText>
+                      </View>
+                    )}
+
+                    {showReturnBtn && (
+                      <Pressable
+                        onPress={() => setReturnItem(it)}
+                        className="flex-row items-center gap-1.5 rounded-xl border border-line bg-paper px-3 py-1.5 active:bg-gray-200"
+                        accessibilityRole="button"
+                      >
+                        <RotateCcw size={12} color={colors.inkSubtle} />
+                        <AppText weight="semibold" className="text-xs text-ink-muted">
+                          Trả hàng
+                        </AppText>
+                      </Pressable>
+                    )}
+
+                    {isReviewed && (
+                      <View className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1">
+                        <AppText weight="semibold" className="text-xs text-emerald-700">
+                          ✓ Đã đánh giá
+                        </AppText>
+                      </View>
+                    )}
+
+                    {showReviewBtn && (
+                      <Pressable
+                        onPress={() => setReviewItem(it)}
+                        className="flex-row items-center gap-1.5 rounded-xl bg-amber-500 px-3 py-1.5 active:bg-amber-600"
+                        accessibilityRole="button"
+                      >
+                        <Star size={12} color="#ffffff" fill="#ffffff" />
+                        <AppText weight="bold" className="text-xs text-white">
+                          Đánh giá
+                        </AppText>
+                      </Pressable>
+                    )}
                   </View>
                 )}
               </View>
-              <View className="min-w-0 flex-1">
-                <AppText weight="semibold" numberOfLines={2} className="text-sm">
-                  {it.productName || it.itemName || it.mysteryBoxType || 'Nông sản'}
-                </AppText>
-                <AppText className="text-xs text-ink-muted">
-                  {money(Number(it.unitPrice || 0))} × {it.quantity}
-                </AppText>
-              </View>
-              <AppText weight="bold" className="text-sm">
-                {money(Number(it.subtotal ?? it.unitPrice * it.quantity))}
-              </AppText>
-            </View>
-          ))}
+            )
+          })}
         </View>
 
-        {/* Tiền */}
+        {/* Tiền thanh toán */}
         <View className="gap-2 rounded-panel border border-line bg-white p-4">
           <Line label="Phương thức" value={paymentMethodLabel(order.paymentMethod)} />
           {goods > 0 && <Line label="Tiền hàng" value={money(goods)} />}
           {order.shippingFee != null && <Line label="Phí vận chuyển" value={money(order.shippingFee)} />}
           {!!order.voucherDiscountAmount && <Line label="Giảm giá voucher" value={`-${money(order.voucherDiscountAmount)}`} />}
+          {!!order.refundAmount && <Line label="Số tiền đã hoàn" value={money(order.refundAmount)} />}
           <View className="mt-1 flex-row items-baseline justify-between border-t border-line pt-3">
             <AppText weight="bold" className="text-base">
               Tổng thanh toán
@@ -205,15 +339,30 @@ export default function OrderDetailScreen() {
         </View>
       </ScrollView>
 
-      {trackable && !unpaid && !cancellable && (
+      {/* Thanh hành động dưới cùng */}
+      {completable && (
+        <View className="gap-2 border-t border-line bg-white px-4 pt-3">
+          <Button
+            title="Đã nhận được hàng"
+            icon={PackageCheck}
+            loading={complete.isPending}
+            onPress={() => setConfirmComplete(true)}
+            className="w-full bg-leaf-700"
+          />
+          {trackable && <Button title="Theo dõi shipper trên bản đồ" variant="outline" icon={Navigation} onPress={openTracking} />}
+        </View>
+      )}
+
+      {trackable && !unpaid && !cancellable && !completable && (
         <View className="border-t border-line bg-white px-4 pt-3">
           <Button title="Theo dõi shipper trên bản đồ" icon={Navigation} onPress={openTracking} />
         </View>
       )}
-      {(unpaid || cancellable) && (
+
+      {(unpaid || cancellable) && !completable && (
         <View className="flex-row gap-3 border-t border-line bg-white px-4 pt-3">
           {cancellable && (
-            <Button title="Huỷ đơn" variant="outline" icon={XCircle} onPress={() => setConfirming(true)} className="flex-1" />
+            <Button title="Huỷ đơn" variant="outline" icon={XCircle} onPress={() => setConfirmCancel(true)} className="flex-1" />
           )}
           {unpaid && (
             <Button
@@ -227,17 +376,45 @@ export default function OrderDetailScreen() {
         </View>
       )}
 
-      <ConfirmDialog
-        visible={confirming}
-        title="Huỷ đơn hàng này?"
-        message="Nông sản sẽ được trả lại kho của nhà vườn. Bạn không thể hoàn tác."
-        confirmLabel="Huỷ đơn"
-        cancelLabel="Giữ đơn"
-        destructive
+      {/* Tấm huỷ đơn có chọn lý do */}
+      <CancelOrderSheet
+        visible={confirmCancel}
+        orderId={orderIdOf(order)}
         loading={cancel.isPending}
+        onClose={() => setConfirmCancel(false)}
         onConfirm={doCancel}
-        onCancel={() => setConfirming(false)}
       />
+
+      {/* Hộp thoại xác nhận đã nhận hàng */}
+      <ConfirmDialog
+        visible={confirmComplete}
+        title={`Xác nhận đã nhận đơn #${orderIdOf(order)}?`}
+        message="Vui lòng kiểm tra kỹ nông sản trước khi xác nhận. Sau bước này tiền sẽ được giải ngân cho nhà vườn và shipper."
+        confirmLabel="Đã nhận đủ hàng"
+        cancelLabel="Kiểm tra lại"
+        loading={complete.isPending}
+        onConfirm={doComplete}
+        onCancel={() => setConfirmComplete(false)}
+      />
+
+      {/* Tấm đánh giá sản phẩm */}
+      <ReviewSheet
+        visible={reviewItem != null}
+        item={reviewItem}
+        orderId={orderIdOf(order)}
+        onClose={() => setReviewItem(null)}
+        onSuccess={() => void orderQuery.refetch()}
+      />
+
+      {/* Tấm yêu cầu trả hàng / hoàn tiền */}
+      <ReturnRequestSheet
+        visible={returnItem != null}
+        item={returnItem}
+        orderId={orderIdOf(order)}
+        onClose={() => setReturnItem(null)}
+        onSuccess={() => void orderQuery.refetch()}
+      />
+
       <ResumePaymentSheet
         options={payment.options}
         onPayAll={() => void payment.payAll()}
@@ -259,8 +436,8 @@ function InfoRow({ icon: Icon, text }: { icon: typeof User; text: string }) {
 
 function Line({ label, value }: { label: string; value: string }) {
   return (
-    <View className="flex-row justify-between gap-3">
-      <AppText className="text-sm text-ink-muted">{label}</AppText>
+    <View className="flex-row items-center justify-between">
+      <AppText className="text-xs text-ink-muted">{label}</AppText>
       <AppText weight="semibold" className="text-sm">
         {value}
       </AppText>

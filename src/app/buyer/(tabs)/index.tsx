@@ -1,6 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { router, useFocusEffect } from 'expo-router'
-import { Bell, Camera, MessageSquare, Search } from 'lucide-react-native'
+import { Bell, Camera, MessageSquare, Search, Sparkles, UtensilsCrossed } from 'lucide-react-native'
 import { useCallback, useState } from 'react'
 import { Image, Pressable, RefreshControl, ScrollView, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -125,6 +125,28 @@ export default function BuyerHome() {
         }
       >
         <HomeHero onShop={() => openFresh()} />
+        {/* Banner Thực đơn AI */}
+        <Pressable
+          onPress={() => router.push('/buyer/meal-plan' as any)}
+          accessibilityRole="button"
+          accessibilityLabel="Lập thực đơn AI"
+          className="flex-row items-center justify-between rounded-2xl border border-leaf-200 bg-leaf-50 p-4 active:bg-leaf-100"
+        >
+          <View className="flex-1 pr-3">
+            <View className="flex-row items-center gap-1.5">
+              <Sparkles size={16} color={colors.leaf700} />
+              <AppText weight="bold" className="text-sm text-leaf-800">
+                Thực Đơn Dinh Dưỡng AI
+              </AppText>
+            </View>
+            <AppText className="mt-1 text-xs text-leaf-900 leading-relaxed">
+              Tự động gợi ý thực đơn 7 ngày từ nông sản giải cứu, tiết kiệm chi phí và chuẩn calo.
+            </AppText>
+          </View>
+          <View className="h-10 w-10 items-center justify-center rounded-xl bg-leaf-700">
+            <UtensilsCrossed size={18} color="#ffffff" />
+          </View>
+        </Pressable>
         <View className="gap-4">
           <HomeCategories onPick={openFresh} onSeeAll={() => openFresh()} />
         </View>
