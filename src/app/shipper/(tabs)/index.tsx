@@ -348,7 +348,7 @@ export default function ShipperHome() {
                       Đơn hoàn trả #{ret.id}
                     </AppText>
                     <AppText weight="extrabold" className="text-sm text-leaf-700">
-                      Cước: {money(ret.returnShippingFee ?? 20000)}
+                      Cước: {money(ret.returnShippingFee ?? 0)}
                     </AppText>
                   </View>
                   <View className="gap-1">

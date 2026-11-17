@@ -47,7 +47,7 @@ export function ShipperReturnCard({
         <View className="items-end">
           <AppText className="text-xs text-ink-muted">Cước nhận</AppText>
           <AppText weight="extrabold" className="text-xl text-leaf-700">
-            {money(Number(returnItem.returnShippingFee ?? 20000))}
+            {money(Number(returnItem.returnShippingFee ?? 0))}
           </AppText>
         </View>
       </View>

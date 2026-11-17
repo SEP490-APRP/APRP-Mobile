@@ -12,7 +12,6 @@ import type {
   WithdrawResponse,
   WithdrawStatus,
 } from './wallet.types'
-import { mockWithdrawRequests } from '@/mocks/wallet.mock'
 
 export type * from './wallet.types'
 
@@ -36,65 +35,14 @@ function unwrap<T>(res: unknown): T {
 export const walletService = {
   /** Lấy thông tin ví của user đang đăng nhập (Shop, Shipper...) GET /wallets/me */
   async getMyWallet(): Promise<ApiResponse<MyWalletResponse>> {
-    try {
-      const res = await axiosInstance.get('/wallets/me')
-      return { code: 200, result: unwrap<MyWalletResponse>(res) }
-    } catch (err) {
-      // Fallback fallback giả lập nếu BE offline hoặc tài khoản mới
-      return {
-        code: 200,
-        result: {
-          walletId: 1,
-          type: 'SHOP',
-          userId: 1,
-          balance: 14250000,
-          frozenBalance: 1200000,
-          totalRevenueAllTime: 48500000,
-          totalWithdrawn: 33050000,
-        },
-      }
-    }
+    const res = await axiosInstance.get('/wallets/me')
+    return { code: 200, result: unwrap<MyWalletResponse>(res) }
   },
 
   /** Lịch sử biến động số dư GET /wallets/me/transactions */
   async getMyTransactions(page = 0, size = 20): Promise<ApiResponse<SpringPage<WalletTransactionResponse>>> {
-    try {
-      const res = await axiosInstance.get('/wallets/me/transactions', { params: { page, size } })
-      return { code: 200, result: unwrap<SpringPage<WalletTransactionResponse>>(res) }
-    } catch {
-      return {
-        code: 200,
-        result: {
-          content: [
-            {
-              id: 101,
-              walletId: 1,
-              walletType: 'SHOP',
-              orderId: 501,
-              type: 'SHOP_INCOME',
-              amount: 350000,
-              balanceAfter: 14250000,
-              description: 'Doanh thu đơn hàng #ORD-501 (đã trừ 10% phí sàn)',
-              createdAt: new Date().toISOString(),
-            },
-            {
-              id: 100,
-              walletId: 1,
-              walletType: 'SHOP',
-              type: 'WITHDRAW_REQUESTED',
-              amount: -2000000,
-              balanceAfter: 13900000,
-              description: 'Rút tiền về Vietcombank (..9876)',
-              createdAt: new Date(Date.now() - 86400000 * 2).toISOString(),
-            },
-          ],
-          totalElements: 2,
-          totalPages: 1,
-          number: page,
-          size,
-        },
-      }
-    }
+    const res = await axiosInstance.get('/wallets/me/transactions', { params: { page, size } })
+    return { code: 200, result: unwrap<SpringPage<WalletTransactionResponse>>(res) }
   },
 
   /** Gửi yêu cầu rút tiền POST /wallets/withdrawals */
@@ -144,11 +92,13 @@ export const walletService = {
 
   // Legacy admin / platform helpers
   async getAllPendingWithdrawRequests(): Promise<ApiResponse<WithdrawRequestResponse[]>> {
-    return { code: 200, result: mockWithdrawRequests.filter((r) => r.status === 'PENDING') }
+    const res = await axiosInstance.get('/wallets/withdrawals', { params: { status: 'PENDING' } })
+    return { code: 200, result: unwrap<WithdrawRequestResponse[]>(res) }
   },
 
   async getAllWithdrawRequests(): Promise<ApiResponse<WithdrawRequestResponse[]>> {
-    return { code: 200, result: [...mockWithdrawRequests] }
+    const res = await axiosInstance.get('/wallets/withdrawals')
+    return { code: 200, result: unwrap<WithdrawRequestResponse[]>(res) }
   },
 
   async getPlatformWallet(): Promise<ApiResponse<WalletResponse>> {
