@@ -1,9 +1,13 @@
+export type BackendDateTime = string | number[] | null | undefined
+
+export type WalletType = 'SHOP' | 'SHIPPER' | 'PLATFORM' | 'REFERRAL' | 'MEMBER' | 'BUYER'
+
 export interface WithdrawRequestResponse {
   id: number
   amount: number
   receiveAmount?: number
-  status: 'PENDING' | 'SUCCESS' | 'REJECTED'
-  walletType?: 'MEMBER' | 'SHIPPER' | 'SHOP' | 'BUYER'
+  status: 'PENDING' | 'SUCCESS' | 'REJECTED' | 'COMPLETED'
+  walletType?: WalletType
   walletId?: number
   buyerId?: number
   shopOwnerId?: number
@@ -11,6 +15,7 @@ export interface WithdrawRequestResponse {
   bankName: string
   bankAccountNumber: string
   bankAccountName: string
+  bankAccountHolder?: string
   createdAt: string
   processedAt?: string
   note?: string
@@ -27,10 +32,6 @@ export interface WalletResponse {
   commissionEarned: number
 }
 
-// ── Ví thật từ backend (/wallets), chép từ APRP-FE/src/services/wallet.types.ts ──
-
-export type WalletType = 'SHOP' | 'SHIPPER' | 'PLATFORM' | 'REFERRAL' | 'BUYER'
-
 export interface MyWalletResponse {
   walletId: number
   type: WalletType
@@ -42,21 +43,41 @@ export interface MyWalletResponse {
   frozenBalance: number
   totalRevenueAllTime: number
   totalWithdrawn: number
+  commissionEarned?: number | null
   /** Chỉ ví Shipper: tiền mặt COD luồng cũ chưa nộp về sàn */
   codCashHolding?: number | null
   /** Tiền đang ký quỹ cho đơn COD đang giao */
   codReserved?: number | null
   /** Số dư khả dụng = balance - codReserved (dùng để nhận đơn COD và rút tiền) */
   availableBalance?: number | null
-  updatedAt?: string | null
+  updatedAt?: BackendDateTime
 }
+
+export type WalletTransactionType =
+  | 'SHOP_INCOME'
+  | 'SHIPPER_INCOME'
+  | 'PLATFORM_FARMER_FEE'
+  | 'PLATFORM_SHIPPER_FEE'
+  | 'PLATFORM_VOUCHER_SUBSIDY'
+  | 'PLATFORM_FREESHIP_SUBSIDY'
+  | 'COD_CASH_COLLECTED'
+  | 'COD_CASH_REMITTED'
+  | 'SHOP_INCOME_HOLD'
+  | 'SHIPPER_INCOME_HOLD'
+  | 'PLATFORM_INCOME_HOLD'
+  | 'HOLD_RELEASED'
+  | 'HOLD_CANCELLED'
+  | 'WITHDRAW_REQUESTED'
+  | 'WITHDRAW_REFUNDED'
+  | 'WITHDRAWAL'
+  | string
 
 export interface WalletTransactionResponse {
   id: number
   walletId: number
   walletType: WalletType
   orderId?: number | null
-  type: string
+  type: WalletTransactionType
   /** Có dấu: dương = cộng, âm = trừ */
   amount: number
   balanceAfter: number
@@ -66,7 +87,7 @@ export interface WalletTransactionResponse {
   /** Giữ chỗ / gỡ ký quỹ COD: amount là thay đổi số dư khả dụng, số dư không đổi */
   reserve?: boolean
   description?: string
-  createdAt?: string | null
+  createdAt?: BackendDateTime
 }
 
 export type WalletTopupStatus = 'PENDING' | 'PAID' | 'CANCELLED'
@@ -95,4 +116,31 @@ export interface SpringPage<T> {
   totalPages: number
   number: number
   size: number
+}
+
+export interface WithdrawCreateRequest {
+  amount: number
+  bankName: string
+  bankAccountNumber: string
+  bankAccountName: string
+  bankAccountHolder?: string
+  note?: string
+}
+
+export type WithdrawStatus = 'PENDING' | 'COMPLETED' | 'SUCCESS' | 'REJECTED'
+
+export interface WithdrawResponse {
+  id: number
+  walletId: number
+  userId: number
+  amount: number
+  status: WithdrawStatus
+  bankName: string
+  bankAccountNumber: string
+  bankAccountName: string
+  bankAccountHolder?: string
+  note?: string
+  adminNote?: string
+  createdAt: BackendDateTime
+  processedAt?: BackendDateTime
 }

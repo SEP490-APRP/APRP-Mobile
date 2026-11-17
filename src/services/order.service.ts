@@ -155,6 +155,18 @@ export async function failOrder(orderId: number): Promise<OrderResponse> {
   return unwrap<OrderResponse>(res)
 }
 
+// ── BUYER: Đã nhận hàng ──────────────────────────────────────────────────────
+
+/**
+ * Buyer xác nhận đã nhận hàng: DELIVERED → COMPLETED.
+ * Backend chia tiền vào ví Shop / Shipper / Sàn ngay sau bước này.
+ * PUT /orders/{id}/complete  [@BUYER]
+ */
+export async function completeOrder(orderId: number): Promise<OrderResponse> {
+  const res = await axiosInstance.put(`/orders/${orderId}/complete`)
+  return unwrap<OrderResponse>(res)
+}
+
 // ── BUYER / SHOP: Hủy đơn ────────────────────────────────────────────────────
 
 /**
@@ -197,6 +209,7 @@ export const orderService = {
   deliverOrder,
   failOrder,
   cancelOrder,
+  completeOrder,
   getAddressSuggestions,
   async getAllOrders(): Promise<{ code: number; result: MockOrderResponse[] }> {
     await new Promise((r) => setTimeout(r, 200))

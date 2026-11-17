@@ -47,6 +47,10 @@ export interface UserResponse {
   dietPreference?: 'VEGETARIAN' | 'NON_VEGETARIAN' | 'VEGAN'
   loyaltyPoints?: number
   totalRescuedWeight?: number
+  activeRiskFlags?: number
+  failedDeliveryCount?: number
+  codBlocked?: boolean
+  penaltyWarning?: string
 }
 
 export type AdminUserReportType = 'week' | 'month' | 'year' | 'all'

@@ -21,6 +21,8 @@ import {
   useActiveOrders,
   useCurrentPosition,
   useReadyOrders,
+  useShipperAvailableReturns,
+  useShipperAcceptReturn,
   useShipperStatus,
   useToggleOnline,
 } from '@/features/shipper'
@@ -47,6 +49,11 @@ export default function ShipperHome() {
   const [picked, setPicked] = useState<OrderResponse | null>(null)
   const [switching, setSwitching] = useState(false)
   const isToggling = toggle.isPending || switching
+
+  const [orderType, setOrderType] = useState<'DELIVERY' | 'RETURNS'>('DELIVERY')
+  const returnsQuery = useShipperAvailableReturns(online)
+  const acceptReturn = useShipperAcceptReturn()
+  const returnsList = returnsQuery.data ?? []
 
   const name = profile.data?.fullName || user?.name || 'Tài xế'
   const current = active.data?.[0]
@@ -113,12 +120,15 @@ export default function ShipperHome() {
     })
   }
 
-  const refreshing = ready.isRefetching || active.isRefetching || status.isRefetching
+  const refreshing = ready.isRefetching || active.isRefetching || status.isRefetching || returnsQuery.isRefetching
   const refresh = async () => {
     void status.refetch()
     void active.refetch()
     await gps.refresh()
-    if (online) void ready.refetch()
+    if (online) {
+      void ready.refetch()
+      void returnsQuery.refetch()
+    }
   }
 
   const header = (
@@ -245,8 +255,8 @@ export default function ShipperHome() {
     <SafeAreaView className="flex-1 bg-leaf-800" edges={['top']}>
       <FlatList
         className="bg-paper"
-        data={online && !ready.isError ? orders : []}
-        keyExtractor={(o) => String(orderIdOf(o))}
+        data={online ? (orderType === 'DELIVERY' ? orders : returnsList) : []}
+        keyExtractor={(o: any) => String(o.orderId || o.id)}
         contentContainerClassName="pb-8"
         refreshControl={
           <RefreshControl
@@ -262,9 +272,46 @@ export default function ShipperHome() {
             <View className="gap-3 px-4 pt-4">
               {banner}
               {gpsNote}
-              {online && ready.data && (
+              {online && (
+                <View className="flex-row rounded-xl bg-slate-200/70 p-1">
+                  <Pressable
+                    onPress={() => setOrderType('DELIVERY')}
+                    className={cn(
+                      'flex-1 items-center rounded-lg py-2',
+                      orderType === 'DELIVERY' ? 'bg-white shadow-xs' : '',
+                    )}
+                  >
+                    <AppText
+                      weight={orderType === 'DELIVERY' ? 'bold' : 'regular'}
+                      className={cn('text-xs', orderType === 'DELIVERY' ? 'text-leaf-800' : 'text-ink-muted')}
+                    >
+                      Đơn giao ({orders.length})
+                    </AppText>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => setOrderType('RETURNS')}
+                    className={cn(
+                      'flex-1 items-center rounded-lg py-2',
+                      orderType === 'RETURNS' ? 'bg-white shadow-xs' : '',
+                    )}
+                  >
+                    <AppText
+                      weight={orderType === 'RETURNS' ? 'bold' : 'regular'}
+                      className={cn('text-xs', orderType === 'RETURNS' ? 'text-leaf-800' : 'text-ink-muted')}
+                    >
+                      Đơn hoàn trả ({returnsList.length})
+                    </AppText>
+                  </Pressable>
+                </View>
+              )}
+              {online && orderType === 'DELIVERY' && ready.data && (
                 <AppText weight="bold" className="text-xs uppercase tracking-wide text-ink-muted">
                   {orders.length} đơn chờ giao{gps.position ? ' · gần bạn trước' : ''}
+                </AppText>
+              )}
+              {online && orderType === 'RETURNS' && (
+                <AppText weight="bold" className="text-xs uppercase tracking-wide text-ink-muted">
+                  {returnsList.length} yêu cầu trả hàng cần thu hồi
                 </AppText>
               )}
             </View>
@@ -272,23 +319,74 @@ export default function ShipperHome() {
         }
         ListEmptyComponent={<View className="px-4 pt-3">{empty}</View>}
         ItemSeparatorComponent={() => <View className="h-3" />}
-        renderItem={({ item, index }) => (
-          <View className={cn('px-4', index === 0 && 'pt-3')}>
-            <ShipperOrderCard
-              order={item}
-              me={gps.position}
-              footer={
-                <Button
-                  title={busy ? 'Giao xong đơn hiện tại để nhận thêm' : 'Nhận đơn này'}
-                  icon={busy ? undefined : ChevronRight}
-                  disabled={busy}
-                  onPress={() => setPicked(item)}
-                  className={cn('min-h-[48px]', busy && 'opacity-50')}
-                />
-              }
-            />
-          </View>
-        )}
+        renderItem={({ item, index }) => {
+          if (orderType === 'RETURNS') {
+            const ret = item as any
+            return (
+              <View className={cn('px-4', index === 0 && 'pt-3')}>
+                <View className="gap-3 rounded-2xl border border-line bg-white p-4 shadow-2xs">
+                  <View className="flex-row items-center justify-between border-b border-slate-100 pb-2">
+                    <AppText weight="bold" className="text-xs text-leaf-800">
+                      Đơn hoàn trả #{ret.id}
+                    </AppText>
+                    <AppText weight="extrabold" className="text-sm text-leaf-700">
+                      Cước: {money(ret.returnShippingFee ?? 20000)}
+                    </AppText>
+                  </View>
+                  <View className="gap-1">
+                    <AppText weight="bold" className="text-sm text-ink">
+                      {ret.productName}
+                    </AppText>
+                    <AppText className="text-xs text-ink-muted">
+                      Tiền hoàn khách nhận: {money(ret.refundAmount ?? 0)}
+                    </AppText>
+                  </View>
+                  <View className="gap-1 rounded-xl bg-slate-50 p-2.5">
+                    <AppText className="text-xs text-ink leading-relaxed">
+                      📍 <AppText weight="semibold">Lấy hàng tại:</AppText> {ret.buyerAddress || 'Địa chỉ người mua'} ({ret.buyerName})
+                    </AppText>
+                    <AppText className="text-xs text-ink leading-relaxed">
+                      🏠 <AppText weight="semibold">Trả về cho:</AppText> {ret.shopAddress || 'Địa chỉ nhà vườn'} ({ret.shopName})
+                    </AppText>
+                  </View>
+                  <Button
+                    title="Nhận đơn hoàn này"
+                    icon={ChevronRight}
+                    loading={acceptReturn.isPending}
+                    onPress={() => {
+                      acceptReturn.mutate(ret.id, {
+                        onSuccess: () => {
+                          showToast(`Đã nhận đơn hoàn #${ret.id}. Hãy liên hệ người mua để lấy hàng!`)
+                          router.navigate('/shipper/delivering')
+                        },
+                        onError: (e) => showToast(shipperErrorMessage(e, 'Chưa nhận được đơn hoàn.')),
+                      })
+                    }}
+                    className="min-h-[44px]"
+                  />
+                </View>
+              </View>
+            )
+          }
+
+          return (
+            <View className={cn('px-4', index === 0 && 'pt-3')}>
+              <ShipperOrderCard
+                order={item as OrderResponse}
+                me={gps.position}
+                footer={
+                  <Button
+                    title={busy ? 'Giao xong đơn hiện tại để nhận thêm' : 'Nhận đơn này'}
+                    icon={busy ? undefined : ChevronRight}
+                    disabled={busy}
+                    onPress={() => setPicked(item as OrderResponse)}
+                    className={cn('min-h-[48px]', busy && 'opacity-50')}
+                  />
+                }
+              />
+            </View>
+          )
+        }}
       />
 
       <BottomSheet

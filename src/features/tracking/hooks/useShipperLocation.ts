@@ -34,13 +34,13 @@ export function useShipperLocation(orderId: number) {
     queryFn: () => fetchLocation(orderId),
     enabled: Number.isFinite(orderId) && orderId > 0,
     refetchInterval: (query) => {
-      const d = query.state.data
-      const fin =
-        d?.trackingActive === false ||
-        d?.orderStatus === 'DELIVERED' ||
-        d?.orderStatus === 'COMPLETED' ||
-        d?.orderStatus === 'FAILED'
-      return connected || fin ? false : POLL_MS
+      const data = query.state.data
+      const done =
+        data?.trackingActive === false ||
+        data?.orderStatus === 'DELIVERED' ||
+        data?.orderStatus === 'COMPLETED' ||
+        data?.orderStatus === 'FAILED'
+      return connected || done ? false : POLL_MS
     },
     retry: 1,
   })
