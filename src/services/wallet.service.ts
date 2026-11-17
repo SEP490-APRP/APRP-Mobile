@@ -138,24 +138,7 @@ export const walletService = {
       }
       return { code: 200, result: [] }
     } catch {
-      return {
-        code: 200,
-        result: mockWithdrawRequests.map((r) => ({
-          id: r.id,
-          walletId: r.walletId || 1,
-          userId: 1,
-          amount: r.amount,
-          status: (r.status === 'SUCCESS' ? 'COMPLETED' : r.status) as WithdrawStatus,
-          bankName: r.bankName,
-          bankAccountNumber: r.bankAccountNumber,
-          bankAccountName: r.bankAccountName,
-          bankAccountHolder: r.bankAccountHolder || r.bankAccountName,
-          note: r.note,
-          adminNote: r.adminNote,
-          createdAt: r.createdAt,
-          processedAt: r.processedAt,
-        })),
-      }
+      return { code: 200, result: [] }
     }
   },
 
@@ -222,6 +205,8 @@ export const VN_BANKS: { code: string; name: string }[] = [
   { code: 'SEAB', name: 'SeABank' },
 ]
 
+export const VIETNAM_BANKS = VN_BANKS
+
 export const WITHDRAW_STATUS_LABEL: Record<WithdrawStatus, { label: string; color: string; bg: string }> = {
   PENDING: { label: 'Chờ duyệt', color: '#b45309', bg: '#fef3c7' },
   COMPLETED: { label: 'Đã chuyển tiền', color: '#15803d', bg: '#dcfce7' },
@@ -250,6 +235,21 @@ export const walletApi = {
   /** Quay lại từ PayOS: BE hỏi PayOS và cộng ví nếu đã trả (gọi nhiều lần an toàn) */
   async confirmTopup(orderCode: string): Promise<WalletTopupResponse> {
     return unwrap<WalletTopupResponse>(await axiosInstance.post(`/wallets/topups/${orderCode}/confirm`))
+  },
+  /** Yêu cầu rút tiền về tài khoản ngân hàng (Shop / Shipper / Buyer) */
+  async requestWithdraw(body: WithdrawCreateRequest): Promise<WithdrawResponse> {
+    const payload = {
+      amount: body.amount,
+      bankName: body.bankName,
+      bankAccountNumber: body.bankAccountNumber,
+      bankAccountHolder: body.bankAccountHolder || body.bankAccountName,
+      note: body.note,
+    }
+    return unwrap<WithdrawResponse>(await axiosInstance.post('/wallets/withdrawals', payload))
+  },
+  /** Danh sách yêu cầu rút tiền của user hiện tại */
+  async getMyWithdrawals(): Promise<WithdrawResponse[]> {
+    return unwrap<WithdrawResponse[]>(await axiosInstance.get('/wallets/withdrawals/me'))
   },
 }
 

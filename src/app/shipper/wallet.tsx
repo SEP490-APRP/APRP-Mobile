@@ -1,24 +1,36 @@
 import { router } from 'expo-router'
 import { ArrowDownLeft, ArrowUpRight, Clock, Plus, ShieldCheck } from 'lucide-react-native'
 import { useState } from 'react'
-import { RefreshControl, ScrollView, View } from 'react-native'
+import { Pressable, RefreshControl, ScrollView, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { AppText, Button, EmptyState, ErrorState, Skeleton } from '@/components/ui'
 import { BackButton } from '@/features/auth/components'
 import { money } from '@/features/product'
-import { TopupSheet, useMyWallet, useMyWalletTransactions, WALLET_TX_LABEL } from '@/features/wallet'
+import {
+  TopupSheet,
+  WithdrawHistoryList,
+  WithdrawSheet,
+  useMyWallet,
+  useMyWalletTransactions,
+  useMyWithdrawals,
+  WALLET_TX_LABEL,
+} from '@/features/wallet'
 import { colors } from '@/theme/colors'
 import type { WalletTransactionResponse } from '@/services/wallet.types'
 import { cn } from '@/utils/helpers'
 
-/** Ví shipper: số dư khả dụng, ký quỹ COD, cước tạm giữ, nạp ví PayOS, lịch sử. Chuyển từ ShipperWalletPanel bản web. */
+/** Ví shipper: số dư khả dụng, ký quỹ COD, cước tạm giữ, nạp ví PayOS, rút tiền về ngân hàng, lịch sử. */
 export default function ShipperWallet() {
   const wallet = useMyWallet()
   const tx = useMyWalletTransactions(0, 30)
+  const withdrawals = useMyWithdrawals()
   const [topupOpen, setTopupOpen] = useState(false)
+  const [withdrawOpen, setWithdrawOpen] = useState(false)
+  const [historyTab, setHistoryTab] = useState<'tx' | 'withdraw'>('tx')
   const w = wallet.data
   const negative = (w?.balance ?? 0) < 0
-  const refreshing = wallet.isRefetching || tx.isRefetching
+  const refreshing = wallet.isRefetching || tx.isRefetching || withdrawals.isRefetching
+  const availableAmount = Number(w?.availableBalance ?? w?.balance ?? 0)
 
   return (
     <SafeAreaView className="flex-1 bg-paper" edges={['top']}>
@@ -36,6 +48,7 @@ export default function ShipperWallet() {
             onRefresh={() => {
               void wallet.refetch()
               void tx.refetch()
+              void withdrawals.refetch()
             }}
             tintColor={colors.leaf700}
             colors={[colors.leaf700]}
@@ -53,18 +66,28 @@ export default function ShipperWallet() {
                 Số dư khả dụng
               </AppText>
               <AppText weight="extrabold" className="text-3xl text-white">
-                {money(Number(w?.availableBalance ?? w?.balance ?? 0))}
+                {money(availableAmount)}
               </AppText>
               <AppText className="text-xs text-white/80">
                 {negative ? 'Âm vì còn tiền COD chưa nộp về sàn' : `Tổng số dư ${money(Number(w?.balance ?? 0))}`}
               </AppText>
-              <Button
-                title="Nạp ví"
-                icon={Plus}
-                variant="outline"
-                onPress={() => setTopupOpen(true)}
-                className="mt-3 min-h-[44px] self-start bg-white"
-              />
+              <View className="mt-3 flex-row gap-2">
+                <Button
+                  title="Nạp ví"
+                  icon={Plus}
+                  variant="outline"
+                  onPress={() => setTopupOpen(true)}
+                  className="min-h-[44px] flex-1 bg-white"
+                />
+                <Button
+                  title="Rút tiền"
+                  icon={ArrowUpRight}
+                  variant="outline"
+                  onPress={() => setWithdrawOpen(true)}
+                  className="min-h-[44px] flex-1 bg-white"
+                  disabled={availableAmount < 50000}
+                />
+              </View>
             </View>
             <View className="flex-row gap-3">
               <Stat
@@ -83,33 +106,74 @@ export default function ShipperWallet() {
             <View className="rounded-card bg-leaf-50 p-3">
               <AppText className="text-xs leading-relaxed text-leaf-800">
                 Đơn COD: số dư khả dụng phải đủ tiền thu của khách mới nhận được. Giao xong, tiền mặt bạn thu chính là tiền
-                ký quỹ nên ví bị trừ đúng số này. Rút tiền về ngân hàng dùng bản web.
+                ký quỹ nên ví bị trừ đúng số này. Bạn có thể yêu cầu rút tiền về tài khoản ngân hàng bất cứ lúc nào (tối thiểu 50.000đ).
               </AppText>
             </View>
           </>
         )}
 
-        <AppText weight="extrabold" className="mt-2 text-base">
-          Lịch sử biến động
-        </AppText>
-        {tx.isPending ? (
-          <View className="gap-2">
-            <Skeleton className="h-16 w-full rounded-card" />
-            <Skeleton className="h-16 w-full rounded-card" />
-          </View>
-        ) : tx.isError ? (
-          <ErrorState onRetry={() => void tx.refetch()} />
-        ) : (tx.data?.content ?? []).length === 0 ? (
-          <EmptyState title="Chưa có giao dịch" description="Nạp ví hoặc nhận đơn để bắt đầu." />
+        {/* Tab chuyển đổi Lịch sử */}
+        <View className="mt-2 flex-row rounded-xl border border-line bg-slate-100 p-1">
+          <Pressable
+            onPress={() => setHistoryTab('tx')}
+            className={cn(
+              'flex-1 items-center justify-center rounded-lg py-2',
+              historyTab === 'tx' ? 'bg-white shadow-xs' : '',
+            )}
+          >
+            <AppText
+              weight="bold"
+              className={cn('text-xs', historyTab === 'tx' ? 'text-leaf-800' : 'text-ink-muted')}
+            >
+              Biến động số dư
+            </AppText>
+          </Pressable>
+          <Pressable
+            onPress={() => setHistoryTab('withdraw')}
+            className={cn(
+              'flex-1 items-center justify-center rounded-lg py-2',
+              historyTab === 'withdraw' ? 'bg-white shadow-xs' : '',
+            )}
+          >
+            <AppText
+              weight="bold"
+              className={cn('text-xs', historyTab === 'withdraw' ? 'text-leaf-800' : 'text-ink-muted')}
+            >
+              Lịch sử rút tiền
+            </AppText>
+          </Pressable>
+        </View>
+
+        {historyTab === 'tx' ? (
+          <>
+            {tx.isPending ? (
+              <View className="gap-2">
+                <Skeleton className="h-16 w-full rounded-card" />
+                <Skeleton className="h-16 w-full rounded-card" />
+              </View>
+            ) : tx.isError ? (
+              <ErrorState onRetry={() => void tx.refetch()} />
+            ) : (tx.data?.content ?? []).length === 0 ? (
+              <EmptyState title="Chưa có giao dịch" description="Nạp ví hoặc nhận đơn để bắt đầu." />
+            ) : (
+              <View className="overflow-hidden rounded-card border border-line bg-white">
+                {(tx.data?.content ?? []).map((t, i) => (
+                  <TxRow key={t.id} tx={t} first={i === 0} />
+                ))}
+              </View>
+            )}
+          </>
         ) : (
-          <View className="overflow-hidden rounded-card border border-line bg-white">
-            {(tx.data?.content ?? []).map((t, i) => (
-              <TxRow key={t.id} tx={t} first={i === 0} />
-            ))}
-          </View>
+          <WithdrawHistoryList />
         )}
       </ScrollView>
+
       <TopupSheet visible={topupOpen} onClose={() => setTopupOpen(false)} />
+      <WithdrawSheet
+        visible={withdrawOpen}
+        onClose={() => setWithdrawOpen(false)}
+        availableBalance={availableAmount}
+      />
     </SafeAreaView>
   )
 }

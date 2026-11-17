@@ -6,6 +6,7 @@ export const walletKeys = {
   me: () => [...walletKeys.all, 'me'] as const,
   transactions: (page: number, size: number) => [...walletKeys.all, 'me', 'tx', page, size] as const,
   topups: () => [...walletKeys.all, 'me', 'topups'] as const,
+  withdrawals: () => [...walletKeys.all, 'me', 'withdrawals'] as const,
 }
 
 /** Ví của tôi (Shipper / Shop) */
@@ -30,6 +31,23 @@ export function useConfirmTopup() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: walletApi.confirmTopup,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: walletKeys.all }),
+  })
+}
+
+/** Lịch sử các lệnh rút tiền của tôi */
+export function useMyWithdrawals() {
+  return useQuery({
+    queryKey: walletKeys.withdrawals(),
+    queryFn: walletApi.getMyWithdrawals,
+  })
+}
+
+/** Yêu cầu rút tiền từ ví về ngân hàng */
+export function useRequestWithdraw() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: walletApi.requestWithdraw,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: walletKeys.all }),
   })
 }
