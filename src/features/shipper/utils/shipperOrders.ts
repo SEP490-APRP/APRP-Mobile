@@ -119,6 +119,19 @@ export function shipperErrorMessage(err: unknown, fallback: string): string {
       return 'Cần gọi khách tối thiểu 3 cuộc trước khi báo không liên lạc được.'
     case 7010:
       return 'Ghi rõ lý do giao thất bại nhé.'
+    case 7011: {
+      const r = (data.result ?? {}) as { currentDistanceMeters?: number; allowedRadiusMeters?: number }
+      if (r.currentDistanceMeters != null) {
+        const distStr =
+          r.currentDistanceMeters >= 1000
+            ? `${(r.currentDistanceMeters / 1000).toFixed(1)} km`
+            : `${r.currentDistanceMeters} m`
+        return `Bạn đang cách điểm giao hàng ~${distStr} (ngoài bán kính cho phép ${r.allowedRadiusMeters ?? 500}m). Vui lòng đến gần vị trí người nhận để xác nhận.`
+      }
+      return 'Bạn đang ở quá xa địa chỉ giao hàng. Vui lòng đến gần vị trí người nhận để xác nhận.'
+    }
+    case 7012:
+      return 'Không xác định được vị trí GPS của bạn. Vui lòng bật định vị trên điện thoại.'
     case 16013: {
       const r = (data.result ?? {}) as { required?: number; available?: number; missing?: number }
       return `Đơn COD cần ký quỹ ${vnd(r.required)}, ví còn ${vnd(r.available)}. Nạp thêm ${vnd(r.missing)} để nhận đơn.`

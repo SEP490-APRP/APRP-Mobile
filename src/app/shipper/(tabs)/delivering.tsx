@@ -53,7 +53,12 @@ export default function ShipperDelivering() {
     if (!ask) return
     const { order, action } = ask
     act.mutate(
-      { orderId: orderIdOf(order), action, proof },
+      {
+        orderId: orderIdOf(order),
+        action,
+        proof,
+        coords: action === 'deliver' ? gps.position : undefined,
+      },
       {
         onSuccess: () => showToast(ASK[action].done),
         onError: (e) => showToast(shipperErrorMessage(e, 'Chưa cập nhật được đơn, thử lại nhé.')),

@@ -126,9 +126,19 @@ export const shipperService = {
     return unwrap<OrderResponse>(await axiosInstance.put(`/orders/${orderId}/pickup`))
   },
 
-  /** Giao thành công: PICKED_UP → DELIVERED. Bắt buộc ít nhất 1 ảnh bằng chứng (đã upload). */
-  async deliverOrder(orderId: number, proofImageUrls: string[]): Promise<OrderResponse> {
-    return unwrap<OrderResponse>(await axiosInstance.put(`/orders/${orderId}/deliver`, { proofImageUrls }))
+  /** Giao thành công: PICKED_UP → DELIVERED. Bắt buộc ít nhất 1 ảnh bằng chứng (đã upload) và toạ độ GPS (đối soát Geofence). */
+  async deliverOrder(
+    orderId: number,
+    proofImageUrls: string[],
+    coords?: { latitude: number; longitude: number } | null
+  ): Promise<OrderResponse> {
+    return unwrap<OrderResponse>(
+      await axiosInstance.put(`/orders/${orderId}/deliver`, {
+        proofImageUrls,
+        latitude: coords?.latitude,
+        longitude: coords?.longitude,
+      })
+    )
   },
 
   /** Giao thất bại (lý do, số cuộc gọi, ảnh), kho được hoàn lại: SHIPPING/PICKED_UP → FAILED. */
