@@ -1,7 +1,7 @@
 import { router } from 'expo-router'
 import { CircleCheck, CircleX, Map, Navigation, PackageCheck, Phone, Truck } from 'lucide-react-native'
 import { useState } from 'react'
-import { Linking, Pressable, RefreshControl, ScrollView, View } from 'react-native'
+import { Alert, Linking, Pressable, RefreshControl, ScrollView, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { AppText, Button, ConfirmDialog, EmptyState, ErrorState, Skeleton } from '@/components/ui'
 import { NotificationBellButton } from '@/features/notification'
@@ -14,6 +14,7 @@ import {
   directionsUrl,
   ShipperOrderCard,
   ShipperReturnCard,
+  shipperErrorCode,
   shipperErrorMessage,
   useActiveOrders,
   useBroadcastState,
@@ -74,7 +75,37 @@ export default function ShipperDelivering() {
       },
       {
         onSuccess: () => showToast(ASK[action].done),
-        onError: (e) => showToast(shipperErrorMessage(e, 'Chưa cập nhật được đơn, thử lại nhé.')),
+        onError: (e) => {
+          const code = shipperErrorCode(e)
+          const msg = shipperErrorMessage(e, 'Chưa cập nhật được đơn, thử lại nhé.')
+          if (code === 7011) {
+            Alert.alert(
+              'Ngoài bán kính giao hàng (>500m)',
+              msg,
+              [
+                {
+                  text: 'Mở bản đồ điều hướng',
+                  onPress: () => router.push(`/shipper/tracking/${orderIdOf(order)}` as any),
+                },
+                { text: 'Đã hiểu', style: 'cancel' },
+              ],
+            )
+          } else if (code === 7012) {
+            Alert.alert(
+              'Không xác định được vị trí GPS',
+              'Vui lòng bật quyền truy cập vị trí trên điện thoại, hoặc bật chế độ Demo Fake GPS trên màn hình Bản đồ để đối soát.',
+              [
+                {
+                  text: 'Mở bản đồ',
+                  onPress: () => router.push(`/shipper/tracking/${orderIdOf(order)}` as any),
+                },
+                { text: 'Đã hiểu', style: 'cancel' },
+              ],
+            )
+          } else {
+            showToast(msg)
+          }
+        },
         onSettled: () => setAsk(null),
       },
     )

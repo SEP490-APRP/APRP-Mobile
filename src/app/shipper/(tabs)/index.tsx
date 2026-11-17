@@ -1,7 +1,7 @@
 import { router } from 'expo-router'
 import { ChevronRight, LocateOff, Power, RefreshCw, Truck, Zap } from 'lucide-react-native'
-import { useMemo, useState } from 'react'
-import { ActivityIndicator, FlatList, Pressable, RefreshControl, View } from 'react-native'
+import { useEffect, useMemo, useState } from 'react'
+import { ActivityIndicator, BackHandler, FlatList, Pressable, RefreshControl, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { AppText, BottomSheet, Button, EmptyState, ErrorState, Skeleton } from '@/components/ui'
 import { orderIdOf } from '@/features/order/utils/orderStatus'
@@ -62,6 +62,22 @@ export default function ShipperHome() {
   const orders = useMemo(() => sortReadyOrders(ready.data?.content ?? [], gps.position), [ready.data, gps.position])
   const available = wallet.data?.availableBalance ?? wallet.data?.balance
   const reserve = picked ? codReserveCheck(picked, available) : { required: 0, missing: 0 }
+
+  useEffect(() => {
+    let lastBackPress = 0
+    const onBackPress = () => {
+      const now = Date.now()
+      if (now - lastBackPress < 2000) {
+        BackHandler.exitApp()
+        return true
+      }
+      lastBackPress = now
+      showToast('Nhấn lần nữa để thoát ứng dụng')
+      return true
+    }
+    const sub = BackHandler.addEventListener('hardwareBackPress', onBackPress)
+    return () => sub.remove()
+  }, [showToast])
 
   const switchOnline = async () => {
     if (online) {
