@@ -22,6 +22,7 @@ import {
 } from '../utils/trackingRules'
 import type { MapEvent, MapState } from './mapHtml'
 import { TrackingMap } from './TrackingMap'
+import { DemoGpsControl } from './DemoGpsControl'
 
 type Props = {
   orderId: number
@@ -235,6 +236,18 @@ export function ShipperTrackingView({ orderId, role, initial, fallback, actions,
             {routes.toShop && <Legend color="#EA580C" label="Shipper ➔ Nhà vườn" />}
             {routes.toBuyer && <Legend color="#00B14F" label="Nhà vườn ➔ Người nhận" />}
           </View>
+
+          {role === 'SHIPPER' && (
+            <DemoGpsControl
+              orderId={orderId}
+              shopLat={shop.lat}
+              shopLng={shop.lng}
+              destLat={dest.lat}
+              destLng={dest.lng}
+              orderStatus={data?.orderStatus}
+            />
+          )}
+
           {actions}
         </View>
       </SafeAreaView>
