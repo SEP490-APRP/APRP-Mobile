@@ -136,6 +136,7 @@ export function useDeliveryAction() {
     onSettled: () => {
       void qc.invalidateQueries({ queryKey: shipperKeys.all })
       void qc.invalidateQueries({ queryKey: orderKeys.all })
+      void qc.invalidateQueries({ queryKey: walletKeys.all })
     },
   })
 }
