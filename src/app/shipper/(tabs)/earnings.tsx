@@ -1,4 +1,5 @@
-import { Banknote, CircleCheck, CircleX, Info, ReceiptText, Wallet } from 'lucide-react-native'
+import { router } from 'expo-router'
+import { Banknote, ChevronRight, CircleCheck, CircleX, Info, ReceiptText, Wallet } from 'lucide-react-native'
 import { useMemo, useState } from 'react'
 import { Pressable, RefreshControl, ScrollView, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -68,8 +69,11 @@ function WeekChart({ bars }: { bars: DayBar[] }) {
 function HistoryRow({ order, first }: { order: OrderResponse; first: boolean }) {
   const ok = isDelivered(order)
   return (
-    <View className={cn('flex-row gap-3 px-4 py-3', !first && 'border-t border-line')}>
-      <View className={cn('mt-0.5 h-9 w-9 items-center justify-center rounded-full', ok ? 'bg-leaf-50' : 'bg-rose-50')}>
+    <Pressable
+      onPress={() => router.push(`/shipper/order/${orderIdOf(order)}` as any)}
+      className={cn('flex-row items-center gap-3 px-4 py-3 active:bg-slate-50', !first && 'border-t border-line')}
+    >
+      <View className={cn('h-9 w-9 items-center justify-center rounded-full', ok ? 'bg-leaf-50' : 'bg-rose-50')}>
         {ok ? <CircleCheck size={18} color={colors.leaf700} /> : <CircleX size={18} color={colors.sale} />}
       </View>
       <View className="min-w-0 flex-1 gap-0.5">
@@ -100,7 +104,8 @@ function HistoryRow({ order, first }: { order: OrderResponse; first: boolean }) 
           )}
         </View>
       </View>
-    </View>
+      <ChevronRight size={16} color={colors.inkSubtle} />
+    </Pressable>
   )
 }
 

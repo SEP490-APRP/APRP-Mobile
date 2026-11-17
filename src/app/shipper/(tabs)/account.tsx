@@ -1,6 +1,21 @@
 import { Image } from 'expo-image'
 import { router } from 'expo-router'
-import { Bell, Bike, ChevronRight, KeyRound, LogOut, Mail, MapPin, Phone, Wallet, type LucideIcon, MessageCircle } from 'lucide-react-native'
+import {
+  Bell,
+  Bike,
+  ChevronRight,
+  Edit3,
+  KeyRound,
+  LogOut,
+  Mail,
+  MapPin,
+  MessageCircle,
+  Phone,
+  ShieldCheck,
+  User,
+  Wallet,
+  type LucideIcon,
+} from 'lucide-react-native'
 import { Pressable, RefreshControl, ScrollView, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { AppText, Button, Skeleton } from '@/components/ui'
@@ -13,9 +28,11 @@ import { colors } from '@/theme/colors'
 import { cn } from '@/utils/helpers'
 
 const MENU = [
+  { icon: User, label: 'Thông tin cá nhân', hint: 'Chỉnh sửa họ tên, SĐT, biển số xe', href: '/shipper/profile-edit' },
+  { icon: ShieldCheck, label: 'Xác minh tài xế', hint: 'GPLX, đăng ký xe và trạng thái duyệt', href: '/shipper/verification' },
   { icon: Bell, label: 'Thông báo', hint: 'Cập nhật đơn hàng và hệ thống', href: '/shipper/notifications' },
   { icon: MessageCircle, label: 'Tin nhắn', hint: 'Trao đổi với khách hàng', href: '/shipper/messages' },
-  { icon: Wallet, label: 'Ví tài xế', hint: 'Số dư, ký quỹ COD, nạp ví', href: '/shipper/wallet' },
+  { icon: Wallet, label: 'Ví tài xế', hint: 'Số dư, ký quỹ COD, nạp & rút tiền', href: '/shipper/wallet' },
   { icon: Wallet, label: 'Thu nhập và lịch sử', hint: 'Phí giao, chuyến đã chạy theo ngày', href: '/shipper/earnings' },
   { icon: KeyRound, label: 'Đổi mật khẩu', hint: 'Bảo vệ tài khoản tài xế', href: '/shipper/password' },
 ] as const
@@ -66,21 +83,29 @@ export default function ShipperAccount() {
           />
         }
       >
-        <View className="items-center gap-3 rounded-panel bg-leaf-700 p-6">
-          <View className="h-20 w-20 items-center justify-center overflow-hidden rounded-3xl border-2 border-white/60 bg-sun-300">
-            {avatar ? (
-              <Image source={{ uri: avatar }} style={{ width: 80, height: 80 }} contentFit="cover" />
-            ) : (
-              <AppText weight="extrabold" className="text-3xl text-leaf-800">
-                {name.charAt(0).toUpperCase()}
-              </AppText>
-            )}
+        <Pressable
+          onPress={() => router.push('/shipper/profile-edit')}
+          className="items-center gap-3 rounded-panel bg-leaf-700 p-6 active:opacity-95"
+        >
+          <View className="relative">
+            <View className="h-20 w-20 items-center justify-center overflow-hidden rounded-3xl border-2 border-white/60 bg-sun-300">
+              {avatar ? (
+                <Image source={{ uri: avatar }} style={{ width: 80, height: 80 }} contentFit="cover" />
+              ) : (
+                <AppText weight="extrabold" className="text-3xl text-leaf-800">
+                  {name.charAt(0).toUpperCase()}
+                </AppText>
+              )}
+            </View>
+            <View className="absolute -bottom-1 -right-1 h-7 w-7 items-center justify-center rounded-full border-2 border-leaf-700 bg-white">
+              <Edit3 size={13} color={colors.leaf700} />
+            </View>
           </View>
           <View className="items-center gap-1">
             <AppText weight="extrabold" numberOfLines={2} className="text-center text-xl text-white">
               {name}
             </AppText>
-            <AppText className="text-sm text-leaf-100">Tài xế CapNong</AppText>
+            <AppText className="text-sm text-leaf-100">Tài xế CapNong · Nhấn để sửa</AppText>
           </View>
           <View className="flex-row items-center gap-1.5 rounded-full bg-white/15 px-3 py-1">
             <View className={cn('h-2 w-2 rounded-full', online ? 'bg-sun-300' : 'bg-white/50')} />
@@ -88,7 +113,7 @@ export default function ShipperAccount() {
               {online ? 'Đang trực tuyến' : 'Đang ngoại tuyến'}
             </AppText>
           </View>
-        </View>
+        </Pressable>
 
         <View className="flex-row rounded-panel border border-line bg-white py-4">
           {stats.map((s, i) => (
@@ -136,11 +161,25 @@ export default function ShipperAccount() {
         {profile.isPending ? (
           <Skeleton className="h-60 rounded-panel" />
         ) : (
-          <View className="rounded-panel border border-line bg-white">
+          <View className="overflow-hidden rounded-panel border border-line bg-white">
+            <View className="flex-row items-center justify-between border-b border-line px-4 py-3 bg-slate-50">
+              <AppText weight="bold" className="text-xs uppercase tracking-wide text-ink-muted">
+                Thông tin phương tiện & cá nhân
+              </AppText>
+              <Pressable
+                onPress={() => router.push('/shipper/profile-edit')}
+                className="flex-row items-center gap-1"
+              >
+                <Edit3 size={13} color={colors.leaf700} />
+                <AppText weight="bold" className="text-xs text-leaf-700">
+                  Chỉnh sửa
+                </AppText>
+              </Pressable>
+            </View>
             {rows.map(({ icon: Icon, label, value }, i) => (
               <View
                 key={label}
-                className={cn('min-h-[60px] flex-row items-center gap-3 px-4 py-3', i > 0 && 'border-t border-line')}
+                className={cn('min-h-[56px] flex-row items-center gap-3 px-4 py-3', i > 0 && 'border-t border-line')}
               >
                 <Icon size={18} color={colors.leaf700} />
                 <View className="min-w-0 flex-1">
