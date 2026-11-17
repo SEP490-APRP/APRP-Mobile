@@ -1,17 +1,19 @@
 import { Image } from 'expo-image'
 import { router } from 'expo-router'
-import { Bike, ChevronRight, KeyRound, LogOut, Mail, MapPin, Phone, Wallet, type LucideIcon, MessageCircle } from 'lucide-react-native'
+import { Bell, Bike, ChevronRight, KeyRound, LogOut, Mail, MapPin, Phone, Wallet, type LucideIcon, MessageCircle } from 'lucide-react-native'
 import { Pressable, RefreshControl, ScrollView, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { AppText, Button, Skeleton } from '@/components/ui'
 import { useLogout } from '@/features/auth'
 import { useMyProfile } from '@/features/profile'
+import { useNotificationUnreadCount } from '@/features/notification'
 import { earningsSummary, useShipperHistory, useShipperStatus } from '@/features/shipper'
 import { useAuth } from '@/stores'
 import { colors } from '@/theme/colors'
 import { cn } from '@/utils/helpers'
 
 const MENU = [
+  { icon: Bell, label: 'Thông báo', hint: 'Cập nhật đơn hàng và hệ thống', href: '/shipper/notifications' },
   { icon: MessageCircle, label: 'Tin nhắn', hint: 'Trao đổi với khách hàng', href: '/shipper/messages' },
   { icon: Wallet, label: 'Ví tài xế', hint: 'Số dư, ký quỹ COD, nạp ví', href: '/shipper/wallet' },
   { icon: Wallet, label: 'Thu nhập và lịch sử', hint: 'Phí giao, chuyến đã chạy theo ngày', href: '/shipper/earnings' },
@@ -25,6 +27,7 @@ export default function ShipperAccount() {
   const status = useShipperStatus()
   const history = useShipperHistory()
   const logout = useLogout()
+  const { data: unreadNotif = 0 } = useNotificationUnreadCount()
   const p = profile.data
   const name = p?.fullName || user?.name || 'Tài xế'
   const avatar = p?.logoUrl || p?.avatar || user?.avatar
@@ -118,6 +121,13 @@ export default function ShipperAccount() {
                 </AppText>
                 <AppText className="text-xs text-ink-muted">{hint}</AppText>
               </View>
+              {label === 'Thông báo' && unreadNotif > 0 && (
+                <View className="mr-1 h-5 min-w-[20px] items-center justify-center rounded-full bg-sale px-1.5">
+                  <AppText weight="bold" className="text-[10px] text-white">
+                    {unreadNotif > 99 ? '99+' : unreadNotif}
+                  </AppText>
+                </View>
+              )}
               <ChevronRight size={18} color={colors.inkSubtle} />
             </Pressable>
           ))}

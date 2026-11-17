@@ -27,6 +27,7 @@ import {
   useToggleOnline,
 } from '@/features/shipper'
 import { TopupSheet, useMyWallet } from '@/features/wallet'
+import { NotificationBellButton } from '@/features/notification'
 import { useAuth, useUiStore } from '@/stores'
 import { colors } from '@/theme/colors'
 import type { OrderResponse } from '@/types/order.types'
@@ -145,6 +146,7 @@ export default function ShipperHome() {
             {name}
           </AppText>
         </View>
+        <NotificationBellButton role="shipper" variant="translucent" />
       </View>
       <Pressable
         onPress={() => void switchOnline()}

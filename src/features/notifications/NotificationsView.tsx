@@ -1,233 +1,359 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import {
+  Alert,
   FlatList,
   Pressable,
   RefreshControl,
+  ScrollView,
   View,
 } from 'react-native'
 import {
   Bell,
   CheckCheck,
-  MessageSquare,
   Package,
-  Sparkles,
+  Tag,
+  Trash2,
   Truck,
+  Wallet,
 } from 'lucide-react-native'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { AppText, CapNongLoading, EmptyState } from '@/components/ui'
-import { notificationService, type NotificationItem } from '@/services/notification.service'
-import { handleNotificationDeepLink } from '@/services/pushNotification'
-import { useAuth } from '@/stores'
+import { SafeAreaView } from 'react-native-safe-area-context'
+import { AppText, CapNongLoading, EmptyState, ErrorState } from '@/components/ui'
+import { BackButton } from '@/features/auth/components/BackButton'
+import {
+  useDeleteNotification,
+  useMarkAllNotificationsRead,
+  useMarkNotificationRead,
+  useMyNotifications,
+} from '@/features/notification'
+import { NotificationDetailBottomSheet } from '@/features/notification/components/NotificationDetailBottomSheet'
+import type { NotificationItem } from '@/services/notification.types'
 import { colors } from '@/theme/colors'
 import { cn } from '@/utils/helpers'
 
-type FilterTab = 'ALL' | 'ORDER' | 'SYSTEM'
+type FilterTab = 'ALL' | 'UNREAD' | 'ORDER' | 'SYSTEM'
 
-export function NotificationsView() {
+const fmtRelativeTime = (iso?: string | null) => {
+  if (!iso) return ''
+  try {
+    const d = new Date(iso)
+    const diff = Math.floor((Date.now() - d.getTime()) / 60000)
+    if (diff < 1) return 'Vừa xong'
+    if (diff < 60) return `${diff} phút trước`
+    if (diff < 1440) return `${Math.floor(diff / 60)} giờ trước`
+    const yesterday = new Date(Date.now() - 86400000)
+    if (d.toDateString() === yesterday.toDateString()) {
+      return `Hôm qua ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+    }
+    return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`
+  } catch {
+    return ''
+  }
+}
+
+const getNotifVisual = (item: NotificationItem) => {
+  const type = (item.type ?? '').toUpperCase()
+  const text = `${item.title ?? ''} ${item.message ?? ''}`.toLowerCase()
+
+  if (
+    type.includes('ORDER') ||
+    type.includes('SHIPPER') ||
+    type.includes('DISPATCH') ||
+    text.includes('đơn hàng') ||
+    text.includes('vận chuyển') ||
+    text.includes('giao hàng')
+  ) {
+    return { icon: Truck, bg: 'bg-leaf-100', color: colors.leaf700 }
+  }
+
+  if (
+    text.includes('sản phẩm') ||
+    text.includes('kho') ||
+    text.includes('đóng gói')
+  ) {
+    return { icon: Package, bg: 'bg-amber-100', color: colors.soil600 }
+  }
+
+  if (
+    text.includes('ví tiền') ||
+    text.includes('ký quỹ') ||
+    text.includes('rút tiền') ||
+    text.includes('nạp tiền') ||
+    text.includes('quyết toán')
+  ) {
+    return { icon: Wallet, bg: 'bg-sky-100', color: '#0284c7' }
+  }
+
+  if (
+    text.includes('voucher') ||
+    text.includes('khuyến mãi') ||
+    text.includes('giảm giá')
+  ) {
+    return { icon: Tag, bg: 'bg-amber-100', color: colors.soil600 }
+  }
+
+  return { icon: Bell, bg: 'bg-leaf-100', color: colors.leaf700 }
+}
+
+export interface NotificationsViewProps {
+  title?: string
+  showBackButton?: boolean
+}
+
+export function NotificationsView({
+  title = 'Thông báo',
+  showBackButton = true,
+}: NotificationsViewProps) {
   const [tab, setTab] = useState<FilterTab>('ALL')
-  const queryClient = useQueryClient()
-  const { user } = useAuth()
+  const [pullRefreshing, setPullRefreshing] = useState(false)
+  const [selectedNotif, setSelectedNotif] = useState<NotificationItem | null>(null)
 
-  const { data, isLoading, refetch, isRefetching } = useQuery({
-    queryKey: ['notifications', 'my'],
-    queryFn: async () => {
-      const res = await notificationService.getMyNotifications()
-      return res.result ?? []
-    },
-  })
+  const { data: pageData, isLoading, isError, refetch } = useMyNotifications(0, 50)
+  const markRead = useMarkNotificationRead()
+  const markAllRead = useMarkAllNotificationsRead()
+  const deleteNotif = useDeleteNotification()
 
-  const markReadMutation = useMutation({
-    mutationFn: (id: number) => notificationService.markAsRead(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['notifications'] })
-      queryClient.invalidateQueries({ queryKey: ['notifications', 'unread-count'] })
-    },
-  })
+  const notifications: NotificationItem[] = useMemo(() => {
+    return pageData?.content ?? (pageData as any)?.data ?? []
+  }, [pageData])
 
-  const markAllReadMutation = useMutation({
-    mutationFn: () => notificationService.markAllAsRead(),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['notifications'] })
-      queryClient.invalidateQueries({ queryKey: ['notifications', 'unread-count'] })
-    },
-  })
+  const filteredItems = useMemo(() => {
+    return notifications.filter((item) => {
+      if (tab === 'ALL') return true
+      if (tab === 'UNREAD') return !item.isRead
 
-  const items: NotificationItem[] = data ?? []
+      const type = (item.type ?? '').toUpperCase()
+      const text = `${item.title ?? ''} ${item.message ?? ''}`.toLowerCase()
 
-  const filteredItems = items.filter((item) => {
-    if (tab === 'ALL') return true
-    const type = (item.type ?? '').toUpperCase()
-    if (tab === 'ORDER') {
-      return (
-        type.startsWith('ORDER_') ||
-        type.startsWith('NEW_ORDER') ||
-        type.startsWith('SHIPPER_') ||
-        type.startsWith('DISPATCH_')
-      )
+      if (tab === 'ORDER') {
+        return (
+          type.includes('ORDER') ||
+          type.includes('SHIPPER') ||
+          type.includes('DISPATCH') ||
+          text.includes('đơn hàng') ||
+          text.includes('vận chuyển') ||
+          text.includes('giao hàng')
+        )
+      }
+
+      if (tab === 'SYSTEM') {
+        return (
+          !type.includes('ORDER') &&
+          !type.includes('SHIPPER') &&
+          !type.includes('DISPATCH') &&
+          !text.includes('đơn hàng') &&
+          !text.includes('vận chuyển') &&
+          !text.includes('giao hàng')
+        )
+      }
+
+      return true
+    })
+  }, [notifications, tab])
+
+  const handlePullRefresh = async () => {
+    setPullRefreshing(true)
+    try {
+      await refetch()
+    } finally {
+      setPullRefreshing(false)
     }
-    if (tab === 'SYSTEM') {
-      return !type.startsWith('ORDER_') && !type.startsWith('NEW_ORDER')
-    }
-    return true
-  })
+  }
 
   const handleItemPress = (item: NotificationItem) => {
     if (!item.isRead) {
-      markReadMutation.mutate(item.id)
+      markRead.mutate(item.id)
     }
-    handleNotificationDeepLink(
-      {
-        type: item.type,
-        orderId: item.referenceId,
-        referenceId: item.referenceId,
-      },
-      user?.role,
-    )
+    setSelectedNotif(item)
   }
 
-  const renderIcon = (type?: string | null) => {
-    const upper = (type ?? '').toUpperCase()
-    if (upper.startsWith('ORDER_') || upper.startsWith('NEW_ORDER')) {
-      return <Package size={20} color={colors.leaf700} />
-    }
-    if (upper.startsWith('SHIPPER_') || upper.startsWith('DISPATCH_')) {
-      return <Truck size={20} color={colors.soil600} />
-    }
-    if (upper.startsWith('CHAT_')) {
-      return <MessageSquare size={20} color={colors.leaf600} />
-    }
-    return <Sparkles size={20} color={colors.inkMuted} />
+  const handleDeleteItem = (id: number) => {
+    Alert.alert('Xóa thông báo', 'Bạn có chắc chắn muốn xóa thông báo này không?', [
+      { text: 'Hủy', style: 'cancel' },
+      { text: 'Xóa', style: 'destructive', onPress: () => deleteNotif.mutate(id) },
+    ])
   }
+
+  const handleMarkAllRead = () => {
+    if (notifications.every((n) => n.isRead)) return
+    markAllRead.mutate()
+  }
+
+  const unreadCount = notifications.filter((n) => !n.isRead).length
 
   return (
-    <View className="flex-1 bg-paper">
-      {/* Header Bar */}
-      <View className="flex-row items-center justify-between border-b border-line px-5 py-4 bg-white">
-        <View className="flex-row items-center gap-2">
-          <Bell size={22} color={colors.leaf700} />
-          <AppText weight="bold" className="text-xl text-ink">
-            Thông báo
+    <SafeAreaView className="flex-1 bg-paper" edges={['top']}>
+      {/* Top Header */}
+      <View className="flex-row items-center justify-between border-b border-line bg-paper px-4 pb-3 pt-2">
+        <View className="flex-1 flex-row items-center gap-2 pr-2">
+          {showBackButton && <BackButton />}
+          <AppText weight="extrabold" numberOfLines={1} className="text-lg text-ink flex-1">
+            {title}
           </AppText>
         </View>
 
         <Pressable
-          onPress={() => markAllReadMutation.mutate()}
-          disabled={markAllReadMutation.isPending}
-          className="flex-row items-center gap-1 active:opacity-60"
+          onPress={handleMarkAllRead}
+          disabled={markAllRead.isPending || unreadCount === 0}
+          accessibilityRole="button"
+          accessibilityLabel="Đánh dấu tất cả đã đọc"
+          hitSlop={8}
+          className={cn(
+            'shrink-0 flex-row items-center gap-1.5 rounded-xl border border-line bg-white px-3 py-1.5 active:bg-leaf-50',
+            unreadCount === 0 && 'opacity-50',
+          )}
         >
           <CheckCheck size={16} color={colors.leaf700} />
-          <AppText weight="medium" className="text-xs text-leaf-700">
+          <AppText weight="bold" className="text-xs text-leaf-800">
             Đọc tất cả
           </AppText>
         </Pressable>
       </View>
 
-      {/* Filter Tabs */}
-      <View className="flex-row gap-2 px-5 py-3 border-b border-line bg-white">
-        {(
-          [
-            { key: 'ALL', label: 'Tất cả' },
-            { key: 'ORDER', label: 'Đơn hàng' },
-            { key: 'SYSTEM', label: 'Hệ thống' },
-          ] as const
-        ).map((t) => {
-          const active = tab === t.key
-          return (
-            <Pressable
-              key={t.key}
-              onPress={() => setTab(t.key)}
-              className={cn(
-                'rounded-full px-4 py-1.5 border active:opacity-80',
-                active
-                  ? 'bg-leaf-700 border-leaf-700'
-                  : 'bg-white border-line',
-              )}
-            >
-              <AppText
-                weight={active ? 'bold' : 'medium'}
-                className={cn('text-xs', active ? 'text-white' : 'text-ink-muted')}
+      {/* Filter Tabs Chips (Lướt ngang linh hoạt trên mọi kích thước màn hình) */}
+      <View className="border-b border-line bg-paper">
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerClassName="flex-row items-center gap-2 px-4 py-2.5"
+        >
+          {(
+            [
+              { key: 'ALL', label: `Tất cả (${notifications.length})` },
+              { key: 'UNREAD', label: `Chưa đọc (${unreadCount})` },
+              { key: 'ORDER', label: 'Đơn hàng' },
+              { key: 'SYSTEM', label: 'Hệ thống' },
+            ] as const
+          ).map((t) => {
+            const active = tab === t.key
+            return (
+              <Pressable
+                key={t.key}
+                onPress={() => setTab(t.key)}
+                className={cn(
+                  'rounded-full px-3.5 py-1.5 border',
+                  active
+                    ? 'border-leaf-700 bg-leaf-700'
+                    : 'border-line bg-white active:bg-paper',
+                )}
               >
-                {t.label}
-              </AppText>
-            </Pressable>
-          )
-        })}
+                <AppText
+                  weight={active ? 'bold' : 'medium'}
+                  className={cn('text-xs whitespace-nowrap', active ? 'text-white' : 'text-ink-muted')}
+                >
+                  {t.label}
+                </AppText>
+              </Pressable>
+            )
+          })}
+        </ScrollView>
       </View>
 
-      {/* Content List */}
+      {/* Danh sách thông báo */}
       {isLoading ? (
-        <CapNongLoading message="Đang tải danh sách thông báo..." />
+        <CapNongLoading message="Đang tải thông báo..." />
+      ) : isError ? (
+        <ErrorState onRetry={() => void refetch()} />
       ) : filteredItems.length === 0 ? (
         <View className="flex-1 justify-center px-5">
           <EmptyState
             icon={<Bell size={36} color={colors.leaf600} />}
-            title="Bạn chưa có thông báo nào"
-            description="Các cập nhật về đơn hàng, ưu đãi và tin nhắn sẽ xuất hiện tại đây."
+            title={tab === 'UNREAD' ? 'Không có thông báo chưa đọc' : 'Chưa có thông báo nào'}
+            description={
+              tab === 'UNREAD'
+                ? 'Bạn đã đọc tất cả thông báo.'
+                : 'Các cập nhật về đơn hàng, vận chuyển và thông tin từ Cáp Nông sẽ xuất hiện tại đây.'
+            }
           />
         </View>
       ) : (
-        <FlatList
+        <FlatList<NotificationItem>
           data={filteredItems}
           keyExtractor={(item) => String(item.id)}
+          contentContainerClassName="p-4 gap-3 pb-12"
           refreshControl={
             <RefreshControl
-              refreshing={isRefetching}
-              onRefresh={() => {
-                refetch()
-              }}
+              refreshing={pullRefreshing}
+              onRefresh={handlePullRefresh}
               tintColor={colors.leaf700}
+              colors={[colors.leaf700]}
             />
           }
-          contentContainerClassName="p-4 gap-3"
           renderItem={({ item }) => {
-            const isRead = item.isRead ?? false
+            const { icon: Icon, bg, color } = getNotifVisual(item)
+            const isRead = Boolean(item.isRead)
+
             return (
               <Pressable
                 onPress={() => handleItemPress(item)}
+                accessibilityRole="button"
                 className={cn(
-                  'flex-row items-start gap-3 rounded-card p-4 border active:opacity-90',
+                  'flex-row items-start gap-3.5 rounded-2xl border p-4 shadow-xs active:opacity-85',
                   isRead
-                    ? 'bg-white border-line'
-                    : 'bg-leaf-50/60 border-leaf-200',
+                    ? 'border-line bg-white'
+                    : 'border-leaf-300 bg-leaf-50/70',
                 )}
               >
-                <View
-                  className={cn(
-                    'h-10 w-10 items-center justify-center rounded-xl',
-                    isRead ? 'bg-line/40' : 'bg-white border border-leaf-100',
-                  )}
-                >
-                  {renderIcon(item.type)}
+                {/* Icon loại thông báo */}
+                <View className={cn('h-11 w-11 items-center justify-center rounded-2xl', bg)}>
+                  <Icon size={20} color={color} />
                 </View>
 
+                {/* Nội dung thông báo */}
                 <View className="flex-1">
-                  <View className="flex-row items-center justify-between">
+                  <View className="flex-row items-center justify-between gap-2">
                     <AppText
-                      weight={isRead ? 'medium' : 'bold'}
-                      className={cn('text-sm', isRead ? 'text-ink' : 'text-ink font-bold')}
+                      weight={isRead ? 'bold' : 'extrabold'}
+                      numberOfLines={2}
+                      className={cn('text-sm flex-1', isRead ? 'text-ink' : 'text-leaf-950')}
                     >
                       {item.title}
                     </AppText>
+
+                    {/* Dấu chấm xanh chưa đọc */}
                     {!isRead && (
                       <View className="h-2 w-2 rounded-full bg-leaf-600" />
                     )}
                   </View>
 
-                  <AppText className="mt-1 text-xs text-ink-muted leading-relaxed">
+                  <AppText
+                    numberOfLines={2}
+                    className="mt-1 text-xs leading-relaxed text-ink-muted"
+                  >
                     {item.message}
                   </AppText>
 
-                  {(item.createAt || item.createdAt) && (
-                    <AppText className="mt-2 text-[10px] text-ink-subtle">
-                      {new Date(item.createAt ?? item.createdAt!).toLocaleString('vi-VN')}
+                  <View className="mt-2.5 flex-row items-center justify-between">
+                    <AppText className="text-[11px] text-ink-subtle">
+                      {fmtRelativeTime(item.createAt || item.createdAt)}
                     </AppText>
-                  )}
+
+                    <Pressable
+                      onPress={(e) => {
+                        e.stopPropagation()
+                        handleDeleteItem(item.id)
+                      }}
+                      hitSlop={8}
+                      accessibilityRole="button"
+                      accessibilityLabel="Xóa thông báo"
+                      className="h-7 w-7 items-center justify-center rounded-lg active:bg-red-50"
+                    >
+                      <Trash2 size={13} color={colors.inkSubtle} />
+                    </Pressable>
+                  </View>
                 </View>
               </Pressable>
             )
           }}
         />
       )}
-    </View>
+
+      {/* Bottom Sheet xem chi tiết thông báo */}
+      <NotificationDetailBottomSheet
+        notification={selectedNotif}
+        visible={Boolean(selectedNotif)}
+        onClose={() => setSelectedNotif(null)}
+        onDelete={(id) => deleteNotif.mutate(id)}
+      />
+    </SafeAreaView>
   )
 }

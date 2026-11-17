@@ -1,6 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { router, useFocusEffect } from 'expo-router'
-import { Bell, Camera, MessageSquare, Search, Sparkles, UtensilsCrossed } from 'lucide-react-native'
+import { Camera, MessageSquare, Search, Sparkles, UtensilsCrossed } from 'lucide-react-native'
 import { useCallback, useState } from 'react'
 import { Image, Pressable, RefreshControl, ScrollView, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -9,7 +9,7 @@ import { blogKeys } from '@/features/blog'
 import { useAddProductToCart, useCartQuantities } from '@/features/cart'
 import { chatKeys, useChatUnreadCount } from '@/features/chat'
 import { CombosTeaser, HomeCategories, HomeHero, StoriesTeaser, TodayRescue } from '@/features/home'
-import { notificationKeys, useNotificationUnreadCount } from '@/features/notification'
+import { notificationKeys, NotificationBellButton } from '@/features/notification'
 import { useStorefrontProducts } from '@/features/product'
 import { useAuth } from '@/stores'
 import { colors } from '@/theme/colors'
@@ -27,7 +27,6 @@ export default function BuyerHome() {
   const { addProduct, pendingId } = useAddProductToCart()
   const queryClient = useQueryClient()
   const [refreshing, setRefreshing] = useState(false)
-  const { data: notifUnreadCount = 0 } = useNotificationUnreadCount()
   const { data: chatUnreadCount = 0 } = useChatUnreadCount()
 
   // Làm mới số đếm chưa đọc mỗi khi quay về Trang chủ
@@ -59,21 +58,7 @@ export default function BuyerHome() {
 
           {/* Icon Thông báo & Chat */}
           <View className="flex-row items-center gap-2">
-            <Pressable
-              onPress={() => router.push('/buyer/notifications')}
-              accessibilityRole="button"
-              accessibilityLabel="Xem thông báo"
-              className="relative h-10 w-10 items-center justify-center rounded-xl border border-line bg-white active:bg-leaf-50"
-            >
-              <Bell size={18} color={colors.ink} />
-              {notifUnreadCount > 0 && (
-                <View className="absolute -right-1 -top-1 h-4 min-w-[16px] items-center justify-center rounded-full bg-sale px-1">
-                  <AppText weight="extrabold" className="text-[9px] text-white">
-                    {notifUnreadCount > 99 ? '99+' : notifUnreadCount}
-                  </AppText>
-                </View>
-              )}
-            </Pressable>
+            <NotificationBellButton role="buyer" variant="default" size={18} />
 
             <Pressable
               onPress={() => router.push('/buyer/chat' as any)}

@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Linking, Pressable, RefreshControl, ScrollView, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { AppText, Button, ConfirmDialog, EmptyState, ErrorState, Skeleton } from '@/components/ui'
+import { NotificationBellButton } from '@/features/notification'
 import { orderIdOf, pickupCode } from '@/features/order/utils/orderStatus'
 import { PickupCodeTag } from '@/features/order/components/PickupCodeTag'
 import { money } from '@/features/product'
@@ -80,11 +81,14 @@ export default function ShipperDelivering() {
 
   return (
     <SafeAreaView className="flex-1 bg-paper" edges={['top']}>
-      <View className="border-b border-line px-4 pb-3 pt-2">
-        <AppText accessibilityRole="header" weight="extrabold" className="text-2xl">
-          Đang giao
-        </AppText>
-        <AppText className="text-xs text-ink-muted">Mỗi lần nhận một đơn, giao xong mới nhận đơn tiếp</AppText>
+      <View className="flex-row items-center justify-between border-b border-line px-4 pb-3 pt-2">
+        <View className="flex-1">
+          <AppText accessibilityRole="header" weight="extrabold" className="text-2xl">
+            Đang giao
+          </AppText>
+          <AppText className="text-xs text-ink-muted">Mỗi lần nhận một đơn, giao xong mới nhận đơn tiếp</AppText>
+        </View>
+        <NotificationBellButton role="shipper" variant="default" size={18} />
       </View>
       <ScrollView
         contentContainerClassName="gap-4 p-4 pb-8"

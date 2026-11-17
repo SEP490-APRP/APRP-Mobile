@@ -3,7 +3,6 @@ import { router } from 'expo-router'
 import {
   AlertTriangle,
   BadgeCheck,
-  Bell,
   ChevronRight,
   Coins,
   Gift,
@@ -17,6 +16,7 @@ import { useMemo, useState } from 'react'
 import { Pressable, RefreshControl, ScrollView, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { AppText, Skeleton } from '@/components/ui'
+import { NotificationBellButton } from '@/features/notification'
 import { useConversations } from '@/features/chat'
 import { comboToCard, mysteryToCard } from '@/features/combo'
 import { money } from '@/features/product'
@@ -280,13 +280,7 @@ export default function ShopDashboard() {
 
             {/* Các icon thao tác trên Header: Thông báo & Tin nhắn */}
             <View className="flex-row items-center gap-2">
-              <Pressable
-                onPress={() => router.push('/shop/notifications' as any)}
-                accessibilityLabel="Thông báo"
-                className="h-10 w-10 items-center justify-center rounded-full bg-white/15 active:bg-white/25"
-              >
-                <Bell size={18} color="#ffffff" />
-              </Pressable>
+              <NotificationBellButton role="shop" variant="translucent" size={18} />
 
               <Pressable
                 onPress={() => router.push('/shop/chat' as any)}

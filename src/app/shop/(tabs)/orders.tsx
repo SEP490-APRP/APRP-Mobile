@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { ActivityIndicator, FlatList, Pressable, RefreshControl, ScrollView, TextInput, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { AppText, ConfirmDialog, EmptyState, ErrorState, Skeleton } from '@/components/ui'
+import { NotificationBellButton } from '@/features/notification'
 import { orderIdOf } from '@/features/order'
 import {
   isShopOrderTab,
@@ -78,11 +79,14 @@ export default function ShopOrdersTab() {
   return (
     <SafeAreaView className="flex-1 bg-paper" edges={['top']}>
       <View className="gap-3 border-b border-line bg-paper pb-3 pt-2">
-        <View className="flex-row items-baseline justify-between px-4">
-          <AppText accessibilityRole="header" weight="extrabold" className="text-xl">
-            Đơn hàng
-          </AppText>
-          {total != null && <AppText className="text-xs text-ink-muted">{total} đơn</AppText>}
+        <View className="flex-row items-center justify-between px-4">
+          <View className="flex-row items-baseline gap-2">
+            <AppText accessibilityRole="header" weight="extrabold" className="text-xl">
+              Đơn hàng
+            </AppText>
+            {total != null && <AppText className="text-xs text-ink-muted">{total} đơn</AppText>}
+          </View>
+          <NotificationBellButton role="shop" variant="default" size={18} />
         </View>
         <View className="mx-4 h-11 flex-row items-center rounded-xl border border-line bg-white pl-3">
           <Search size={16} color={colors.inkSubtle} />
