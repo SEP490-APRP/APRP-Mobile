@@ -24,7 +24,7 @@ import {
   useMarkAllNotificationsRead,
   useMarkNotificationRead,
   useMyNotifications,
-} from '@/features/notification'
+} from '@/features/notification/hooks/useNotifications'
 import { NotificationDetailBottomSheet } from '@/features/notification/components/NotificationDetailBottomSheet'
 import type { NotificationItem } from '@/services/notification.types'
 import { colors } from '@/theme/colors'
@@ -285,7 +285,6 @@ export function NotificationsView({
             return (
               <Pressable
                 onPress={() => handleItemPress(item)}
-                accessibilityRole="button"
                 className={cn(
                   'flex-row items-start gap-3.5 rounded-2xl border p-4 shadow-xs active:opacity-85',
                   isRead
