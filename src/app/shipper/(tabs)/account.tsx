@@ -5,12 +5,13 @@ import {
   Bike,
   ChevronRight,
   Edit3,
-  KeyRound,
+  HelpCircle,
   LogOut,
   Mail,
   MapPin,
   MessageCircle,
   Phone,
+  Settings,
   ShieldCheck,
   User,
   Wallet,
@@ -34,7 +35,8 @@ const MENU = [
   { icon: MessageCircle, label: 'Tin nhắn', hint: 'Trao đổi với khách hàng', href: '/shipper/messages' },
   { icon: Wallet, label: 'Ví tài xế', hint: 'Số dư, ký quỹ COD, nạp & rút tiền', href: '/shipper/wallet' },
   { icon: Wallet, label: 'Thu nhập và lịch sử', hint: 'Phí giao, chuyến đã chạy theo ngày', href: '/shipper/earnings' },
-  { icon: KeyRound, label: 'Đổi mật khẩu', hint: 'Bảo vệ tài khoản tài xế', href: '/shipper/password' },
+  { icon: HelpCircle, label: 'Trung tâm hỗ trợ', hint: 'Hotline 24/7, xử lý sự cố & FAQ', href: '/shipper/support' },
+  { icon: Settings, label: 'Cài đặt ứng dụng', hint: 'Chuông rung nhận đơn, thông báo', href: '/shipper/settings' },
 ] as const
 
 /** Hồ sơ tài xế, chuyển từ thẻ "Hồ sơ cá nhân" trong pages/shipper/Dashboard.tsx, thêm số chuyến và lối vào thu nhập. */
