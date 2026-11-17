@@ -4,13 +4,16 @@ import {
   Banknote,
   CreditCard,
   MapPin,
+  MessageSquare,
   Navigation,
   Package,
   Phone,
   ShieldAlert,
   Store,
+  X,
 } from 'lucide-react-native'
-import { Linking, RefreshControl, ScrollView, View } from 'react-native'
+import { useState } from 'react'
+import { Linking, Modal, Pressable, RefreshControl, ScrollView, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { AppText, Button, CapNongLoading, ErrorState } from '@/components/ui'
 import { BackButton } from '@/features/auth/components'
@@ -35,6 +38,7 @@ export default function ShipperOrderDetailScreen() {
   const orderId = Number(id)
   const orderQuery = useOrder(orderId)
   const order = orderQuery.data
+  const [previewImage, setPreviewImage] = useState<string | null>(null)
 
   if (orderQuery.isPending) {
     return (
@@ -140,15 +144,24 @@ export default function ShipperOrderDetailScreen() {
                 <AppText weight="bold" className="text-sm">
                   {order.shopName || 'Nhà vườn'}
                 </AppText>
-                {Boolean(order.shopPhone) && (
+                <View className="flex-row items-center gap-1.5">
+                  {Boolean(order.shopPhone) && (
+                    <Button
+                      title="Gọi vườn"
+                      icon={Phone}
+                      variant="outline"
+                      onPress={() => callPhone(order.shopPhone)}
+                      className="h-7 px-2.5 py-0"
+                    />
+                  )}
                   <Button
-                    title="Gọi vườn"
-                    icon={Phone}
+                    title="Nhắn tin"
+                    icon={MessageSquare}
                     variant="outline"
-                    onPress={() => callPhone(order.shopPhone)}
+                    onPress={() => router.push('/shipper/messages' as any)}
                     className="h-7 px-2.5 py-0"
                   />
-                )}
+                </View>
               </View>
               <AppText numberOfLines={2} className="mt-0.5 text-xs text-ink-muted">
                 {order.shopAddress || 'Chưa có địa chỉ vườn'}
@@ -177,15 +190,24 @@ export default function ShipperOrderDetailScreen() {
                 <AppText weight="bold" className="text-sm">
                   {order.recipientName || 'Người nhận'}
                 </AppText>
-                {Boolean(order.recipientPhone) && (
+                <View className="flex-row items-center gap-1.5">
+                  {Boolean(order.recipientPhone) && (
+                    <Button
+                      title="Gọi khách"
+                      icon={Phone}
+                      variant="outline"
+                      onPress={() => callPhone(order.recipientPhone)}
+                      className="h-7 px-2.5 py-0"
+                    />
+                  )}
                   <Button
-                    title="Gọi khách"
-                    icon={Phone}
+                    title="Nhắn tin"
+                    icon={MessageSquare}
                     variant="outline"
-                    onPress={() => callPhone(order.recipientPhone)}
+                    onPress={() => router.push('/shipper/messages' as any)}
                     className="h-7 px-2.5 py-0"
                   />
-                )}
+                </View>
               </View>
               <AppText numberOfLines={2} className="mt-0.5 text-xs text-ink-muted">
                 {order.shippingAddress}
@@ -343,13 +365,17 @@ export default function ShipperOrderDetailScreen() {
           (order.failProofUrls && order.failProofUrls.length > 0)) && (
           <View className="rounded-panel border border-line bg-white p-4 gap-2">
             <AppText weight="bold" className="text-xs uppercase tracking-wide text-ink-muted">
-              Ảnh bằng chứng {isFail ? 'thất bại' : 'giao hàng'}
+              Ảnh bằng chứng {isFail ? 'thất bại' : 'giao hàng'} (Nhấn để xem lớn)
             </AppText>
             <View className="flex-row flex-wrap gap-2">
               {(order.deliveryProofUrls || order.failProofUrls || []).map((url: string, i: number) => (
-                <View key={i} className="h-20 w-20 overflow-hidden rounded-lg border border-line">
+                <Pressable
+                  key={i}
+                  onPress={() => setPreviewImage(url)}
+                  className="h-20 w-20 overflow-hidden rounded-lg border border-line active:opacity-80"
+                >
                   <Image source={{ uri: url }} className="h-full w-full" contentFit="cover" />
-                </View>
+                </Pressable>
               ))}
             </View>
           </View>
@@ -373,6 +399,27 @@ export default function ShipperOrderDetailScreen() {
           </View>
         )}
       </ScrollView>
+
+      {/* Modal xem trước ảnh lớn */}
+      <Modal visible={Boolean(previewImage)} transparent animationType="fade" onRequestClose={() => setPreviewImage(null)}>
+        <View className="flex-1 items-center justify-center bg-black/90 p-4">
+          <Pressable
+            onPress={() => setPreviewImage(null)}
+            accessibilityRole="button"
+            accessibilityLabel="Đóng xem ảnh"
+            className="absolute right-4 top-12 z-10 h-10 w-10 items-center justify-center rounded-full bg-white/20 active:bg-white/40"
+          >
+            <X size={22} color="#ffffff" />
+          </Pressable>
+          {Boolean(previewImage) && (
+            <Image
+              source={{ uri: previewImage! }}
+              className="h-[80%] w-full"
+              contentFit="contain"
+            />
+          )}
+        </View>
+      </Modal>
     </SafeAreaView>
   )
 }
