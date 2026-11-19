@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { walletKeys } from '@/features/wallet/hooks/useWalletQueries'
 import {
   returnService,
   type ReturnStatus,
@@ -62,6 +63,7 @@ export function useShipperDeliverReturn() {
       returnService.shipperDeliver(id, data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: SHIPPER_RETURN_KEYS.all })
+      qc.invalidateQueries({ queryKey: walletKeys.all })
     },
   })
 }
@@ -73,6 +75,7 @@ export function useShipperFailReturn() {
       returnService.shipperFail(id, data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: SHIPPER_RETURN_KEYS.all })
+      qc.invalidateQueries({ queryKey: walletKeys.all })
     },
   })
 }

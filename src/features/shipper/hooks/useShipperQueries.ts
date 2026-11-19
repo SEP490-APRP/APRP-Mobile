@@ -111,11 +111,21 @@ export interface DeliveryProof {
 export function useDeliveryAction() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async ({ orderId, action, proof }: { orderId: number; action: DeliveryAction; proof?: DeliveryProof }) => {
+    mutationFn: async ({
+      orderId,
+      action,
+      proof,
+      coords,
+    }: {
+      orderId: number
+      action: DeliveryAction
+      proof?: DeliveryProof
+      coords?: { latitude: number; longitude: number } | null
+    }) => {
       if (action === 'pickup') return shipperService.pickupOrder(orderId)
       const urls = await shipperService.uploadProofImages(proof?.photos ?? [])
       if (urls.length === 0) throw new Error('Không tải được ảnh lên. Vui lòng thử lại.')
-      if (action === 'deliver') return shipperService.deliverOrder(orderId, urls)
+      if (action === 'deliver') return shipperService.deliverOrder(orderId, urls, coords)
       return shipperService.failOrder(orderId, {
         reason: proof?.reason ?? 'KHAC',
         note: proof?.note?.trim() || undefined,
@@ -126,6 +136,7 @@ export function useDeliveryAction() {
     onSettled: () => {
       void qc.invalidateQueries({ queryKey: shipperKeys.all })
       void qc.invalidateQueries({ queryKey: orderKeys.all })
+      void qc.invalidateQueries({ queryKey: walletKeys.all })
     },
   })
 }

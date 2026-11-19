@@ -1,6 +1,7 @@
-import { Banknote, CircleCheck, CircleX, Info, ReceiptText, Wallet } from 'lucide-react-native'
+import { router } from 'expo-router'
+import { Banknote, ChevronRight, CircleCheck, CircleX, Info, ReceiptText, Search, Wallet, X } from 'lucide-react-native'
 import { useMemo, useState } from 'react'
-import { Pressable, RefreshControl, ScrollView, View } from 'react-native'
+import { Pressable, RefreshControl, ScrollView, TextInput, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { AppText, Button, EmptyState, ErrorState, Skeleton } from '@/components/ui'
 import { orderIdOf } from '@/features/order/utils/orderStatus'
@@ -68,8 +69,11 @@ function WeekChart({ bars }: { bars: DayBar[] }) {
 function HistoryRow({ order, first }: { order: OrderResponse; first: boolean }) {
   const ok = isDelivered(order)
   return (
-    <View className={cn('flex-row gap-3 px-4 py-3', !first && 'border-t border-line')}>
-      <View className={cn('mt-0.5 h-9 w-9 items-center justify-center rounded-full', ok ? 'bg-leaf-50' : 'bg-rose-50')}>
+    <Pressable
+      onPress={() => router.push(`/shipper/order/${orderIdOf(order)}` as any)}
+      className={cn('flex-row items-center gap-3 px-4 py-3 active:bg-slate-50', !first && 'border-t border-line')}
+    >
+      <View className={cn('h-9 w-9 items-center justify-center rounded-full', ok ? 'bg-leaf-50' : 'bg-rose-50')}>
         {ok ? <CircleCheck size={18} color={colors.leaf700} /> : <CircleX size={18} color={colors.sale} />}
       </View>
       <View className="min-w-0 flex-1 gap-0.5">
@@ -100,7 +104,8 @@ function HistoryRow({ order, first }: { order: OrderResponse; first: boolean }) 
           )}
         </View>
       </View>
-    </View>
+      <ChevronRight size={16} color={colors.inkSubtle} />
+    </Pressable>
   )
 }
 
@@ -111,13 +116,26 @@ function HistoryRow({ order, first }: { order: OrderResponse; first: boolean }) 
 export default function ShipperEarnings() {
   const history = useShipperHistory()
   const [period, setPeriod] = useState<EarningsPeriod>('7d')
+  const [searchQuery, setSearchQuery] = useState('')
   const [shown, setShown] = useState(PAGE)
 
   const all = useMemo(() => history.data ?? [], [history.data])
   const inRange = useMemo(() => all.filter((o) => inPeriod(o, period)), [all, period])
+
+  const searched = useMemo(() => {
+    if (!searchQuery.trim()) return inRange
+    const q = searchQuery.trim().toLowerCase()
+    return inRange.filter((o) => {
+      const idStr = String(orderIdOf(o))
+      const buyer = (o.recipientName || o.buyerName || '').toLowerCase()
+      const shop = (o.shopName || '').toLowerCase()
+      return idStr.includes(q) || buyer.includes(q) || shop.includes(q)
+    })
+  }, [inRange, searchQuery])
+
   const summary = useMemo(() => earningsSummary(inRange), [inRange])
   const bars = useMemo(() => dailyFees(all), [all])
-  const days = useMemo(() => groupByDay(inRange), [inRange])
+  const days = useMemo(() => groupByDay(searched), [searched])
 
   // Cắt theo số đơn, giữ nguyên nhóm ngày.
   let left = shown
@@ -235,17 +253,51 @@ export default function ShipperEarnings() {
 
             <WeekChart bars={bars} />
 
-            <View className="flex-row gap-2 px-1">
-              <Info size={14} color={colors.inkSubtle} style={{ marginTop: 2 }} />
-              <AppText className="flex-1 text-xs leading-relaxed text-ink-subtle">
-                Thu nhập tạm tính theo phí giao của đơn giao thành công, tính theo ngày lấy hàng. Ứng dụng chưa có ví và
-                rút tiền.
-              </AppText>
+            <View className="flex-row items-center justify-between rounded-xl bg-leaf-50 p-3">
+              <View className="flex-1 flex-row items-center gap-2">
+                <Info size={15} color={colors.leaf700} />
+                <AppText className="text-xs text-leaf-800 flex-1">
+                  Thu nhập thực nhận đã trừ 3% phí sàn CapNong và được cộng vào ví tài xế.
+                </AppText>
+              </View>
+              <Pressable
+                onPress={() => router.push('/shipper/wallet' as any)}
+                className="ml-2 flex-row items-center gap-0.5 rounded-lg bg-white px-2.5 py-1.5 border border-leaf-200"
+              >
+                <Wallet size={12} color={colors.leaf700} />
+                <AppText weight="bold" className="text-xs text-leaf-700">
+                  Ví tiền
+                </AppText>
+              </Pressable>
             </View>
 
-            <AppText weight="bold" className="pt-1 text-lg">
-              Lịch sử chuyến giao
-            </AppText>
+            <View className="flex-row items-center justify-between pt-1">
+              <AppText weight="bold" className="text-lg">
+                Lịch sử chuyến giao
+              </AppText>
+              {Boolean(searchQuery) && (
+                <AppText className="text-xs text-leaf-700 font-medium">
+                  Khớp {searched.length} đơn
+                </AppText>
+              )}
+            </View>
+
+            {/* Ô tìm kiếm đơn */}
+            <View className="flex-row items-center gap-2 rounded-xl border border-line bg-white px-3 py-2">
+              <Search size={16} color={colors.inkMuted} />
+              <TextInput
+                placeholder="Tìm theo mã đơn #123, tên khách, nhà vườn..."
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                className="flex-1 text-sm text-ink p-0"
+                placeholderTextColor={colors.inkSubtle}
+              />
+              {Boolean(searchQuery) && (
+                <Pressable onPress={() => setSearchQuery('')} hitSlop={8}>
+                  <X size={16} color={colors.inkMuted} />
+                </Pressable>
+              )}
+            </View>
 
             {visibleDays.length === 0 ? (
               <EmptyState

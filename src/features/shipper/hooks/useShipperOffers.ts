@@ -1,6 +1,7 @@
 import { Client } from '@stomp/stompjs'
 import { useQueryClient } from '@tanstack/react-query'
 import { useEffect } from 'react'
+import { Vibration } from 'react-native'
 import { stompBrokerUrl } from '@/features/tracking/utils/trackingRules'
 import { useAuthStore, useUiStore } from '@/stores'
 import { ENV } from '@/utils/env'
@@ -43,6 +44,9 @@ export function useShipperOffers() {
           }
           if (!offer?.orderId) return
           if (offer.type === 'NEW_ORDER') {
+            try {
+              Vibration.vibrate([0, 400, 200, 400])
+            } catch {}
             const where = offer.distanceToShopKm != null ? ` cách bạn ${offer.distanceToShopKm} km` : ''
             showToast(`Có đơn mới #${offer.orderId}${offer.shopName ? ` tại ${offer.shopName}` : ''}${where}`)
           }

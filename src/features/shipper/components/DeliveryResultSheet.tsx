@@ -2,7 +2,7 @@ import { Image } from 'expo-image'
 import * as ImagePicker from 'expo-image-picker'
 import { Camera, ImagePlus, Minus, Plus, X } from 'lucide-react-native'
 import { useEffect, useState } from 'react'
-import { Pressable, View } from 'react-native'
+import { Modal, Pressable, View } from 'react-native'
 import { AppText, BottomSheet, Button, ChoiceChips, TextField } from '@/components/ui'
 import { money } from '@/features/product'
 import { MAX_PROOF_IMAGES, type DeliveryFailReason } from '@/services/shipper.service'
@@ -46,6 +46,7 @@ export function DeliveryResultSheet({
   const [calls, setCalls] = useState(0)
   const [note, setNote] = useState('')
   const [touched, setTouched] = useState(false)
+  const [previewUri, setPreviewUri] = useState<string | null>(null)
 
   useEffect(() => {
     if (!visible) return
@@ -54,6 +55,7 @@ export function DeliveryResultSheet({
     setCalls(0)
     setNote('')
     setTouched(false)
+    setPreviewUri(null)
   }, [visible])
 
   const errors = validateDeliveryProof({ photoCount: photos.length, reason, callAttempts: calls, note }, failed)
@@ -208,12 +210,14 @@ export function DeliveryResultSheet({
           <View className="flex-row flex-wrap gap-2">
             {photos.map((p, i) => (
               <View key={p.uri} className="h-20 w-20 overflow-hidden rounded-xl border border-line">
-                <Image source={{ uri: p.uri }} style={{ width: '100%', height: '100%' }} contentFit="cover" />
+                <Pressable onPress={() => setPreviewUri(p.uri)} className="h-full w-full">
+                  <Image source={{ uri: p.uri }} style={{ width: '100%', height: '100%' }} contentFit="cover" />
+                </Pressable>
                 <Pressable
                   onPress={() => setPhotos((prev) => prev.filter((_, idx) => idx !== i))}
                   accessibilityRole="button"
                   accessibilityLabel="Xoá ảnh"
-                  className="absolute right-1 top-1 rounded-full bg-ink/70 p-1"
+                  className="absolute right-1 top-1 rounded-full bg-ink/70 p-1 active:bg-ink"
                 >
                   <X size={12} color={colors.white} />
                 </Pressable>
@@ -226,10 +230,31 @@ export function DeliveryResultSheet({
               <Button title="Chọn ảnh" icon={ImagePlus} variant="outline" onPress={() => void pick('library')} className="min-h-[44px] flex-1" />
             </View>
           )}
-          <AppText className="text-xs text-ink-muted">Bắt buộc ít nhất 1 ảnh, tối đa {MAX_PROOF_IMAGES} ảnh.</AppText>
+          <AppText className="text-xs text-ink-muted">Bắt buộc ít nhất 1 ảnh, tối đa {MAX_PROOF_IMAGES} ảnh (Nhấn vào ảnh để phóng to kiểm tra độ nét).</AppText>
           {touched && errors.photos && <AppText className="text-xs text-sale">{errors.photos}</AppText>}
         </View>
       </View>
+
+      {/* Modal phóng to ảnh bằng chứng */}
+      <Modal visible={Boolean(previewUri)} transparent animationType="fade" onRequestClose={() => setPreviewUri(null)}>
+        <View className="flex-1 items-center justify-center bg-black/90 p-4">
+          <Pressable
+            onPress={() => setPreviewUri(null)}
+            accessibilityRole="button"
+            accessibilityLabel="Đóng xem ảnh"
+            className="absolute right-4 top-12 z-10 h-10 w-10 items-center justify-center rounded-full bg-white/20 active:bg-white/40"
+          >
+            <X size={22} color="#ffffff" />
+          </Pressable>
+          {Boolean(previewUri) && (
+            <Image
+              source={{ uri: previewUri! }}
+              className="h-[80%] w-full"
+              contentFit="contain"
+            />
+          )}
+        </View>
+      </Modal>
     </BottomSheet>
   )
 }

@@ -47,4 +47,19 @@ describe('shipperErrorMessage', () => {
   it('đơn đã có người nhận', () => {
     expect(shipperErrorMessage({ data: { code: 7005 } }, 'x')).toBe('Đơn này đã được tài xế khác nhận.')
   })
+
+  it('lỗi 7011: ngoài bán kính geofence hiển thị khoảng cách và bán kính', () => {
+    const msg = shipperErrorMessage(
+      { data: { code: 7011, result: { currentDistanceMeters: 1500, allowedRadiusMeters: 500 } } },
+      'x'
+    )
+    expect(msg).toContain('1.5 km')
+    expect(msg).toContain('500m')
+  })
+
+  it('lỗi 7012: thiếu vị trí GPS nhắc bật định vị', () => {
+    expect(shipperErrorMessage({ data: { code: 7012 } }, 'x')).toBe(
+      'Không xác định được vị trí GPS của bạn. Vui lòng bật định vị trên điện thoại.'
+    )
+  })
 })

@@ -1,6 +1,7 @@
-import { Banknote, Clock, CreditCard, Navigation, Package, Store } from 'lucide-react-native'
+import { router } from 'expo-router'
+import { Banknote, ChevronRight, Clock, CreditCard, Navigation, Package, Store } from 'lucide-react-native'
 import type { ReactNode } from 'react'
-import { View } from 'react-native'
+import { Pressable, View } from 'react-native'
 import { AppText } from '@/components/ui'
 import { orderIdOf } from '@/features/order/utils/orderStatus'
 import { money } from '@/features/product'
@@ -63,65 +64,74 @@ export function ShipperOrderCard({
   me,
   footer,
   highlight,
+  onPress,
 }: {
   order: OrderResponse
   me?: LatLng | null
   footer?: ReactNode
   highlight?: boolean
+  onPress?: () => void
 }) {
   const legs = orderLegs(order, me)
   const cod = codToCollect(order)
+  const handlePress = onPress ?? (() => router.push(`/shipper/order/${orderIdOf(order)}` as any))
+
   return (
     <View
       className={cn('overflow-hidden rounded-panel border bg-white', highlight ? 'border-leaf-500' : 'border-line')}
     >
-      <View className="flex-row items-start justify-between gap-3 px-4 pt-4">
-        <View className="gap-1">
-          <AppText weight="extrabold" className="text-base">
-            Đơn #{orderIdOf(order)}
-          </AppText>
-          <View className="flex-row items-center gap-1">
-            <Clock size={13} color={colors.inkSubtle} />
-            <AppText className="text-xs text-ink-muted">{minutesAgo(order.createdAt)}</AppText>
+      <Pressable onPress={handlePress} className="active:bg-slate-50">
+        <View className="flex-row items-start justify-between gap-3 px-4 pt-4">
+          <View className="gap-1">
+            <View className="flex-row items-center gap-1">
+              <AppText weight="extrabold" className="text-base">
+                Đơn #{orderIdOf(order)}
+              </AppText>
+              <ChevronRight size={16} color={colors.inkMuted} />
+            </View>
+            <View className="flex-row items-center gap-1">
+              <Clock size={13} color={colors.inkSubtle} />
+              <AppText className="text-xs text-ink-muted">{minutesAgo(order.createdAt)}</AppText>
+            </View>
+          </View>
+          <View className="items-end">
+            <AppText className="text-xs text-ink-muted">Phí ship</AppText>
+            <AppText weight="extrabold" className="text-xl text-leaf-700">
+              {money(Number(order.shippingFee ?? 0))}
+            </AppText>
           </View>
         </View>
-        <View className="items-end">
-          <AppText className="text-xs text-ink-muted">Phí ship</AppText>
-          <AppText weight="extrabold" className="text-xl text-leaf-700">
-            {money(Number(order.shippingFee ?? 0))}
-          </AppText>
+
+        <View className="gap-3 px-4 py-4">
+          <Stop
+            tone="shop"
+            label="Lấy hàng"
+            name={order.shopName}
+            address={order.shopAddress}
+            badge={legs.toShop != null && order.status !== 'PICKED_UP' ? `Cách bạn ${formatKm(legs.toShop)}` : undefined}
+          />
+          <Stop
+            tone="buyer"
+            label="Giao đến"
+            name={order.recipientName}
+            address={order.shippingAddress}
+            badge={legs.toBuyer != null ? `Giao ${formatKm(legs.toBuyer)}` : undefined}
+          />
         </View>
-      </View>
 
-      <View className="gap-3 px-4 py-4">
-        <Stop
-          tone="shop"
-          label="Lấy hàng"
-          name={order.shopName}
-          address={order.shopAddress}
-          badge={legs.toShop != null && order.status !== 'PICKED_UP' ? `Cách bạn ${formatKm(legs.toShop)}` : undefined}
-        />
-        <Stop
-          tone="buyer"
-          label="Giao đến"
-          name={order.recipientName}
-          address={order.shippingAddress}
-          badge={legs.toBuyer != null ? `Giao ${formatKm(legs.toBuyer)}` : undefined}
-        />
-      </View>
-
-      <View className="flex-row flex-wrap gap-2 px-4 pb-4">
-        <Chip icon={<Package size={13} color={colors.inkMuted} />} text={itemsSummary(order)} />
-        {legs.total != null && (
-          <Chip icon={<Navigation size={13} color={colors.inkMuted} />} text={`Tổng ~${formatKm(legs.total)}`} />
-        )}
-        {cod > 0 ? (
-          <Chip tone="amber" icon={<Banknote size={13} color="#92400e" />} text={`Thu của khách ${money(cod)}`} />
-        ) : (
-          <Chip tone="leaf" icon={<CreditCard size={13} color={colors.leaf700} />} text="Khách đã trả trước" />
-        )}
-        {!order.shopAddress && <Chip icon={<Store size={13} color={colors.inkMuted} />} text="Chưa có địa chỉ vườn" />}
-      </View>
+        <View className="flex-row flex-wrap gap-2 px-4 pb-4">
+          <Chip icon={<Package size={13} color={colors.inkMuted} />} text={itemsSummary(order)} />
+          {legs.total != null && (
+            <Chip icon={<Navigation size={13} color={colors.inkMuted} />} text={`Tổng ~${formatKm(legs.total)}`} />
+          )}
+          {cod > 0 ? (
+            <Chip tone="amber" icon={<Banknote size={13} color="#92400e" />} text={`Thu của khách ${money(cod)}`} />
+          ) : (
+            <Chip tone="leaf" icon={<CreditCard size={13} color={colors.leaf700} />} text="Khách đã trả trước" />
+          )}
+          {!order.shopAddress && <Chip icon={<Store size={13} color={colors.inkMuted} />} text="Chưa có địa chỉ vườn" />}
+        </View>
+      </Pressable>
 
       {!!footer && <View className="border-t border-line px-4 py-3">{footer}</View>}
     </View>

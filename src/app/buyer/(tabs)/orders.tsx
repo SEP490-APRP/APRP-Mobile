@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { FlatList, Pressable, RefreshControl, ScrollView, TextInput, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { AppText, Button, ConfirmDialog, EmptyState, ErrorState, Skeleton } from '@/components/ui'
+import { NotificationBellButton } from '@/features/notification'
 import {
   CancelOrderSheet,
   matchOrder,
@@ -79,9 +80,12 @@ export default function OrdersTab() {
 
   const header = (
     <View className="gap-3 border-b border-line bg-paper pb-3 pt-2">
-      <AppText accessibilityRole="header" weight="extrabold" className="px-4 text-2xl">
-        Đơn hàng của tôi
-      </AppText>
+      <View className="flex-row items-center justify-between px-4">
+        <AppText accessibilityRole="header" weight="extrabold" className="text-2xl">
+          Đơn hàng của tôi
+        </AppText>
+        <NotificationBellButton role="buyer" variant="default" size={18} />
+      </View>
       <View className="mx-4 h-12 flex-row items-center gap-2 rounded-card border border-line bg-white px-3.5">
         <Search size={18} color={colors.inkSubtle} />
         <TextInput
