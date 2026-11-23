@@ -5,6 +5,7 @@ import {
   Bike,
   ChevronRight,
   Edit3,
+  Flame,
   HelpCircle,
   LogOut,
   Mail,
@@ -31,6 +32,7 @@ import { cn } from '@/utils/helpers'
 const MENU = [
   { icon: User, label: 'Thông tin cá nhân', hint: 'Chỉnh sửa họ tên, SĐT, biển số xe', href: '/shipper/profile-edit' },
   { icon: ShieldCheck, label: 'Xác minh tài xế', hint: 'GPLX, đăng ký xe và trạng thái duyệt', href: '/shipper/verification' },
+  { icon: Flame, label: 'Đơn chiến dịch', hint: 'Nhận và giao đơn giải cứu tại hub', href: '/shipper/campaign-orders' },
   { icon: Bell, label: 'Thông báo', hint: 'Cập nhật đơn hàng và hệ thống', href: '/shipper/notifications' },
   { icon: MessageCircle, label: 'Tin nhắn', hint: 'Trao đổi với khách hàng', href: '/shipper/messages' },
   { icon: Wallet, label: 'Ví tài xế', hint: 'Số dư, ký quỹ COD, nạp & rút tiền', href: '/shipper/wallet' },

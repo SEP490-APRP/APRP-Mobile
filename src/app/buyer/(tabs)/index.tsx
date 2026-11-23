@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { AppText } from '@/components/ui'
 import { blogKeys } from '@/features/blog'
 import { useAddProductToCart, useCartQuantities } from '@/features/cart'
+import { CampaignsTeaser } from '@/features/campaign'
 import { chatKeys, useChatUnreadCount } from '@/features/chat'
 import { CombosTeaser, HomeCategories, HomeHero, StoriesTeaser, TodayRescue } from '@/features/home'
 import { notificationKeys, NotificationBellButton } from '@/features/notification'
@@ -39,7 +40,7 @@ export default function BuyerHome() {
 
   const refresh = async () => {
     setRefreshing(true)
-    await Promise.all([products.refetch(), queryClient.invalidateQueries({ queryKey: blogKeys.lists() })])
+    await Promise.all([products.refetch(), queryClient.invalidateQueries({ queryKey: blogKeys.lists() }), queryClient.invalidateQueries({ queryKey: ['campaigns'] })])
     setRefreshing(false)
   }
 
@@ -110,6 +111,7 @@ export default function BuyerHome() {
         }
       >
         <HomeHero onShop={() => openFresh()} />
+        <CampaignsTeaser />
         {/* Banner Thực đơn AI */}
         <Pressable
           onPress={() => router.push('/buyer/meal-plan' as any)}
