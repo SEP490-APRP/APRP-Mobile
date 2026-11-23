@@ -15,3 +15,54 @@ jest.mock('expo-secure-store', () => {
 })
 
 jest.mock('expo-crypto', () => ({ randomUUID: () => 'test-uuid' }))
+
+// Mock expo-audio
+jest.mock('expo-audio', () => ({
+  createAudioPlayer: jest.fn(() => ({
+    play: jest.fn(),
+    pause: jest.fn(),
+    seekTo: jest.fn(async () => {}),
+  })),
+  setAudioModeAsync: jest.fn(async () => {}),
+  useAudioRecorder: jest.fn(() => ({
+    currentTime: 0,
+    isRecording: false,
+    uri: null,
+    prepareToRecordAsync: jest.fn(async () => {}),
+    record: jest.fn(),
+    stop: jest.fn(async () => {}),
+  })),
+  requestRecordingPermissionsAsync: jest.fn(async () => ({ granted: true })),
+  RecordingPresets: {
+    HIGH_QUALITY: {},
+    LOW_QUALITY: {},
+  },
+}))
+
+// Mock expo-notifications
+jest.mock('expo-notifications', () => ({
+  setNotificationHandler: jest.fn(),
+  setNotificationChannelAsync: jest.fn(async () => {}),
+  getPermissionsAsync: jest.fn(async () => ({ status: 'granted' })),
+  requestPermissionsAsync: jest.fn(async () => ({ status: 'granted' })),
+  getExpoPushTokenAsync: jest.fn(async () => ({ data: 'ExponentPushToken[mock]' })),
+  addNotificationReceivedListener: jest.fn(() => ({ remove: jest.fn() })),
+  addNotificationResponseReceivedListener: jest.fn(() => ({ remove: jest.fn() })),
+  AndroidImportance: {
+    MAX: 5,
+    HIGH: 4,
+    DEFAULT: 3,
+    LOW: 2,
+    MIN: 1,
+    NONE: 0,
+  },
+  AndroidNotificationPriority: {
+    MAX: 'max',
+    HIGH: 'high',
+    DEFAULT: 'default',
+    LOW: 'low',
+    MIN: 'min',
+  },
+}))
+
+

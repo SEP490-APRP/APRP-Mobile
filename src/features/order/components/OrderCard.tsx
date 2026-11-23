@@ -1,5 +1,13 @@
 import { Image } from 'expo-image'
-import { ChevronRight, CreditCard, Navigation, ShoppingBasket, Store, XCircle } from 'lucide-react-native'
+import {
+  ChevronRight,
+  CreditCard,
+  Navigation,
+  PackageCheck,
+  ShoppingBasket,
+  Store,
+  XCircle,
+} from 'lucide-react-native'
 import { Pressable, View } from 'react-native'
 import { AppText, Button } from '@/components/ui'
 import { money } from '@/features/product'
@@ -7,7 +15,13 @@ import { canTrackOrder } from '@/features/tracking'
 import { colors } from '@/theme/colors'
 import type { OrderResponse } from '@/types/order.types'
 import { cn } from '@/utils/helpers'
-import { canCancelOrder, isUnpaidOrder, orderIdOf, paymentMethodLabel } from '../utils/orderStatus'
+import {
+  canCancelOrder,
+  canCompleteOrder,
+  isUnpaidOrder,
+  orderIdOf,
+  paymentMethodLabel,
+} from '../utils/orderStatus'
 import { OrderStatusBadge } from './OrderStatusBadge'
 
 const MAX_ITEMS = 2
@@ -16,16 +30,20 @@ const MAX_ITEMS = 2
 export function OrderCard({
   order,
   paying,
+  completing,
   onOpen,
   onPay,
   onCancel,
+  onComplete,
   onTrack,
 }: {
   order: OrderResponse
   paying: boolean
+  completing?: boolean
   onOpen: () => void
   onPay: () => void
   onCancel: () => void
+  onComplete?: () => void
   /** Mở bản đồ theo dõi shipper (chỉ hiện khi đơn đang giao) */
   onTrack?: () => void
 }) {
@@ -34,6 +52,7 @@ export function OrderCard({
   const items = order.items ?? []
   const more = items.length - MAX_ITEMS
   const trackable = !!onTrack && canTrackOrder(order.status, 'BUYER')
+  const completable = canCompleteOrder(order.status) && !!onComplete
 
   return (
     <View className={cn('overflow-hidden rounded-panel border bg-white', unpaid ? 'border-amber-300' : 'border-line')}>
@@ -99,6 +118,37 @@ export function OrderCard({
             </AppText>
           </View>
         </View>
+
+        {!!order.refundAmount && order.refundAmount > 0 && (
+          <View className="flex-row items-center justify-between rounded-xl bg-paper px-3 py-1.5 border border-line">
+            <AppText className="text-xs text-ink-muted">Số tiền hoàn:</AppText>
+            <AppText weight="bold" className="text-xs text-rose-700">
+              {money(order.refundAmount)}
+            </AppText>
+          </View>
+        )}
+
+        {completable && (
+          <View className="flex-row gap-2">
+            <Button
+              title="Đã nhận hàng"
+              icon={PackageCheck}
+              loading={completing}
+              onPress={onComplete}
+              className="min-h-[44px] flex-1 bg-leaf-700"
+            />
+            {trackable && (
+              <Button
+                title="Theo dõi shipper"
+                variant="outline"
+                icon={Navigation}
+                onPress={onTrack}
+                className="min-h-[44px] flex-1"
+              />
+            )}
+          </View>
+        )}
+
         {(unpaid || canCancelOrder(order)) && (
           <View className="flex-row gap-2">
             {canCancelOrder(order) && (
@@ -121,7 +171,8 @@ export function OrderCard({
             )}
           </View>
         )}
-        {!unpaid && !canCancelOrder(order) && (
+
+        {!unpaid && !canCancelOrder(order) && !completable && (
           <View className="flex-row items-center justify-end gap-3">
             <Pressable onPress={onOpen} accessibilityRole="link" hitSlop={8} className="flex-row items-center gap-1">
               <AppText weight="semibold" className="text-sm text-leaf-700">

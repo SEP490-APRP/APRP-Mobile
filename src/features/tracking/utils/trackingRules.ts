@@ -36,6 +36,29 @@ export interface ShipperLocationPayload {
   isFake?: boolean
   gpsOff?: boolean
   deliveryPhase?: string
+  /** Quãng đường còn lại tới điểm của chặng hiện tại (km, BE tính) */
+  distanceKm?: number
+  /** Số phút dự kiến tới nơi (BE tính) */
+  estimatedMinutes?: number
+  /** Tracking còn đang diễn ra realtime (true) hay đã hoàn tất (false) */
+  trackingActive?: boolean
+  /** Ảnh bằng chứng giao hàng (nếu đã DELIVERED) */
+  proofImageUrls?: string[]
+}
+
+/**
+ * Dòng "Còn ~2,3 km · khoảng 6 phút" trên bản đồ (giống bản web, utils/eta.ts).
+ * null khi chưa có dữ liệu hoặc đơn đã giao xong.
+ */
+export function formatEta(distanceKm?: number | null, estimatedMinutes?: number | null): string | null {
+  if (distanceKm == null || !Number.isFinite(distanceKm)) return null
+  if (distanceKm <= 0 && (estimatedMinutes ?? 0) <= 0) return null
+  const dist =
+    distanceKm < 1
+      ? `${Math.max(50, Math.round((distanceKm * 1000) / 50) * 50)} m`
+      : `${distanceKm.toFixed(1).replace('.', ',')} km`
+  const mins = estimatedMinutes ?? 0
+  return `Còn ~${dist} · ${mins <= 1 ? 'sắp tới nơi' : `khoảng ${mins} phút`}`
 }
 
 /** Toạ độ mặc định (TP.HCM) khi đơn chưa được geocode, giống bản web */
@@ -103,9 +126,24 @@ export function effectivePhase(
   return 'TO_SHOP'
 }
 
-export function isShipperVisible(role: TrackingRole, phase: DeliveryPhase): boolean {
+export function isShipperVisible(
+  role: TrackingRole,
+  phase: DeliveryPhase,
+  trackingActive?: boolean,
+  orderStatus?: string,
+): boolean {
+  if (trackingActive === false) return false
+  if (
+    orderStatus === 'DELIVERED' ||
+    orderStatus === 'COMPLETED' ||
+    orderStatus === 'FAILED' ||
+    orderStatus === 'CANCELLED'
+  ) {
+    return false
+  }
+  if (phase === 'DELIVERED' || phase === 'FAILED') return false
   if (role === 'SHOP') return phase === 'TO_SHOP' || phase === 'AT_SHOP'
-  if (role === 'BUYER') return phase === 'TO_BUYER' || phase === 'DELIVERED'
+  if (role === 'BUYER') return phase === 'TO_BUYER'
   return true
 }
 

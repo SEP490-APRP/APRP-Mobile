@@ -7,6 +7,7 @@ import { colors } from '@/theme/colors'
 import { cn } from '@/utils/helpers'
 import { useShipperLocation } from '../hooks/useShipperLocation'
 import {
+  formatEta,
   bearing,
   effectivePhase,
   formatUpdatedAt,
@@ -21,6 +22,7 @@ import {
 } from '../utils/trackingRules'
 import type { MapEvent, MapState } from './mapHtml'
 import { TrackingMap } from './TrackingMap'
+import { DemoGpsControl } from './DemoGpsControl'
 
 type Props = {
   orderId: number
@@ -48,7 +50,7 @@ export function ShipperTrackingView({ orderId, role, initial, fallback, actions,
   const { shop, dest } = resolveEndpoints(data, initial)
   const pos = shipperPosition(data)
   const phase = effectivePhase(data, pos, shop, dest)
-  const visible = !!pos && isShipperVisible(role, phase)
+  const visible = !!pos && isShipperVisible(role, phase, data?.trackingActive, data?.orderStatus)
   const routes = routesForRole(role)
 
   if (pos && lastPos.current && (pos.lat !== lastPos.current.lat || pos.lng !== lastPos.current.lng)) {
@@ -178,6 +180,11 @@ export function ShipperTrackingView({ orderId, role, initial, fallback, actions,
               {journeyText(role, phase)}
             </AppText>
           </View>
+          {visible && formatEta(data?.distanceKm, data?.estimatedMinutes) && (
+            <AppText weight="extrabold" className="px-1 text-base text-leaf-700">
+              {formatEta(data?.distanceKm, data?.estimatedMinutes)}
+            </AppText>
+          )}
 
           {role !== 'SHIPPER' && (
             <View className="flex-row items-center gap-3">
@@ -229,6 +236,18 @@ export function ShipperTrackingView({ orderId, role, initial, fallback, actions,
             {routes.toShop && <Legend color="#EA580C" label="Shipper ➔ Nhà vườn" />}
             {routes.toBuyer && <Legend color="#00B14F" label="Nhà vườn ➔ Người nhận" />}
           </View>
+
+          {role === 'SHIPPER' && (
+            <DemoGpsControl
+              orderId={orderId}
+              shopLat={shop.lat}
+              shopLng={shop.lng}
+              destLat={dest.lat}
+              destLng={dest.lng}
+              orderStatus={data?.orderStatus}
+            />
+          )}
+
           {actions}
         </View>
       </SafeAreaView>

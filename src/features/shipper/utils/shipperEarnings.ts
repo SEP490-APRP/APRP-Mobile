@@ -3,8 +3,16 @@ import { codToCollect } from './shipperOrders'
 
 /**
  * Thu nhập của tài xế tính từ các đơn đã giao.
- * Backend chưa có ví shipper, nên thu nhập = phí giao hàng của đơn giao thành công.
+ * Sàn thu phí dịch vụ 3% trên cước giao hàng (cấu hình capnong.wallet.shipper-fee-rate).
+ * Thu nhập thực nhận = cước giao hàng * 0.97.
  */
+
+export const SHIPPER_PLATFORM_FEE_RATE = 0.03
+
+/** Thu nhập thực nhận sau khi khấu trừ 3% phí sàn CapNong */
+export function netShipperFee(shippingFee: number): number {
+  return Math.round(shippingFee * (1 - SHIPPER_PLATFORM_FEE_RATE))
+}
 
 export type EarningsPeriod = 'today' | '7d' | '30d' | 'all'
 
@@ -17,9 +25,13 @@ export const EARNINGS_PERIODS: { value: EarningsPeriod; label: string }[] = [
 
 export const isDelivered = (o: Pick<OrderResponse, 'status'>) => o.status === 'DELIVERED' || o.status === 'COMPLETED'
 
-/** Ngày tài xế chạy đơn: lúc lấy hàng, chưa có thì lúc đặt đơn (backend không lưu giờ giao xong). */
-export function workDate(o: Pick<OrderResponse, 'pickedUpAt' | 'createdAt'>): Date | null {
-  const d = new Date(o.pickedUpAt || o.createdAt)
+/** Ngày tài xế chạy đơn: ưu tiên lúc giao xong / kết thúc, sau đó lúc lấy hàng hoặc tạo đơn */
+export function workDate(
+  o: Pick<OrderResponse, 'deliveredAt' | 'failedAt' | 'pickedUpAt' | 'createdAt'>,
+): Date | null {
+  const ts = o.deliveredAt || o.failedAt || o.pickedUpAt || o.createdAt
+  if (!ts) return null
+  const d = new Date(ts)
   return Number.isNaN(d.getTime()) ? null : d
 }
 
@@ -52,7 +64,7 @@ export function earningsSummary(orders: readonly OrderResponse[]): EarningsSumma
   for (const o of orders) {
     if (isDelivered(o)) {
       delivered++
-      fees += Number(o.shippingFee ?? 0)
+      fees += netShipperFee(Number(o.shippingFee ?? 0))
       cod += codToCollect(o)
     } else if (o.status === 'FAILED') failed++
   }
@@ -84,7 +96,7 @@ export function dailyFees(orders: readonly OrderResponse[], days = 7, now = new 
     const d = workDate(o)
     const bar = d && byKey.get(dayKey(d))
     if (!bar) continue
-    bar.fees += Number(o.shippingFee ?? 0)
+    bar.fees += netShipperFee(Number(o.shippingFee ?? 0))
     bar.count++
   }
   return bars
@@ -117,7 +129,7 @@ export function groupByDay(orders: readonly OrderResponse[], now = new Date()): 
       groups.set(key, g)
     }
     g.orders.push(o)
-    if (isDelivered(o)) g.fees += Number(o.shippingFee ?? 0)
+    if (isDelivered(o)) g.fees += netShipperFee(Number(o.shippingFee ?? 0))
   }
   return [...groups.values()]
 }

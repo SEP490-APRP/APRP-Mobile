@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { reviewService } from '@/services'
-import type { ReviewResponse } from '@/services/review.types'
+import type { ReviewCreateRequest, ReviewResponse } from '@/services/review.types'
 
 export const reviewKeys = {
   all: ['reviews'] as const,
@@ -36,6 +36,18 @@ export function useReactToReview() {
       queryClient.setQueriesData<ReviewResponse[]>({ queryKey: reviewKeys.all }, (list) =>
         list?.map((r) => (r.id === reviewId ? updated : r)),
       )
+    },
+  })
+}
+
+/** Tạo đánh giá sản phẩm sau khi đơn hoàn thành */
+export function useCreateReview() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (data: ReviewCreateRequest) => reviewService.createReview(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: reviewKeys.all })
+      queryClient.invalidateQueries({ queryKey: ['orders'] })
     },
   })
 }

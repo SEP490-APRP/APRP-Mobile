@@ -5,7 +5,7 @@ import { Linking, Pressable, RefreshControl, ScrollView, View } from 'react-nati
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { AppText, Button, Checkbox, ConfirmDialog, ErrorState, Skeleton } from '@/components/ui'
 import { BackButton } from '@/features/auth/components'
-import { OrderStatusBadge, orderIdOf, useOrder } from '@/features/order'
+import { needsPickupCode, OrderStatusBadge, orderIdOf, PickupCodeTag, useOrder } from '@/features/order'
 import { money } from '@/features/product'
 import {
   itemSubtotal,
@@ -115,6 +115,7 @@ export default function ShopOrderDetail() {
         }
       >
         <StageHint order={o} />
+        {needsPickupCode(o.status) && <PickupCodeTag orderId={orderId} variant="shop" />}
 
         {/* Người nhận */}
         <View className="gap-3 rounded-panel border border-line bg-white p-4">

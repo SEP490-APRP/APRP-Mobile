@@ -1,19 +1,42 @@
 import { Image } from 'expo-image'
 import { router } from 'expo-router'
-import { Bike, ChevronRight, KeyRound, LogOut, Mail, MapPin, Phone, Wallet, type LucideIcon } from 'lucide-react-native'
+import {
+  Bell,
+  Bike,
+  ChevronRight,
+  Edit3,
+  HelpCircle,
+  LogOut,
+  Mail,
+  MapPin,
+  MessageCircle,
+  Phone,
+  Settings,
+  ShieldCheck,
+  User,
+  Wallet,
+  type LucideIcon,
+} from 'lucide-react-native'
 import { Pressable, RefreshControl, ScrollView, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { AppText, Button, Skeleton } from '@/components/ui'
 import { useLogout } from '@/features/auth'
 import { useMyProfile } from '@/features/profile'
+import { useNotificationUnreadCount } from '@/features/notification'
 import { earningsSummary, useShipperHistory, useShipperStatus } from '@/features/shipper'
 import { useAuth } from '@/stores'
 import { colors } from '@/theme/colors'
 import { cn } from '@/utils/helpers'
 
 const MENU = [
+  { icon: User, label: 'Thông tin cá nhân', hint: 'Chỉnh sửa họ tên, SĐT, biển số xe', href: '/shipper/profile-edit' },
+  { icon: ShieldCheck, label: 'Xác minh tài xế', hint: 'GPLX, đăng ký xe và trạng thái duyệt', href: '/shipper/verification' },
+  { icon: Bell, label: 'Thông báo', hint: 'Cập nhật đơn hàng và hệ thống', href: '/shipper/notifications' },
+  { icon: MessageCircle, label: 'Tin nhắn', hint: 'Trao đổi với khách hàng', href: '/shipper/messages' },
+  { icon: Wallet, label: 'Ví tài xế', hint: 'Số dư, ký quỹ COD, nạp & rút tiền', href: '/shipper/wallet' },
   { icon: Wallet, label: 'Thu nhập và lịch sử', hint: 'Phí giao, chuyến đã chạy theo ngày', href: '/shipper/earnings' },
-  { icon: KeyRound, label: 'Đổi mật khẩu', hint: 'Bảo vệ tài khoản tài xế', href: '/shipper/password' },
+  { icon: HelpCircle, label: 'Trung tâm hỗ trợ', hint: 'Hotline 24/7, xử lý sự cố & FAQ', href: '/shipper/support' },
+  { icon: Settings, label: 'Cài đặt ứng dụng', hint: 'Chuông rung nhận đơn, thông báo', href: '/shipper/settings' },
 ] as const
 
 /** Hồ sơ tài xế, chuyển từ thẻ "Hồ sơ cá nhân" trong pages/shipper/Dashboard.tsx, thêm số chuyến và lối vào thu nhập. */
@@ -23,6 +46,7 @@ export default function ShipperAccount() {
   const status = useShipperStatus()
   const history = useShipperHistory()
   const logout = useLogout()
+  const { data: unreadNotif = 0 } = useNotificationUnreadCount()
   const p = profile.data
   const name = p?.fullName || user?.name || 'Tài xế'
   const avatar = p?.logoUrl || p?.avatar || user?.avatar
@@ -61,21 +85,29 @@ export default function ShipperAccount() {
           />
         }
       >
-        <View className="items-center gap-3 rounded-panel bg-leaf-700 p-6">
-          <View className="h-20 w-20 items-center justify-center overflow-hidden rounded-3xl border-2 border-white/60 bg-sun-300">
-            {avatar ? (
-              <Image source={{ uri: avatar }} style={{ width: 80, height: 80 }} contentFit="cover" />
-            ) : (
-              <AppText weight="extrabold" className="text-3xl text-leaf-800">
-                {name.charAt(0).toUpperCase()}
-              </AppText>
-            )}
+        <Pressable
+          onPress={() => router.push('/shipper/profile-edit')}
+          className="items-center gap-3 rounded-panel bg-leaf-700 p-6 active:opacity-95"
+        >
+          <View className="relative">
+            <View className="h-20 w-20 items-center justify-center overflow-hidden rounded-3xl border-2 border-white/60 bg-sun-300">
+              {avatar ? (
+                <Image source={{ uri: avatar }} style={{ width: 80, height: 80 }} contentFit="cover" />
+              ) : (
+                <AppText weight="extrabold" className="text-3xl text-leaf-800">
+                  {name.charAt(0).toUpperCase()}
+                </AppText>
+              )}
+            </View>
+            <View className="absolute -bottom-1 -right-1 h-7 w-7 items-center justify-center rounded-full border-2 border-leaf-700 bg-white">
+              <Edit3 size={13} color={colors.leaf700} />
+            </View>
           </View>
           <View className="items-center gap-1">
             <AppText weight="extrabold" numberOfLines={2} className="text-center text-xl text-white">
               {name}
             </AppText>
-            <AppText className="text-sm text-leaf-100">Tài xế CapNong</AppText>
+            <AppText className="text-sm text-leaf-100">Tài xế CapNong · Nhấn để sửa</AppText>
           </View>
           <View className="flex-row items-center gap-1.5 rounded-full bg-white/15 px-3 py-1">
             <View className={cn('h-2 w-2 rounded-full', online ? 'bg-sun-300' : 'bg-white/50')} />
@@ -83,7 +115,7 @@ export default function ShipperAccount() {
               {online ? 'Đang trực tuyến' : 'Đang ngoại tuyến'}
             </AppText>
           </View>
-        </View>
+        </Pressable>
 
         <View className="flex-row rounded-panel border border-line bg-white py-4">
           {stats.map((s, i) => (
@@ -100,7 +132,7 @@ export default function ShipperAccount() {
           {MENU.map(({ icon: Icon, label, hint, href }, i) => (
             <Pressable
               key={href}
-              onPress={() => router.push(href)}
+              onPress={() => router.push(href as any)}
               accessibilityRole="button"
               className={cn(
                 'min-h-[64px] flex-row items-center gap-3 px-4 py-3 active:bg-leaf-50',
@@ -116,6 +148,13 @@ export default function ShipperAccount() {
                 </AppText>
                 <AppText className="text-xs text-ink-muted">{hint}</AppText>
               </View>
+              {label === 'Thông báo' && unreadNotif > 0 && (
+                <View className="mr-1 h-5 min-w-[20px] items-center justify-center rounded-full bg-sale px-1.5">
+                  <AppText weight="bold" className="text-[10px] text-white">
+                    {unreadNotif > 99 ? '99+' : unreadNotif}
+                  </AppText>
+                </View>
+              )}
               <ChevronRight size={18} color={colors.inkSubtle} />
             </Pressable>
           ))}
@@ -124,11 +163,25 @@ export default function ShipperAccount() {
         {profile.isPending ? (
           <Skeleton className="h-60 rounded-panel" />
         ) : (
-          <View className="rounded-panel border border-line bg-white">
+          <View className="overflow-hidden rounded-panel border border-line bg-white">
+            <View className="flex-row items-center justify-between border-b border-line px-4 py-3 bg-slate-50">
+              <AppText weight="bold" className="text-xs uppercase tracking-wide text-ink-muted">
+                Thông tin phương tiện & cá nhân
+              </AppText>
+              <Pressable
+                onPress={() => router.push('/shipper/profile-edit')}
+                className="flex-row items-center gap-1"
+              >
+                <Edit3 size={13} color={colors.leaf700} />
+                <AppText weight="bold" className="text-xs text-leaf-700">
+                  Chỉnh sửa
+                </AppText>
+              </Pressable>
+            </View>
             {rows.map(({ icon: Icon, label, value }, i) => (
               <View
                 key={label}
-                className={cn('min-h-[60px] flex-row items-center gap-3 px-4 py-3', i > 0 && 'border-t border-line')}
+                className={cn('min-h-[56px] flex-row items-center gap-3 px-4 py-3', i > 0 && 'border-t border-line')}
               >
                 <Icon size={18} color={colors.leaf700} />
                 <View className="min-w-0 flex-1">

@@ -22,7 +22,7 @@
     },
     "web": {
       "favicon": "./assets/images/logo-icon.png",
-      "output": "static"
+      "output": "single"
     },
     "plugins": [
       "expo-router",
@@ -50,6 +50,13 @@
         "expo-location",
         {
           "locationWhenInUsePermission": "CapNong cần vị trí của bạn để tìm đơn giao gần và cho người mua theo dõi đường giao hàng."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/logo-icon.png",
+          "color": "#16a34a"
         }
       ]
     ],

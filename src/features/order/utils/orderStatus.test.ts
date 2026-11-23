@@ -1,5 +1,16 @@
 import type { OrderResponse } from '@/types/order.types'
-import { canCancelOrder, isUnpaidOrder, matchOrder, orderStatusLabel, orderStepIndex } from './orderStatus'
+import {
+  canCancelOrder,
+  canCompleteOrder,
+  canRequestReturn,
+  canReviewItem,
+  isUnpaidOrder,
+  matchOrder,
+  ORDER_TABS,
+  orderStatusLabel,
+  orderStatusTone,
+  orderStepIndex,
+} from './orderStatus'
 
 const order = (extra: Partial<OrderResponse>): OrderResponse => ({
   orderId: 12,
@@ -26,6 +37,31 @@ describe('orderStatus', () => {
     expect(canCancelOrder(order({ status: 'CONFIRMED' }))).toBe(false)
   })
 
+  it('xác nhận nhận hàng khi DELIVERED', () => {
+    expect(canCompleteOrder('DELIVERED')).toBe(true)
+    expect(canCompleteOrder('SHIPPING')).toBe(false)
+    expect(canCompleteOrder('COMPLETED')).toBe(false)
+  })
+
+  it('yêu cầu trả hàng khi DELIVERED hoặc COMPLETED', () => {
+    expect(canRequestReturn('DELIVERED')).toBe(true)
+    expect(canRequestReturn('COMPLETED')).toBe(true)
+    expect(canRequestReturn('SHIPPING')).toBe(false)
+  })
+
+  it('đánh giá sản phẩm khi COMPLETED và chưa đánh giá', () => {
+    expect(canReviewItem('COMPLETED', false)).toBe(true)
+    expect(canReviewItem('COMPLETED', true)).toBe(false)
+    expect(canReviewItem('DELIVERED', false)).toBe(false)
+  })
+
+  it('ORDER_TABS có tab trả hàng / hoàn tiền', () => {
+    const refundTab = ORDER_TABS.find((t) => t.key === 'REFUND')
+    expect(refundTab).toBeDefined()
+    expect(refundTab?.statuses).toContain('REFUND_REQUESTED')
+    expect(refundTab?.statuses).toContain('REFUNDED')
+  })
+
   it('tìm theo mã, shop, tên món', () => {
     const o = order({ shopName: 'Vườn cô Ba' })
     expect(matchOrder(o, '12')).toBe(true)
@@ -36,6 +72,10 @@ describe('orderStatus', () => {
 
   it('nhãn và bước tiến trình', () => {
     expect(orderStatusLabel('PICKED_UP')).toBe('Đang giao hàng')
+    expect(orderStatusLabel('REFUND_REQUESTED')).toBe('Đang yêu cầu trả hàng')
+    expect(orderStatusLabel('REFUNDED')).toBe('Đã hoàn tiền')
+    expect(orderStatusTone('REFUND_REQUESTED')).toBe('amber')
+    expect(orderStatusTone('REFUNDED')).toBe('gray')
     expect(orderStatusLabel('NEW_THING')).toBe('NEW THING')
     expect(orderStepIndex('READY')).toBe(1)
     expect(orderStepIndex('CANCELLED')).toBe(-1)

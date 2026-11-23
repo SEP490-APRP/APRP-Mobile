@@ -4,13 +4,16 @@ import { useEffect, useMemo, useState } from 'react'
 import { FlatList, Pressable, RefreshControl, ScrollView, TextInput, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { AppText, Button, ConfirmDialog, EmptyState, ErrorState, Skeleton } from '@/components/ui'
+import { NotificationBellButton } from '@/features/notification'
 import {
+  CancelOrderSheet,
   matchOrder,
   ORDER_TABS,
   OrderCard,
   orderIdOf,
   ResumePaymentSheet,
   useCancelOrder,
+  useCompleteOrder,
   useMyOrders,
   usePayOrder,
   type OrderTab,
@@ -21,12 +24,13 @@ import { fontFamily } from '@/theme/fonts'
 import { getErrorMessage } from '@/utils/errors'
 import { cn } from '@/utils/helpers'
 
-/** Đơn hàng của tôi, chuyển từ BuyerOrdersView bản web. Bản đồ theo dõi shipper làm ở phần Shipper. */
+/** Đơn hàng của tôi, chuyển từ BuyerOrdersView bản web. Hỗ trợ tất cả tabs và luồng nhận hàng / hoàn tiền. */
 export default function OrdersTab() {
   const params = useLocalSearchParams<{ tab?: OrderTab }>()
   const [tab, setTab] = useState<OrderTab>('ALL')
   const [keyword, setKeyword] = useState('')
   const [cancelId, setCancelId] = useState<number | null>(null)
+  const [completingId, setCompletingId] = useState<number | null>(null)
   const [refreshing, setRefreshing] = useState(false)
   const showToast = useUiStore((s) => s.showToast)
 
@@ -36,6 +40,7 @@ export default function OrdersTab() {
 
   const ordersQuery = useMyOrders(tab)
   const cancel = useCancelOrder()
+  const complete = useCompleteOrder()
   const payment = usePayOrder()
   const orders = useMemo(() => (ordersQuery.data ?? []).filter((o) => matchOrder(o, keyword)), [ordersQuery.data, keyword])
 
@@ -45,7 +50,7 @@ export default function OrdersTab() {
     setRefreshing(false)
   }
 
-  const confirmCancel = () => {
+  const confirmCancel = (reason: string) => {
     if (cancelId == null) return
     cancel.mutate(cancelId, {
       onSuccess: () => {
@@ -59,11 +64,28 @@ export default function OrdersTab() {
     })
   }
 
+  const confirmComplete = () => {
+    if (completingId == null) return
+    complete.mutate(completingId, {
+      onSuccess: () => {
+        showToast(`Đã xác nhận nhận đủ hàng cho đơn #${completingId}. Cảm ơn bạn!`)
+        setCompletingId(null)
+      },
+      onError: (err) => {
+        showToast(getErrorMessage(err, 'Không thể xác nhận hoàn thành đơn.'))
+        setCompletingId(null)
+      },
+    })
+  }
+
   const header = (
     <View className="gap-3 border-b border-line bg-paper pb-3 pt-2">
-      <AppText accessibilityRole="header" weight="extrabold" className="px-4 text-2xl">
-        Đơn hàng của tôi
-      </AppText>
+      <View className="flex-row items-center justify-between px-4">
+        <AppText accessibilityRole="header" weight="extrabold" className="text-2xl">
+          Đơn hàng của tôi
+        </AppText>
+        <NotificationBellButton role="buyer" variant="default" size={18} />
+      </View>
       <View className="mx-4 h-12 flex-row items-center gap-2 rounded-card border border-line bg-white px-3.5">
         <Search size={18} color={colors.inkSubtle} />
         <TextInput
@@ -140,9 +162,11 @@ export default function OrdersTab() {
               <OrderCard
                 order={item}
                 paying={payment.payingId === id}
+                completing={complete.isPending && completingId === id}
                 onOpen={() => router.push({ pathname: '/buyer/order/[id]', params: { id: String(id) } })}
                 onPay={() => void payment.pay(item)}
                 onCancel={() => setCancelId(id)}
+                onComplete={() => setCompletingId(id)}
                 onTrack={() => router.push({ pathname: '/buyer/tracking/[id]', params: { id: String(id) } })}
               />
             )
@@ -150,17 +174,27 @@ export default function OrdersTab() {
         />
       )}
 
-      <ConfirmDialog
+      {/* Tấm chọn lý do huỷ đơn hàng */}
+      <CancelOrderSheet
         visible={cancelId != null}
-        title={`Huỷ đơn #${cancelId ?? ''}?`}
-        message="Nông sản sẽ được trả lại kho của nhà vườn. Bạn không thể hoàn tác."
-        confirmLabel="Huỷ đơn"
-        cancelLabel="Giữ đơn"
-        destructive
+        orderId={cancelId}
         loading={cancel.isPending}
+        onClose={() => setCancelId(null)}
         onConfirm={confirmCancel}
-        onCancel={() => setCancelId(null)}
       />
+
+      {/* Xác nhận đã nhận hàng */}
+      <ConfirmDialog
+        visible={completingId != null}
+        title={`Xác nhận đã nhận đơn #${completingId ?? ''}?`}
+        message="Vui lòng kiểm tra kỹ nông sản trước khi xác nhận. Sau bước này tiền sẽ được giải ngân cho nhà vườn và shipper."
+        confirmLabel="Đã nhận đủ hàng"
+        cancelLabel="Kiểm tra lại"
+        loading={complete.isPending}
+        onConfirm={confirmComplete}
+        onCancel={() => setCompletingId(null)}
+      />
+
       <ResumePaymentSheet
         options={payment.options}
         onPayAll={() => void payment.payAll()}

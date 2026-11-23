@@ -18,4 +18,7 @@ export const ENV = {
   WEB_URL: (process.env.EXPO_PUBLIC_WEB_URL || 'https://capnong.vn').replace(/\/+$/, ''),
   /** Mặc định dùng API thật; chỉ bật mock khi đặt rõ EXPO_PUBLIC_USE_MOCK=true. */
   USE_MOCK: process.env.EXPO_PUBLIC_USE_MOCK === 'true',
+  /** Google Maps API Key đồng bộ từ bản Web */
+  GOOGLE_MAPS_API_KEY:
+    process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || '',
 } as const

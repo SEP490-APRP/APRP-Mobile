@@ -1,14 +1,19 @@
 import { Tabs } from 'expo-router/js-tabs'
 import { Truck, UserRound, Wallet, Zap } from 'lucide-react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { useActiveOrders } from '@/features/shipper'
+import { useActiveOrders, useShipperMyReturns } from '@/features/shipper'
 import { colors } from '@/theme/colors'
 import { fontFamily } from '@/theme/fonts'
 
 /** Thanh tab dưới của Shipper, thay cho ba thẻ ngang trên trang Dashboard bản web. */
 export default function ShipperTabsLayout() {
   const insets = useSafeAreaInsets()
-  const active = useActiveOrders().data?.length ?? 0
+  const activeOrders = useActiveOrders().data?.length ?? 0
+  const activeReturns =
+    useShipperMyReturns().data?.filter(
+      (r) => r.status === 'RETURN_SHIPPING' || r.status === 'RETURN_PICKED_UP',
+    ).length ?? 0
+  const active = activeOrders + activeReturns
   return (
     <Tabs
       screenOptions={{

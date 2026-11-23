@@ -1,11 +1,12 @@
 import { Image } from 'expo-image'
 import { router, useLocalSearchParams } from 'expo-router'
-import { MapPin, Package, Star, Store, Ticket } from 'lucide-react-native'
+import { MapPin, MessageCircle, Package, Star, Store, Ticket } from 'lucide-react-native'
 import { useMemo, useState } from 'react'
 import { Pressable, RefreshControl, ScrollView, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { AppText, CapNongLoading, EmptyState } from '@/components/ui'
 import { BackButton } from '@/features/auth/components'
+import { useStartConversation } from '@/features/chat'
 import { useAddProductToCart, useCartQuantities } from '@/features/cart'
 import { MysteryBoxTile, useShopMysteryBoxes } from '@/features/combo'
 import { applyFilters, DEFAULT_FILTERS, ProductGrid, SORT_OPTIONS, useShopProducts, type SortId } from '@/features/product'
@@ -38,6 +39,7 @@ export default function ShopScreen() {
 
   const cart = useCartQuantities()
   const { addProduct, pendingId } = useAddProductToCart()
+  const startChat = useStartConversation()
   const [sort, setSort] = useState<SortId>('featured')
   const [showAllReviews, setShowAllReviews] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
@@ -75,6 +77,16 @@ export default function ShopScreen() {
         <AppText weight="extrabold" numberOfLines={1} className="flex-1 text-base">
           {shopName}
         </AppText>
+        <Pressable
+          onPress={() => startChat.mutate(shopId, { onError: (err) => showToast(getErrorMessage(err, 'Không thể mở tin nhắn. Vui lòng thử lại.')) })}
+          disabled={startChat.isPending}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel="Nhắn tin cho nhà vườn"
+          className="h-10 w-10 items-center justify-center rounded-full active:bg-leaf-50"
+        >
+          <MessageCircle size={20} color={colors.leaf700} />
+        </Pressable>
       </View>
 
       <ScrollView
@@ -119,6 +131,27 @@ export default function ShopScreen() {
             <View className="w-px bg-white/20" />
             <HeroStat icon={Ticket} value={String(voucherList.length)} label="Voucher" />
           </View>
+
+          <Pressable
+            onPress={() => {
+              router.push({
+                pathname: '/buyer/chat/[id]' as any,
+                params: {
+                  id: '-1',
+                  receiverId: String(shopId),
+                  name: shopName,
+                  role: 'SHOP',
+                },
+              })
+            }}
+            accessibilityRole="button"
+            className="flex-row items-center justify-center gap-2 rounded-xl bg-white/20 py-2.5 active:bg-white/30"
+          >
+            <MessageCircle size={16} color="#ffffff" />
+            <AppText weight="bold" className="text-xs text-white">
+              Nhắn tin cho Shop
+            </AppText>
+          </Pressable>
         </View>
 
         {/* Voucher của shop */}
