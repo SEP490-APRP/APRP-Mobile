@@ -1,9 +1,29 @@
 import type { ApiResponse } from '@/types'
-import type { WalletResponse, WithdrawRequestResponse } from './wallet.types'
+import axiosInstance from '@/services/api/axiosInstance'
+import { unwrap } from '@/services/api/apiUtils'
+import type {
+  MyWalletResponse,
+  SpringPage,
+  WalletResponse,
+  WalletTransactionResponse,
+  WithdrawRequestResponse,
+} from './wallet.types'
 import { mockWithdrawRequests } from '@/mocks/wallet.mock'
 import { freshResponses } from '@/mocks/fresh'
 
 export type * from './wallet.types'
+
+/** Ví của người đang đăng nhập (API thật). Buyer: ví giới thiệu, Shop/Shipper: ví thu nhập. */
+export const myWalletApi = {
+  async getMyWallet(): Promise<MyWalletResponse> {
+    return unwrap<MyWalletResponse>(await axiosInstance.get('/wallets/me'))
+  },
+  async getMyTransactions(page = 0, size = 20): Promise<SpringPage<WalletTransactionResponse>> {
+    return unwrap<SpringPage<WalletTransactionResponse>>(
+      await axiosInstance.get('/wallets/me/transactions', { params: { page, size } }),
+    )
+  },
+}
 
 export const walletService = freshResponses({
   async getAllPendingWithdrawRequests(): Promise<ApiResponse<WithdrawRequestResponse[]>> {

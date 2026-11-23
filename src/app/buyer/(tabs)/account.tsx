@@ -13,6 +13,7 @@ import {
   Ticket,
   Truck,
   UserRound,
+  Wallet,
   type LucideIcon,
 } from 'lucide-react-native'
 import { Pressable, RefreshControl, ScrollView, View } from 'react-native'
@@ -32,6 +33,7 @@ const ORDER_SHORTCUTS: { tab: OrderTab; icon: LucideIcon; label: string }[] = [
 ]
 
 const MENU: { icon: LucideIcon; label: string; href: Href }[] = [
+  { icon: Wallet, label: 'Ví của tôi', href: '/buyer/wallet' },
   { icon: UserRound, label: 'Hồ sơ cá nhân', href: '/buyer/profile' },
   { icon: MapPin, label: 'Sổ địa chỉ', href: '/buyer/addresses' },
   { icon: Ticket, label: 'Kho voucher của tôi', href: '/buyer/vouchers' },
