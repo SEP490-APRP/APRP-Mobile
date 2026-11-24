@@ -27,7 +27,7 @@ import { cn } from '@/utils/helpers'
 const STATUS_FILTERS: { key: string; label: string; status?: ReturnStatus }[] = [
   { key: 'ALL', label: 'Tất cả' },
   { key: 'PENDING', label: 'Chờ duyệt', status: 'PENDING' },
-  { key: 'SHOP_APPROVED', label: 'Đã duyệt', status: 'SHOP_APPROVED' },
+  { key: 'ADMIN_APPROVED', label: 'Admin duyệt', status: 'ADMIN_APPROVED' },
   { key: 'DISPUTED', label: 'Admin phân xử', status: 'DISPUTED' },
   { key: 'COMPLETED', label: 'Hoàn tất', status: 'COMPLETED' },
   { key: 'REJECTED', label: 'Từ chối', status: 'REJECTED' },
@@ -44,6 +44,8 @@ export const DISPUTE_STATUS_CONFIG: Record<
   RETURN_SHIPPING: { label: 'Chờ shipper lấy', text: '#0369a1', bg: '#e0f2fe', dot: '#0ea5e9' },
   RETURN_PICKED_UP: { label: 'Đang trả về shop', text: '#6d28d9', bg: '#ede9fe', dot: '#8b5cf6' },
   RETURN_DELIVERED: { label: 'Đã nhận hàng trả', text: '#0f766e', bg: '#ccfbf1', dot: '#14b8a6' },
+  RETURN_FAILED: { label: 'Trả hàng thất bại', text: '#be123c', bg: '#ffe4e6', dot: '#f43f5e' },
+  APPROVED: { label: 'Đã chấp thuận', text: '#15803d', bg: '#dcfce7', dot: '#22c55e' },
   COMPLETED: { label: 'Đã hoàn tất', text: '#15803d', bg: '#dcfce7', dot: '#22c55e' },
   REJECTED: { label: 'Đã từ chối', text: '#4b5563', bg: '#f3f4f6', dot: '#9ca3af' },
   CANCELLED: { label: 'Khách đã huỷ', text: '#6b7280', bg: '#f3f4f6', dot: '#9ca3af' },

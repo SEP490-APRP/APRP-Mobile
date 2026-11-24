@@ -1,6 +1,6 @@
 import { Image } from 'expo-image'
 import { router, useLocalSearchParams } from 'expo-router'
-import { Eye, ImagePlus, PenLine, RefreshCw, Save, Send } from 'lucide-react-native'
+import { Eye, ImagePlus, PenLine, RefreshCw, Save, Send, ShoppingBag } from 'lucide-react-native'
 import { useEffect, useMemo, useState } from 'react'
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, TextInput, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -8,13 +8,19 @@ import { AppText, Button, ChoiceChips, ErrorState, Skeleton, TextField } from '@
 import { BackButton } from '@/features/auth/components'
 import { StoryBody } from '@/features/blog/components/StoryBody'
 import { parseStoryContent, storyId, storyImage } from '@/features/blog/utils/storyContent'
+import { money, ProduceImage } from '@/features/product'
 import {
   blogToDraft,
   draftBodyToHtml,
   emptyBlogDraft,
   ImageSourceSheet,
+  productIdOf,
+  productImageOf,
+  productPrice,
   SHOP_BLOG_CATEGORIES,
+  SingleProductPickerSheet,
   useMyShopBlogs,
+  useMyShopProducts,
   usePickProductImage,
   useSaveShopBlog,
   validateBlogDraft,
@@ -45,14 +51,33 @@ export default function ShopBlogEditor() {
   const save = useSaveShopBlog()
   const pick = usePickProductImage()
   const showToast = useUiStore((s) => s.showToast)
+  const myProductsQuery = useMyShopProducts()
+  const myProducts = myProductsQuery.data ?? []
 
   const [draft, setDraft] = useState<BlogDraft>(emptyBlogDraft)
   const [errors, setErrors] = useState<Partial<Record<keyof BlogDraft, string>>>({})
   const [cover, setCover] = useState<UploadFile>()
   const [coverUrl, setCoverUrl] = useState<string>()
   const [sheet, setSheet] = useState(false)
+  const [productSheet, setProductSheet] = useState(false)
   const [preview, setPreview] = useState(false)
   const [loaded, setLoaded] = useState(id === 0)
+
+  const attachedProduct = useMemo(() => {
+    if (!draft.productId) return null
+    const found = myProducts.find((p) => productIdOf(p) === draft.productId)
+    if (found) return found
+    if (existing?.productId === draft.productId) {
+      return {
+        productId: existing.productId,
+        productName: existing.productName,
+        images: existing.productImage ? [{ imageUrl: existing.productImage }] : [],
+        price: existing.productPrice,
+        unit: existing.productUnit,
+      } as any
+    }
+    return null
+  }, [myProducts, draft.productId, existing])
 
   useEffect(() => {
     if (loaded || !existing) return
@@ -153,6 +178,26 @@ export default function ShopBlogEditor() {
               {draft.title || 'Tiêu đề bài viết'}
             </AppText>
             <StoryBody blocks={parseStoryContent(draftBodyToHtml(draft.body))} />
+
+            {/* Xem trước nông sản đính kèm */}
+            {!!attachedProduct && (
+              <View className="mt-2 flex-row items-center gap-3 rounded-2xl border border-leaf-300 bg-leaf-50/70 p-3.5">
+                <View className="h-14 w-14 overflow-hidden rounded-xl border border-line bg-white">
+                  <ProduceImage src={productImageOf(attachedProduct) ?? ''} alt={attachedProduct.productName || 'Nông sản'} />
+                </View>
+                <View className="min-w-0 flex-1">
+                  <AppText className="text-[10px] font-bold uppercase tracking-wider text-leaf-800">
+                    Sản phẩm trong bài viết
+                  </AppText>
+                  <AppText weight="bold" numberOfLines={1} className="text-sm text-ink mt-0.5">
+                    {attachedProduct.productName || (attachedProduct as any).name}
+                  </AppText>
+                  <AppText className="text-xs font-bold text-rose-600 mt-0.5">
+                    {money(productPrice(attachedProduct))}/{(attachedProduct as any).unit || 'kg'}
+                  </AppText>
+                </View>
+              </View>
+            )}
           </ScrollView>
         ) : (
           <ScrollView contentContainerClassName="gap-5 p-4 pb-8" keyboardShouldPersistTaps="handled">
@@ -203,6 +248,57 @@ export default function ShopBlogEditor() {
               value={draft.category}
               onChange={(category) => change({ category })}
             />
+
+            {/* Đính kèm nông sản */}
+            <View className="gap-2">
+              <View className="flex-row items-baseline justify-between">
+                <AppText weight="semibold" className="text-sm text-ink">
+                  Nông sản đính kèm (tuỳ chọn)
+                </AppText>
+                {!!attachedProduct && (
+                  <Pressable onPress={() => change({ productId: null })} hitSlop={6}>
+                    <AppText className="text-xs font-semibold text-sale">Gỡ đính kèm</AppText>
+                  </Pressable>
+                )}
+              </View>
+
+              {attachedProduct ? (
+                <View className="flex-row items-center gap-3 rounded-2xl border border-leaf-300 bg-leaf-50 p-3">
+                  <View className="h-14 w-14 overflow-hidden rounded-xl border border-line bg-white">
+                    <ProduceImage
+                      src={productImageOf(attachedProduct) ?? ''}
+                      alt={attachedProduct.productName || (attachedProduct as any).name || 'Nông sản'}
+                    />
+                  </View>
+                  <View className="min-w-0 flex-1">
+                    <AppText weight="bold" numberOfLines={1} className="text-sm text-ink">
+                      {attachedProduct.productName || (attachedProduct as any).name}
+                    </AppText>
+                    <AppText className="text-xs font-bold text-rose-600 mt-0.5">
+                      {money(productPrice(attachedProduct))}/{(attachedProduct as any).unit || 'kg'}
+                    </AppText>
+                  </View>
+                  <Pressable
+                    onPress={() => setProductSheet(true)}
+                    className="rounded-full bg-white px-3 py-1.5 border border-leaf-700 active:bg-leaf-100"
+                  >
+                    <AppText weight="bold" className="text-xs text-leaf-700">
+                      Đổi
+                    </AppText>
+                  </Pressable>
+                </View>
+              ) : (
+                <Pressable
+                  onPress={() => setProductSheet(true)}
+                  className="flex-row items-center justify-center gap-2 rounded-2xl border border-dashed border-line-strong bg-white p-3.5 active:bg-paper"
+                >
+                  <ShoppingBag size={18} color={colors.leaf700} />
+                  <AppText weight="bold" className="text-sm text-leaf-700">
+                    Chọn 1 nông sản đính kèm vào bài viết
+                  </AppText>
+                </Pressable>
+              )}
+            </View>
 
             <View className="gap-1.5">
               <AppText weight="semibold" className="text-sm text-ink">
@@ -281,6 +377,14 @@ export default function ShopBlogEditor() {
             if (f) setCover(f)
           })
         }
+      />
+
+      <SingleProductPickerSheet
+        visible={productSheet}
+        onClose={() => setProductSheet(false)}
+        products={myProducts}
+        selectedId={draft.productId}
+        onSelect={(pid) => change({ productId: pid })}
       />
     </SafeAreaView>
   )
