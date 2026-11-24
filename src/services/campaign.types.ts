@@ -241,6 +241,14 @@ export interface PreOrderResponse {
   shipperIncomeAmount?: number | null
   collectionSiteName?: string | null
   collectionSiteAddress?: string | null
+  /** Hub (điểm trung chuyển gần người mua) shipper tới lấy hàng */
+  hubId?: number | null
+  hubName?: string | null
+  hubAddress?: string | null
+  hubLatitude?: number | null
+  hubLongitude?: number | null
+  hubPhone?: string | null
+  hubOpenHours?: string | null
   /** Độ gấp khi giao */
   priorityLevel?: PriorityLevel | null
   priorityReason?: string | null
@@ -282,6 +290,35 @@ export interface PreOrderResponse {
   checkoutUrl?: string | null
   qrCodeUrl?: string | null
   createdAt?: string | null
+}
+
+/* ─────────────── Điểm trung chuyển (hub) ─────────────── */
+
+/** Xe CapNong chở thùng đã đóng gói từ điểm tập kết tới hub gần khu dân cư, shipper lấy hàng tại hub */
+export interface DeliveryHub {
+  hubId: number
+  name: string
+  address: string
+  latitude: number
+  longitude: number
+  phone?: string | null
+  openHours?: string | null
+  note?: string | null
+  active: boolean
+  /** Số đơn đang nằm ở hub chờ shipper */
+  waitingOrders: number
+  createdAt?: string | null
+}
+
+export interface DeliveryHubRequest {
+  name: string
+  address: string
+  latitude: number
+  longitude: number
+  phone?: string
+  openHours?: string
+  note?: string
+  active?: boolean
 }
 
 /* ─────────────── Nhà vườn (shop) đăng ký lô hàng vào chiến dịch ─────────────── */

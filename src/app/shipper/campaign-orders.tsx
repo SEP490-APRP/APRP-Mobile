@@ -68,13 +68,13 @@ export default function ShipperCampaignOrdersScreen() {
           ))}
         </Section>
 
-        <Section icon={Package} title="Admin đã giao cho bạn" hint="Tới điểm tập kết lấy hàng rồi bấm Đã lấy hàng" empty="Chưa có đơn nào được giao cho bạn." loading={mine.isPending} count={assignedWaiting.length}>
+        <Section icon={Package} title="Admin đã giao cho bạn" hint="Tới hub ghi trên đơn lấy hàng rồi bấm Đã lấy hàng" empty="Chưa có đơn nào được giao cho bạn." loading={mine.isPending} count={assignedWaiting.length}>
           {assignedWaiting.map((o) => (
             <ShipperPreOrderCard key={o.preOrderId} o={o} action={acceptBtn(o, 'Đã lấy hàng ở hub', Package)} />
           ))}
         </Section>
 
-        <Section icon={Flame} title="Tại hub chờ nhận" hint="Đơn gấp nằm trên cùng, nhận để giao" empty="Hub chưa có đơn chiến dịch nào chờ shipper." loading={ready.isPending} count={ready.data?.length ?? 0}>
+        <Section icon={Flame} title="Tại hub chờ nhận" hint="Xe CapNong đã chở hàng tới hub, nhận đơn rồi tới hub lấy hàng" empty="Hub chưa có đơn chiến dịch nào chờ shipper." loading={ready.isPending} count={ready.data?.length ?? 0}>
           {(ready.data ?? []).map((o) => (
             <ShipperPreOrderCard key={o.preOrderId} o={o} action={acceptBtn(o, 'Nhận đơn', CheckCircle2)} />
           ))}

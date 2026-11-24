@@ -1,4 +1,4 @@
-import { Camera, CheckCircle2, Clock, MapPin, Navigation, Phone, XCircle } from 'lucide-react-native'
+import { Camera, CheckCircle2, Clock, MapPin, Navigation, Phone, Warehouse, XCircle } from 'lucide-react-native'
 import { useState, type ReactNode } from 'react'
 import { ActivityIndicator, Linking, Pressable, View } from 'react-native'
 import { AppText, Button } from '@/components/ui'
@@ -60,6 +60,7 @@ export function ShipperPreOrderCard({ o, action }: { o: PreOrderResponse; action
           )}
         </View>
       </View>
+      {!!o.hubName && <HubPickup o={o} />}
       {o.status === 'READY' && Number(o.remainingAmount ?? 0) > 0 && (
         <Notice>
           Nhận đơn cần ký quỹ {formatVnd(o.remainingAmount)} trong ví (bằng số tiền sẽ thu). Giao xong ví trừ đúng số tiền mặt bạn cầm và cộng cước; giao
@@ -93,9 +94,42 @@ export function ShipperPreOrderCard({ o, action }: { o: PreOrderResponse; action
       </View>
       <View className="flex-row flex-wrap gap-2">
         {!!o.recipientPhone && <SmallLink icon={Phone} label="Gọi" url={`tel:${o.recipientPhone}`} />}
-        {dir && <SmallLink icon={Navigation} label="Chỉ đường" url={dir} />}
+        {dir && <SmallLink icon={Navigation} label="Đường tới khách" url={dir} />}
       </View>
       {action}
+    </View>
+  )
+}
+
+/** Hub shipper tới lấy hàng: xe CapNong đã chở thùng từ điểm tập kết tới đây */
+function HubPickup({ o }: { o: PreOrderResponse }) {
+  const url = directionsUrl(o.hubLatitude, o.hubLongitude, o.hubAddress)
+  const pickedUp = o.status === 'SHIPPING' || !!o.pickedUpAt
+  return (
+    <View className="gap-1.5 rounded-2xl border border-leaf-200 bg-leaf-50 p-3">
+      <View className="flex-row items-center gap-2">
+        <Warehouse size={16} color={colors.leaf700} />
+        <AppText weight="extrabold" className="flex-1 text-sm text-leaf-800">
+          {pickedUp ? 'Đã lấy hàng tại' : 'Lấy hàng tại'} hub {o.hubName}
+        </AppText>
+      </View>
+      {!!o.hubAddress && <AppText className="text-xs text-ink-muted">{o.hubAddress}</AppText>}
+      {(!!o.hubOpenHours || !!o.hubPhone) && (
+        <AppText className="text-xs text-ink-subtle">{[o.hubOpenHours, o.hubPhone].filter(Boolean).join(' · ')}</AppText>
+      )}
+      {!pickedUp && (
+        <View className="flex-row flex-wrap gap-2">
+          {url && (
+            <Pressable onPress={() => void Linking.openURL(url)} className="flex-row items-center gap-1 rounded-xl bg-leaf-700 px-3 py-2 active:opacity-80">
+              <Navigation size={13} color={colors.white} />
+              <AppText weight="bold" className="text-xs text-white">
+                Đường tới hub
+              </AppText>
+            </Pressable>
+          )}
+          {!!o.hubPhone && <SmallLink icon={Phone} label="Gọi hub" url={`tel:${o.hubPhone}`} />}
+        </View>
+      )}
     </View>
   )
 }
