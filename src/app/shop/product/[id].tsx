@@ -18,7 +18,7 @@ import {
   toProductRequest,
   useDeleteListing,
   useMyShopProducts,
-  usePickProductImage,
+  usePickProductImages,
   useProductForm,
   useProductImageAction,
   useShopProductImages,
@@ -41,12 +41,13 @@ export default function EditShopProduct() {
   const remove = useDeleteListing()
   const images = useShopProductImages(id)
   const imageAction = useProductImageAction(id)
-  const pick = usePickProductImage()
+  const pickImages = usePickProductImages()
   const showToast = useUiStore((s) => s.showToast)
   const [sheet, setSheet] = useState(false)
   const [selected, setSelected] = useState<ProductImageResponse | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [aiWarning, setAiWarning] = useState<string>()
+  const [uploadProgress, setUploadProgress] = useState<string>()
   const [loaded, setLoaded] = useState(false)
 
   const { setValues } = form
@@ -86,14 +87,47 @@ export default function EditShopProduct() {
   const name = product.productName || product.name || 'Nông sản'
 
   const addImage = async (source: 'camera' | 'library') => {
-    const file = await pick(source)
-    if (!file) return
+    const remaining = MAX_PRODUCT_IMAGES - gallery.length
+    const files = await pickImages(source, remaining)
+    if (files.length === 0) return
     setAiWarning(undefined)
+    setUploadProgress(`AI đang xem 1/${files.length}…`)
     imageAction.mutate(
-      { kind: 'add', file, isPrimary: gallery.length === 0, displayOrder: gallery.length },
       {
-        onSuccess: () => showToast('Đã thêm ảnh. AI đã kiểm tra ảnh là nông sản thật.'),
-        onError: (err) => setAiWarning(imageUploadMessage(err, getErrorMessage(err, ''))),
+        kind: 'addMany',
+        files,
+        startOrder: gallery.length,
+        needPrimary: gallery.length === 0,
+        onProgress: (cur, total) => setUploadProgress(`AI đang xem ${cur}/${total}…`),
+      },
+      {
+        onSuccess: (res) => {
+          setUploadProgress(undefined)
+          if (!res) return
+          const { addedCount, failedImages } = res
+          if (addedCount > 0 && failedImages.length === 0) {
+            showToast(
+              addedCount === 1
+                ? 'Đã thêm ảnh. AI đã kiểm tra ảnh là nông sản thật.'
+                : `Đã thêm ${addedCount} ảnh. AI đã kiểm tra đều là nông sản thật.`,
+            )
+            return
+          }
+          if (addedCount > 0 && failedImages.length > 0) {
+            showToast(`Đã thêm ${addedCount} ảnh; ${failedImages.length} ảnh chưa đạt kiểm duyệt.`)
+            setAiWarning(
+              `${failedImages.length} ảnh bị AI từ chối: ${failedImages.map((f) => f.reason).join(' ')}`,
+            )
+            return
+          }
+          if (failedImages.length > 0) {
+            setAiWarning(failedImages[0].reason)
+          }
+        },
+        onError: (err) => {
+          setUploadProgress(undefined)
+          setAiWarning(imageUploadMessage(err, getErrorMessage(err, '')))
+        },
       },
     )
   }
@@ -228,10 +262,13 @@ export default function EditShopProduct() {
                   accessibilityLabel="Thêm ảnh"
                   className="h-28 w-28 items-center justify-center gap-1 rounded-xl border-2 border-dashed border-leaf-200 bg-white"
                 >
-                  {imageAction.isPending && imageAction.variables?.kind === 'add' ? (
+                  {imageAction.isPending &&
+                  (imageAction.variables?.kind === 'add' || imageAction.variables?.kind === 'addMany') ? (
                     <>
                       <ActivityIndicator color={colors.leaf700} />
-                      <AppText className="text-xs text-ink-muted">AI đang xem…</AppText>
+                      <AppText className="text-center text-xs text-ink-muted">
+                        {uploadProgress ?? 'AI đang xem…'}
+                      </AppText>
                     </>
                   ) : (
                     <>

@@ -29,7 +29,15 @@ export interface BlogDraft {
   body: string
 }
 
-const runsToText = (runs: StoryRun[]) => runs.map((r) => (r.bold ? `**${r.text}**` : r.text)).join('')
+const runsToText = (runs: StoryRun[]) =>
+  runs
+    .map((r) => {
+      if (r.bold && r.italic) return `***${r.text}***`
+      if (r.bold) return `**${r.text}**`
+      if (r.italic) return `*${r.text}*`
+      return r.text
+    })
+    .join('')
 
 /** HTML (hoặc chữ thường) đã lưu → chữ để sửa trên app. Ảnh chèn giữa bài được giữ dạng ![](url). */
 export function htmlToDraftBody(content?: string | null): string {
@@ -39,11 +47,16 @@ export function htmlToDraftBody(content?: string | null): string {
         case 'heading':
           return `## ${runsToText(b.runs)}`
         case 'quote':
-          return `> ${runsToText(b.runs)}`
+          return runsToText(b.runs)
+            .split('\n')
+            .map((line) => `> ${line}`)
+            .join('\n')
         case 'list':
           return b.items.map((it, i) => `${b.ordered ? `${i + 1}.` : '-'} ${runsToText(it)}`).join('\n')
         case 'image':
           return `![](${b.src})`
+        case 'table':
+          return b.rows.map((r) => r.join(' · ')).join('\n')
         default:
           return runsToText(b.runs)
       }
@@ -53,7 +66,11 @@ export function htmlToDraftBody(content?: string | null): string {
 
 const escapeHtml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 
-const inline = (s: string) => escapeHtml(s.trim()).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+const inline = (s: string) =>
+  escapeHtml(s.trim())
+    .replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*([^*\n]+?)\*/g, '<em>$1</em>')
 
 type LineKind = 'h' | 'ul' | 'ol' | 'quote' | 'img' | 'text' | 'blank'
 

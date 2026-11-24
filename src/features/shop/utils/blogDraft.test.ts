@@ -18,10 +18,15 @@ describe('blogDraft', () => {
     expect(draftBodyToHtml('a < b\ndòng 2')).toBe('<p>a &lt; b<br>dòng 2</p>')
   })
 
-  it('HTML cũ đổi lại thành chữ để sửa, rồi lưu ra đúng HTML đó', () => {
+  it('HTML cũ (kể cả CKEditor in nghiêng / list lồng <p>) đổi lại thành chữ để sửa, rồi lưu ra đúng HTML đó', () => {
     const html = draftBodyToHtml(body)
     expect(draftBodyToHtml(htmlToDraftBody(html))).toBe(html)
     expect(htmlToDraftBody(html)).toContain('## Cách bảo quản\n\n- Để ngăn mát\n- Không rửa')
+
+    const ckHtml = '<p>Trái <em>chín cây</em> &amp; <strong>ngọt</strong></p><ul><li><p>Bước 1</p></li></ul>'
+    const draftBody = htmlToDraftBody(ckHtml)
+    expect(draftBody).toBe('Trái *chín cây* & **ngọt**\n\n- Bước 1')
+    expect(draftBodyToHtml(draftBody)).toBe('<p>Trái <em>chín cây</em> &amp; <strong>ngọt</strong></p><ul><li>Bước 1</li></ul>')
   })
 
   it('kiểm tra và tạo request', () => {
