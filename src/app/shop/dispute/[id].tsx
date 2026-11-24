@@ -56,8 +56,17 @@ export default function ShopDisputeDetailScreen() {
   const goBack = () => (router.canGoBack() ? router.back() : router.replace('/shop/disputes' as any))
 
   const handleSubmitResponse = async () => {
-    if (!responseText.trim()) {
-      showToast(decision === 'ACCEPT' ? 'Vui lòng nhập lời nhắn gửi khách hàng' : 'Vui lòng nhập lý do từ chối khiếu nại')
+    const isAccepting = isAdminApproved || decision === 'ACCEPT'
+    const finalResponse =
+      responseText.trim() ||
+      (isAccepting
+        ? isReturnGoods
+          ? 'Shop đồng ý thu hồi hàng về vườn qua Shipper.'
+          : 'Shop đồng ý hoàn tiền ngay không cần trả lại hàng.'
+        : 'Shop từ chối yêu cầu khiếu nại.')
+
+    if (!responseText.trim() && !isAdminApproved && decision === 'REJECT') {
+      showToast('Vui lòng nhập lý do từ chối khiếu nại')
       return
     }
 
@@ -65,15 +74,17 @@ export default function ShopDisputeDetailScreen() {
       await respondMutation.mutateAsync({
         id,
         data: {
-          accept: decision === 'ACCEPT',
-          shopResponse: responseText.trim(),
-          isReturnGoods: decision === 'ACCEPT' ? isReturnGoods : false,
-          shippingPaymentMethod: decision === 'ACCEPT' && isReturnGoods ? shippingPaymentMethod : undefined,
+          accept: isAccepting,
+          shopResponse: finalResponse,
+          isReturnGoods: isAccepting ? isReturnGoods : false,
+          shippingPaymentMethod: isAccepting && isReturnGoods ? shippingPaymentMethod : undefined,
         },
       })
       showToast(
-        decision === 'ACCEPT'
-          ? 'Đã duyệt yêu cầu hoàn tiền cho khách.'
+        isAccepting
+          ? isReturnGoods
+            ? 'Đã tạo đơn thu hồi hàng thành công! Đang điều phối shipper.'
+            : 'Đã xác nhận hoàn tiền cho khách thành công!'
           : 'Đã từ chối yêu cầu và gửi hồ sơ đến Admin phân xử.',
       )
       refetch()
@@ -116,6 +127,8 @@ export default function ShopDisputeDetailScreen() {
   }
 
   const isPending = dispute.status === 'PENDING'
+  const isAdminApproved = dispute.status === 'ADMIN_APPROVED'
+  const canRespond = isPending || isAdminApproved
 
   return (
     <SafeAreaView className="flex-1 bg-paper" edges={['top', 'bottom']}>
@@ -277,49 +290,60 @@ export default function ShopDisputeDetailScreen() {
             </View>
           )}
 
-          {/* Khung Xử Lý Khiếu Nại (Dành cho trạng thái PENDING) */}
-          {isPending && (
+          {/* Khung Xử Lý Khiếu Nại (Dành cho trạng thái PENDING hoặc ADMIN_APPROVED) */}
+          {canRespond && (
             <View className="rounded-panel border-2 border-leaf-700 bg-white p-4 gap-3.5 shadow-sm">
               <View className="flex-row items-center gap-2">
                 <Gavel size={18} color={colors.leaf700} />
                 <AppText weight="extrabold" className="text-base text-ink">
-                  Quyết Định Của Gian Hàng
+                  {isAdminApproved ? 'Phương Án Xử Lý Của Gian Hàng' : 'Quyết Định Của Gian Hàng'}
                 </AppText>
               </View>
 
-              {/* Lựa chọn Đồng ý vs Từ chối */}
-              <View className="flex-row rounded-xl border border-line bg-paper p-1">
-                <Pressable
-                  onPress={() => setDecision('ACCEPT')}
-                  className={cn(
-                    'flex-1 items-center justify-center rounded-lg py-2.5',
-                    decision === 'ACCEPT' && 'bg-leaf-700 shadow-sm',
-                  )}
-                >
-                  <AppText
-                    weight="bold"
-                    className={cn('text-xs', decision === 'ACCEPT' ? 'text-white' : 'text-ink-muted')}
-                  >
-                    Đồng ý hoàn tiền
+              {isAdminApproved ? (
+                <View className="rounded-xl bg-indigo-50 border border-indigo-200 p-3 gap-1">
+                  <AppText weight="bold" className="text-xs text-indigo-900">
+                    Admin đã chấp thuận khiếu nại của khách
                   </AppText>
-                </Pressable>
-                <Pressable
-                  onPress={() => setDecision('REJECT')}
-                  className={cn(
-                    'flex-1 items-center justify-center rounded-lg py-2.5',
-                    decision === 'REJECT' && 'bg-sale shadow-sm',
-                  )}
-                >
-                  <AppText
-                    weight="bold"
-                    className={cn('text-xs', decision === 'REJECT' ? 'text-white' : 'text-ink-muted')}
-                  >
-                    Từ chối khiếu nại
+                  <AppText className="text-xs text-indigo-800 leading-relaxed">
+                    Vui lòng lựa chọn: Có thu hồi hàng về vườn (hệ thống sẽ tạo đơn cho Shipper đến lấy) hay Hoàn tiền ngay không cần thu hồi hàng.
                   </AppText>
-                </Pressable>
-              </View>
+                </View>
+              ) : (
+                /* Lựa chọn Đồng ý vs Từ chối (chỉ khi PENDING) */
+                <View className="flex-row rounded-xl border border-line bg-paper p-1">
+                  <Pressable
+                    onPress={() => setDecision('ACCEPT')}
+                    className={cn(
+                      'flex-1 items-center justify-center rounded-lg py-2.5',
+                      decision === 'ACCEPT' && 'bg-leaf-700 shadow-sm',
+                    )}
+                  >
+                    <AppText
+                      weight="bold"
+                      className={cn('text-xs', decision === 'ACCEPT' ? 'text-white' : 'text-ink-muted')}
+                    >
+                      Đồng ý hoàn tiền
+                    </AppText>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => setDecision('REJECT')}
+                    className={cn(
+                      'flex-1 items-center justify-center rounded-lg py-2.5',
+                      decision === 'REJECT' && 'bg-sale shadow-sm',
+                    )}
+                  >
+                    <AppText
+                      weight="bold"
+                      className={cn('text-xs', decision === 'REJECT' ? 'text-white' : 'text-ink-muted')}
+                    >
+                      Từ chối khiếu nại
+                    </AppText>
+                  </Pressable>
+                </View>
+              )}
 
-              {decision === 'ACCEPT' ? (
+              {isAdminApproved || decision === 'ACCEPT' ? (
                 <View className="gap-3">
                   <View className="flex-row items-center gap-2">
                     <Checkbox

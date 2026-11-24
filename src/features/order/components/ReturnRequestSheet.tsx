@@ -43,7 +43,6 @@ export function ReturnRequestSheet({
 }) {
   const [selectedReason, setSelectedReason] = useState<string>(RETURN_REASONS[0])
   const [customReason, setCustomReason] = useState('')
-  const [refundAmountStr, setRefundAmountStr] = useState('')
   const [photos, setPhotos] = useState<UploadFile[]>([])
   const [uploading, setUploading] = useState(false)
   const createReturn = useCreateReturnRequest()
@@ -52,16 +51,15 @@ export function ReturnRequestSheet({
   const detailId = item?.orderDetailId ?? item?.id
   const itemUnitPrice = Number(item?.unitPrice || 0)
   const itemQty = Number(item?.quantity || 1)
-  const maxRefundAmount = itemUnitPrice * itemQty
+  const refundAmount = itemUnitPrice * itemQty
 
   useEffect(() => {
     if (visible && item) {
       setSelectedReason(RETURN_REASONS[0])
       setCustomReason('')
-      setRefundAmountStr(String(maxRefundAmount))
       setPhotos([])
     }
-  }, [visible, item, maxRefundAmount])
+  }, [visible, item])
 
   if (!item) return null
 
@@ -137,12 +135,6 @@ export function ReturnRequestSheet({
       return
     }
 
-    const parsedRefund = Number(refundAmountStr) || maxRefundAmount
-    if (parsedRefund <= 0 || parsedRefund > maxRefundAmount) {
-      showToast(`Số tiền hoàn không hợp lệ (tối đa ${money(maxRefundAmount)}).`)
-      return
-    }
-
     setUploading(true)
     try {
       const uploadedUrls: string[] = []
@@ -156,7 +148,7 @@ export function ReturnRequestSheet({
       await createReturn.mutateAsync({
         orderDetailId: detailId,
         reason: finalReason,
-        refundAmount: parsedRefund,
+        refundAmount,
         evidenceUrls: uploadedUrls.length > 0 ? uploadedUrls : undefined,
       })
 
@@ -204,7 +196,7 @@ export function ReturnRequestSheet({
               {displayName}
             </AppText>
             <AppText className="text-xs text-ink-muted">
-              {money(itemUnitPrice)} × {itemQty} = {money(maxRefundAmount)}
+              {money(itemUnitPrice)} × {itemQty} = {money(refundAmount)}
             </AppText>
           </View>
         </View>
@@ -257,23 +249,21 @@ export function ReturnRequestSheet({
           )}
         </View>
 
-        {/* Số tiền hoàn yêu cầu */}
-        <View className="gap-1.5">
+        {/* Số tiền hoàn trả (cố định theo số tiền đã thanh toán cho sản phẩm) */}
+        <View className="rounded-2xl border border-line bg-stone-50 p-3.5">
           <View className="flex-row items-center justify-between">
-            <AppText weight="bold" className="text-sm">
-              Số tiền yêu cầu hoàn lại
+            <View>
+              <AppText weight="bold" className="text-sm text-ink">
+                Số tiền hoàn lại
+              </AppText>
+              <AppText className="text-[11px] text-ink-muted mt-0.5">
+                (Số tiền bạn đã thanh toán cho nông sản này)
+              </AppText>
+            </View>
+            <AppText weight="bold" className="text-base text-leaf-700">
+              {money(refundAmount)}
             </AppText>
-            <AppText className="text-xs text-ink-muted">Tối đa: {money(maxRefundAmount)}</AppText>
           </View>
-          <TextInput
-            value={refundAmountStr}
-            onChangeText={setRefundAmountStr}
-            keyboardType="numeric"
-            placeholder="Số tiền hoàn lại"
-            placeholderTextColor={colors.inkSubtle}
-            className="h-12 rounded-2xl border border-line bg-white px-3.5 text-sm font-bold text-leaf-700"
-            style={{ fontFamily: fontFamily.bold }}
-          />
         </View>
 
         {/* Ảnh / Video bằng chứng */}
