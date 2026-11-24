@@ -18,6 +18,7 @@ export const REGION_OPTIONS: readonly Choice[] = [
   { value: 'Miền Tây Nam Bộ', label: 'Miền Tây Nam Bộ' },
   { value: 'Tây Nguyên', label: 'Tây Nguyên' },
   { value: 'TP. Hồ Chí Minh', label: 'TP. Hồ Chí Minh' },
+  { value: 'Khác', label: 'Khác' },
 ]
 
 export const FARMING_OPTIONS: readonly Choice[] = [
@@ -25,6 +26,7 @@ export const FARMING_OPTIONS: readonly Choice[] = [
   { value: 'VietGAP', label: 'VietGAP / GlobalGAP' },
   { value: 'Vườn tự nhiên', label: 'Thu hoạch tự nhiên' },
   { value: 'Thủy canh', label: 'Thủy canh' },
+  { value: 'Khác', label: 'Khác' },
 ]
 
 export type RegisterRole = 'buyer' | 'shop' | 'shipper'

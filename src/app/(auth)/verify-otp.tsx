@@ -1,8 +1,8 @@
 import { router, useLocalSearchParams } from 'expo-router'
-import { Mail, Pencil, RefreshCw, ShieldCheck } from 'lucide-react-native'
+import { Mail, RefreshCw, ShieldCheck } from 'lucide-react-native'
 import { useRef, useState } from 'react'
 import { Pressable, View } from 'react-native'
-import { AppText, Banner, Button, OtpInput, Screen, TextField } from '@/components/ui'
+import { AppText, Banner, Button, OtpInput, Screen } from '@/components/ui'
 import type { OtpInputHandle } from '@/components/ui/OtpInput'
 import { useCountdown, useResendOtp, useVerifyOtp, type RegisterRole } from '@/features/auth'
 import { AuthHeader, BackButton } from '@/features/auth/components'
@@ -14,8 +14,7 @@ const RESEND_SECONDS = 60
 /** Port của OtpVerificationPage.tsx: 6 số, gửi lại sau 60 giây, sửa email tại chỗ. */
 export default function VerifyOtpScreen() {
   const params = useLocalSearchParams<{ email?: string; role?: RegisterRole }>()
-  const [email, setEmail] = useState(params.email ?? '')
-  const [editingEmail, setEditingEmail] = useState(!params.email)
+  const [email] = useState(params.email ?? '')
   const [otp, setOtp] = useState('')
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
@@ -30,8 +29,7 @@ export default function VerifyOtpScreen() {
     setSuccess('')
     const trimmedEmail = email.trim()
     if (!trimmedEmail) {
-      setError('Vui lòng nhập địa chỉ email của bạn')
-      setEditingEmail(true)
+      setError('Không tìm thấy thông tin email đăng ký.')
       return
     }
     if (code.length !== 6) {
@@ -77,8 +75,7 @@ export default function VerifyOtpScreen() {
   const handleResend = () => {
     const trimmedEmail = email.trim()
     if (!trimmedEmail) {
-      setError('Vui lòng nhập email trước khi yêu cầu gửi lại mã OTP')
-      setEditingEmail(true)
+      setError('Không tìm thấy thông tin email đăng ký.')
       return
     }
     setError('')
@@ -101,30 +98,12 @@ export default function VerifyOtpScreen() {
       <AuthHeader title="Xác thực tài khoản" subtitle="Mã bảo mật 6 chữ số đã được gửi tới" />
 
       <View className="gap-5">
-        {editingEmail ? (
-          <TextField
-            label="Email đăng ký"
-            icon={Mail}
-            value={email}
-            onChangeText={setEmail}
-            placeholder="ban@email.com"
-            keyboardType="email-address"
-            autoCapitalize="none"
-            onSubmitEditing={() => email.trim() && setEditingEmail(false)}
-          />
-        ) : (
-          <Pressable
-            onPress={() => setEditingEmail(true)}
-            accessibilityRole="button"
-            accessibilityLabel="Đổi email"
-            className="-mt-3 flex-row items-center justify-center gap-2 self-center rounded-card border border-line bg-leaf-50 px-3 py-1.5"
-          >
-            <AppText weight="bold" className="text-sm text-ink" numberOfLines={1}>
-              {email}
-            </AppText>
-            <Pencil size={14} color={colors.leaf700} />
-          </Pressable>
-        )}
+        <View className="-mt-3 flex-row items-center justify-center gap-1.5 self-center rounded-card border border-line bg-leaf-50 px-3.5 py-1.5">
+          <Mail size={14} color={colors.leaf700} />
+          <AppText weight="bold" className="text-sm text-ink" numberOfLines={1}>
+            {email || 'email đăng ký'}
+          </AppText>
+        </View>
 
         <Banner tone="error" message={error} />
         <Banner tone="success" message={success} />
