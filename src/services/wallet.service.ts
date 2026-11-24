@@ -206,3 +206,6 @@ export const walletApi = {
 /** Giới hạn nạp ví (khớp capnong.wallet.min-topup / max-topup ở backend) */
 export const MIN_TOPUP_AMOUNT = 10_000
 export const MAX_TOPUP_AMOUNT = 20_000_000
+
+/** Tên cũ, giữ để tương thích: trỏ về walletApi */
+export const myWalletApi = walletApi

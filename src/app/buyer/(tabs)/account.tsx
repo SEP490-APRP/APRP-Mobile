@@ -7,6 +7,7 @@ import {
   CircleCheckBig,
   Clock,
   CreditCard,
+  Flame,
   KeyRound,
   LogOut,
   MapPin,
@@ -38,6 +39,8 @@ const ORDER_SHORTCUTS: { tab: OrderTab; icon: LucideIcon; label: string }[] = [
 ]
 
 const MENU: { icon: LucideIcon; label: string; href: Href; badgeKey?: 'notif' | 'chat' }[] = [
+  { icon: Flame, label: 'Chiến dịch giải cứu', href: '/buyer/campaigns' as Href },
+  { icon: Clock, label: 'Đơn đặt trước chiến dịch', href: '/buyer/pre-orders' as Href },
   { icon: Wallet, label: 'Ví của tôi & Tiếp thị liên kết', href: '/buyer/wallet' as Href },
   { icon: UtensilsCrossed, label: 'Kế hoạch thực đơn AI', href: '/buyer/meal-plan' as any },
   { icon: UserRound, label: 'Hồ sơ cá nhân', href: '/buyer/profile' },

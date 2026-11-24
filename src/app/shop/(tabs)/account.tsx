@@ -7,6 +7,7 @@ import {
   BarChart3,
   BookOpen,
   Boxes,
+  Flame,
   ChevronRight,
   Clock,
   Headphones,
@@ -95,6 +96,14 @@ export default function ShopAccountTab() {
       label: 'Kho nông sản & Tin đăng',
       desc: 'Nông sản lẻ, Combo rau củ và Túi mù',
       onPress: () => router.navigate('/shop/products'),
+    },
+    {
+      icon: Flame,
+      iconBg: 'bg-orange-50',
+      iconColor: '#ea580c',
+      label: 'Chiến dịch giải cứu',
+      desc: 'Lời kêu gọi, góp lô hàng, đề xuất chiến dịch',
+      href: '/shop/campaigns',
     },
     {
       icon: AlertTriangle,
