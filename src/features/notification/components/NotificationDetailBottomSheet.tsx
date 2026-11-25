@@ -4,6 +4,7 @@ import {
   AlertTriangle,
   Bell,
   Calendar,
+  CheckCircle2,
   ExternalLink,
   Package,
   Tag,
@@ -13,8 +14,9 @@ import {
 } from 'lucide-react-native'
 import { Alert, Linking, Pressable, View } from 'react-native'
 import { AppText, BottomSheet, Button } from '@/components/ui'
+import { shipperErrorCode, shipperErrorMessage, useAcceptOrder } from '@/features/shipper'
 import type { NotificationItem } from '@/services/notification.types'
-import { useAuthStore } from '@/stores'
+import { useAuthStore, useUiStore } from '@/stores'
 import { colors } from '@/theme/colors'
 import { cn } from '@/utils/helpers'
 
@@ -44,6 +46,8 @@ export function NotificationDetailBottomSheet({
   onDelete,
 }: NotificationDetailBottomSheetProps) {
   const user = useAuthStore((s) => s.user)
+  const showToast = useUiStore((s) => s.showToast)
+  const acceptOrder = useAcceptOrder()
   const role = user?.role?.toLowerCase()
 
   if (!notification) return null
@@ -162,7 +166,7 @@ export function NotificationDetailBottomSheet({
       if (role === 'shop') {
         router.push({ pathname: '/shop/order/[id]' as any, params: { id: targetOrderId } })
       } else if (role === 'shipper') {
-        router.push({ pathname: '/shipper/tracking/[id]' as any, params: { id: targetOrderId } })
+        router.push({ pathname: '/shipper/order/[id]' as any, params: { id: targetOrderId } })
       } else {
         router.push({ pathname: '/buyer/order/[id]', params: { id: targetOrderId } })
       }
@@ -225,6 +229,43 @@ export function NotificationDetailBottomSheet({
     smartActionTitle = role === 'shop' ? 'Quản lý voucher' : 'Xem kho voucher'
   }
 
+  const isShipperOrderOffer =
+    role === 'shipper' &&
+    Boolean(targetOrderId) &&
+    (type.includes('OFFER') ||
+      type.includes('DISPATCH') ||
+      textContent.includes('đơn mới') ||
+      textContent.includes('cần ký quỹ') ||
+      textContent.includes('gần bạn'))
+
+  const handleQuickAccept = () => {
+    if (!targetOrderId) return
+    acceptOrder.mutate(targetOrderId, {
+      onSuccess: () => {
+        onClose()
+        showToast(`Đã nhận đơn #${targetOrderId}. Đến nhà vườn lấy hàng nhé!`)
+        router.navigate('/shipper/delivering' as any)
+      },
+      onError: (e) => {
+        const msg = shipperErrorMessage(e, 'Chưa nhận được đơn, thử lại nhé.')
+        if (shipperErrorCode(e) === 16013) {
+          Alert.alert('Số dư ký quỹ không đủ', msg, [
+            {
+              text: 'Nạp ví ngay',
+              onPress: () => {
+                onClose()
+                router.push('/shipper/wallet' as any)
+              },
+            },
+            { text: 'Đóng', style: 'cancel' },
+          ])
+        } else {
+          showToast(msg)
+        }
+      },
+    })
+  }
+
   return (
     <BottomSheet
       visible={visible}
@@ -232,13 +273,35 @@ export function NotificationDetailBottomSheet({
       onClose={onClose}
       footer={
         <View className="w-full gap-2">
-          {hasSmartAction && (
-            <Button
-              title={smartActionTitle}
-              variant="primary"
-              onPress={handlePrimaryAction}
-              className="min-h-[44px] w-full"
-            />
+          {isShipperOrderOffer ? (
+            <View className="flex-row gap-2">
+              <Button
+                title="Xem chi tiết"
+                variant="outline"
+                disabled={acceptOrder.isPending}
+                onPress={handlePrimaryAction}
+                className="min-h-[44px] flex-1 px-2.5"
+                textClassName="text-sm"
+              />
+              <Button
+                title={`Nhận đơn #${targetOrderId}`}
+                icon={CheckCircle2}
+                variant="primary"
+                loading={acceptOrder.isPending}
+                onPress={handleQuickAccept}
+                className="min-h-[44px] flex-1 px-2.5"
+                textClassName="text-sm"
+              />
+            </View>
+          ) : (
+            hasSmartAction && (
+              <Button
+                title={smartActionTitle}
+                variant="primary"
+                onPress={handlePrimaryAction}
+                className="min-h-[44px] w-full"
+              />
+            )
           )}
           <View className="flex-row items-center gap-2">
             {onDelete && (
@@ -247,14 +310,16 @@ export function NotificationDetailBottomSheet({
                 icon={Trash2}
                 variant="danger"
                 onPress={handleDelete}
-                className="flex-1 min-h-[42px]"
+                className="min-h-[44px] flex-1 px-2.5"
+                textClassName="text-sm"
               />
             )}
             <Button
               title="Đóng"
               variant={hasSmartAction ? 'outline' : 'primary'}
               onPress={onClose}
-              className={cn('min-h-[42px]', onDelete ? 'flex-1' : 'w-full')}
+              className={cn('min-h-[44px] px-2.5', onDelete ? 'flex-1' : 'w-full')}
+              textClassName="text-sm"
             />
           </View>
         </View>

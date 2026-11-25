@@ -1,6 +1,6 @@
 import { ArrowLeft, Crosshair, Home, Phone, RefreshCw, Store } from 'lucide-react-native'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Linking, Pressable, View } from 'react-native'
+import { Linking, Pressable, ScrollView, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { AppText } from '@/components/ui'
 import { colors } from '@/theme/colors'
@@ -44,6 +44,7 @@ export function ShipperTrackingView({ orderId, role, initial, fallback, actions,
   const [follow, setFollow] = useState(true)
   const [recenter, setRecenter] = useState(0)
   const [mapError, setMapError] = useState<string | null>(null)
+  const [demoRoute, setDemoRoute] = useState<{ phase: 'TO_SHOP' | 'TO_BUYER'; points: LatLng[] } | null>(null)
   const heading = useRef(0)
   const lastPos = useRef<LatLng | null>(null)
 
@@ -60,19 +61,23 @@ export function ShipperTrackingView({ orderId, role, initial, fallback, actions,
     if (pos) lastPos.current = pos
   }, [pos?.lat, pos?.lng])
 
+  const activeDemoRoute = demoRoute && demoRoute.phase === phase ? demoRoute.points : null
+
   const mapState = useMemo<MapState>(
     () => ({
       shop,
       dest,
       shipper: visible ? pos : null,
       heading: heading.current,
+      phase,
       routes,
+      demoRoute: activeDemoRoute,
       follow: follow && visible,
       recenter,
     }),
     // Toạ độ là số nguyên thuỷ nên so theo giá trị để không đẩy xuống bản đồ thừa.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [shop.lat, shop.lng, dest.lat, dest.lng, visible, pos?.lat, pos?.lng, follow, recenter, role],
+    [shop.lat, shop.lng, dest.lat, dest.lng, visible, pos?.lat, pos?.lng, phase, activeDemoRoute, follow, recenter, role],
   )
 
   const onMapEvent = (e: MapEvent) => {
@@ -172,8 +177,8 @@ export function ShipperTrackingView({ orderId, role, initial, fallback, actions,
       </View>
 
       {/* Thẻ trạng thái */}
-      <SafeAreaView edges={['bottom']} className="-mt-7 rounded-t-[28px] bg-white shadow-lg">
-        <View className="gap-3 px-4 pb-2 pt-4">
+      <SafeAreaView edges={['bottom']} className="-mt-7 max-h-[58%] rounded-t-[28px] bg-white shadow-lg">
+        <ScrollView bounces={false} showsVerticalScrollIndicator={false} contentContainerClassName="gap-3 px-4 pb-5 pt-4">
           <View className="flex-row items-center gap-2 rounded-2xl bg-leaf-50 px-3 py-2.5">
             <View className="h-2.5 w-2.5 rounded-full bg-leaf-600" />
             <AppText weight="bold" className="flex-1 text-sm text-leaf-800">
@@ -237,19 +242,21 @@ export function ShipperTrackingView({ orderId, role, initial, fallback, actions,
             {routes.toBuyer && <Legend color="#00B14F" label="Nhà vườn ➔ Người nhận" />}
           </View>
 
+          {actions}
+
           {role === 'SHIPPER' && (
             <DemoGpsControl
               orderId={orderId}
+              currentPos={pos}
               shopLat={shop.lat}
               shopLng={shop.lng}
               destLat={dest.lat}
               destLng={dest.lng}
               orderStatus={data?.orderStatus}
+              onRouteReady={setDemoRoute}
             />
           )}
-
-          {actions}
-        </View>
+        </ScrollView>
       </SafeAreaView>
     </View>
   )

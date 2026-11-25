@@ -12,6 +12,7 @@ export type ButtonProps = Omit<PressableProps, 'children'> & {
   loading?: boolean
   icon?: LucideIcon
   className?: string
+  textClassName?: string
 }
 
 const containerByVariant: Record<Variant, string> = {
@@ -35,6 +36,7 @@ export function Button({
   disabled,
   icon: Icon,
   className,
+  textClassName,
   ...props
 }: ButtonProps) {
   const isDisabled = disabled || loading
@@ -52,13 +54,13 @@ export function Button({
       )}
       {...props}
     >
-      <View className="flex-row items-center gap-2">
+      <View className="max-w-full flex-row items-center justify-center gap-1.5">
         {loading ? (
           <ActivityIndicator color={iconColor} />
         ) : (
           Icon && <Icon size={18} color={iconColor} />
         )}
-        <AppText weight="bold" className={cn('text-base', textByVariant[variant])}>
+        <AppText weight="bold" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85} className={cn('shrink text-base', textByVariant[variant], textClassName)}>
           {title}
         </AppText>
       </View>

@@ -66,12 +66,14 @@ export default function ShipperDelivering() {
   const run = (proof?: DeliveryProof) => {
     if (!ask) return
     const { order, action } = ask
+    const { fakeGpsActive, fakeCoords } = useBroadcastState.getState()
+    const deliveryCoords = fakeGpsActive && fakeCoords ? fakeCoords : gps.position
     act.mutate(
       {
         orderId: orderIdOf(order),
         action,
         proof,
-        coords: action === 'deliver' ? gps.position : undefined,
+        coords: action === 'deliver' ? deliveryCoords : undefined,
       },
       {
         onSuccess: () => showToast(ASK[action].done),
@@ -243,7 +245,7 @@ export default function ShipperDelivering() {
                           <CallButton label="Gọi khách" phone={o.recipientPhone} />
                         </View>
 
-                        {/* Hàng 3: Thao tác giao hàng (50% - 50% cân đối hoàn hảo) */}
+                        {/* Hàng 3: Thao tác giao hàng (50% - 50% đều 3 hàng) */}
                         {picked ? (
                           <View className="flex-row gap-2">
                             <Button
@@ -251,13 +253,15 @@ export default function ShipperDelivering() {
                               variant="outline"
                               icon={CircleX}
                               onPress={() => setAsk({ order: o, action: 'fail' })}
-                              className="min-h-[48px] flex-1"
+                              className="min-h-[48px] flex-1 px-2.5"
+                              textClassName="text-sm"
                             />
                             <Button
                               title="Giao thành công"
                               icon={CircleCheck}
                               onPress={() => setAsk({ order: o, action: 'deliver' })}
-                              className="min-h-[48px] flex-1"
+                              className="min-h-[48px] flex-1 px-2.5"
+                              textClassName="text-sm"
                             />
                           </View>
                         ) : (
@@ -266,13 +270,15 @@ export default function ShipperDelivering() {
                               title="Không lấy được"
                               variant="outline"
                               onPress={() => setAsk({ order: o, action: 'fail' })}
-                              className="min-h-[48px] flex-1"
+                              className="min-h-[48px] flex-1 px-2.5"
+                              textClassName="text-sm"
                             />
                             <Button
                               title="Đã lấy hàng"
                               icon={PackageCheck}
                               onPress={() => setAsk({ order: o, action: 'pickup' })}
-                              className="min-h-[48px] flex-1"
+                              className="min-h-[48px] flex-1 px-2.5"
+                              textClassName="text-sm"
                             />
                           </View>
                         )}

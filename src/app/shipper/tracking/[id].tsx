@@ -1,17 +1,14 @@
 import { router, useLocalSearchParams } from 'expo-router'
-import { Navigation } from 'lucide-react-native'
-import { Linking } from 'react-native'
-import { Button } from '@/components/ui'
 import { useOrder } from '@/features/order'
-import { directionsUrl } from '@/features/shipper'
+import { ShipperDeliveryActions } from '@/features/shipper'
 import { ShipperTrackingView } from '@/features/tracking'
 
-/** Bản đồ của tài xế cho đơn đang giao (nút "Xem Bản Đồ Map" bản web, role SHIPPER). */
+/** Bản đồ của tài xế cho đơn đang giao (role SHIPPER), tích hợp đầy đủ thao tác lấy/giao hàng ngay trên Map. */
 export default function ShipperTrackingScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const orderId = Number(id)
-  const order = useOrder(orderId).data
-  const url = order ? directionsUrl(order) : null
+  const orderQuery = useOrder(orderId)
+  const order = orderQuery.data
 
   return (
     <ShipperTrackingView
@@ -28,12 +25,17 @@ export default function ShipperTrackingScreen() {
         destinationAddress: order?.shippingAddress,
       }}
       actions={
-        url ? (
-          <Button
-            title={order?.status === 'PICKED_UP' ? 'Chỉ đường tới khách' : 'Chỉ đường tới nhà vườn'}
-            icon={Navigation}
-            onPress={() => void Linking.openURL(url)}
-            className="min-h-[48px]"
+        order ? (
+          <ShipperDeliveryActions
+            order={order}
+            inMap
+            showQuickContact={false}
+            onSuccess={(action) => {
+              void orderQuery.refetch()
+              if (action === 'deliver' || action === 'fail') {
+                router.replace('/shipper/delivering' as any)
+              }
+            }}
           />
         ) : undefined
       }
