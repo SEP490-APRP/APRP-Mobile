@@ -1,5 +1,6 @@
 export { AuthHeader } from './AuthHeader'
 export { BackButton } from './BackButton'
+export { FormAddressField } from './FormAddressField'
 export { FormChoiceChips } from './FormChoiceChips'
 export { FormTextField } from './FormTextField'
 export { RoleCard } from './RoleCard'

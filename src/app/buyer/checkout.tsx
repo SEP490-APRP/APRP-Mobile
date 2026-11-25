@@ -146,7 +146,27 @@ export default function CheckoutScreen() {
   const discount = p?.totalVoucherDiscount ?? p?.discount ?? 0
   const total = p?.finalTotalAmount ?? p?.totalAmount ?? goods + (shipping ?? 0) - discount
 
-  const voucherRows = vouchers.map((voucher) => ({ voucher, eligible: isVoucherEligible(voucher, shopGoods) }))
+  const voucherBreakdown = useMemo(() => {
+    const entries = new Map<string, number>()
+    const addBreakdown = (record?: Record<string, number>) => {
+      if (!record) return
+      Object.entries(record).forEach(([code, value]) => {
+        const normalized = code.trim().toUpperCase()
+        const next = (entries.get(normalized) ?? 0) + Number(value || 0)
+        entries.set(normalized, next)
+      })
+    }
+    addBreakdown(p?.voucherDiscountsDetail)
+    p?.shopOrders?.forEach((order) => {
+      addBreakdown(order.voucherDiscountsDetail)
+    })
+    return Array.from(entries.entries()).sort(([a], [b]) => a.localeCompare(b))
+  }, [p])
+
+  // Chỉ hiển thị những voucher đã lưu trong ví
+  const voucherRows = vouchers
+    .filter((v) => v.isCollected)
+    .map((voucher) => ({ voucher, eligible: isVoucherEligible(voucher, shopGoods) }))
 
   const toggleVoucher = (voucher: CheckoutVoucher, list: readonly CheckoutVoucher[] = vouchers) => {
     const code = normalizeCode(voucher.voucherCode)
@@ -431,10 +451,13 @@ export default function CheckoutScreen() {
             value={preview.isFetching && shipping == null ? '…' : shipping == null ? 'Chọn địa chỉ để tính' : money(shipping)}
           />
           {discount > 0 && <Line label="Giảm giá voucher" value={`-${money(discount)}`} tone="leaf" />}
-          {p?.voucherDiscountsDetail && Object.keys(p.voucherDiscountsDetail).length > 1 && (
-            <View className="pl-3 border-l-2 border-leaf-200 gap-1 my-0.5">
-              {Object.entries(p.voucherDiscountsDetail).map(([vcCode, val]) => (
-                <Line key={vcCode} label={`Mã ${vcCode}`} value={`-${money(Number(val))}`} tone="leaf" />
+          {voucherBreakdown.length > 0 && (
+            <View className="my-1 gap-1.5 border-l-2 border-leaf-300 pl-3">
+              <AppText weight="bold" className="text-[11px] uppercase tracking-wider text-ink-muted">
+                Chi tiết mã giảm giá
+              </AppText>
+              {voucherBreakdown.map(([vcCode, val]) => (
+                <Line key={vcCode} label={`Mã ${vcCode}`} value={`-${money(val)}`} tone="leaf" />
               ))}
             </View>
           )}

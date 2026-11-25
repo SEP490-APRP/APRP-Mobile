@@ -23,23 +23,44 @@ export const ORDER_STATUS_LABELS: Record<string, string> = {
   FAILED: 'Giao thất bại',
   REFUND_REQUESTED: 'Đang yêu cầu trả hàng',
   REFUNDED: 'Đã hoàn tiền',
+  SHOP_APPROVED: 'Shop đã duyệt',
+  ADMIN_APPROVED: 'Admin đã duyệt',
+  APPROVED: 'Đã chấp thuận',
+  DISPUTED: 'Đang khiếu nại',
+  RETURN_SHIPPING: 'Chờ shipper lấy hàng trả',
+  RETURN_PICKED_UP: 'Đang chuyển hàng trả',
+  RETURN_DELIVERED: 'Đã trả về shop',
+  RETURN_FAILED: 'Trả hàng thất bại',
+  REFUND_PENDING: 'Đang hoàn tiền',
+  REJECTED: 'Đã từ chối',
 }
 
-export const orderStatusLabel = (status?: string | null) =>
-  !status ? 'Không xác định' : (ORDER_STATUS_LABELS[status] ?? status.replace(/_/g, ' '))
+export const orderStatusLabel = (status?: string | null) => {
+  if (!status) return 'Không xác định'
+  const key = status.toUpperCase().trim()
+  return ORDER_STATUS_LABELS[key] ?? ORDER_STATUS_LABELS[status] ?? status
+}
 
 export type StatusTone = 'leaf' | 'blue' | 'amber' | 'rose' | 'gray'
 
 export function orderStatusTone(status?: string | null): StatusTone {
-  switch (status) {
+  const s = (status || '').toUpperCase()
+  switch (s) {
     case 'COMPLETED':
     case 'PAID':
     case 'DELIVERED':
     case 'QUALITY_APPROVED':
+    case 'REFUNDED':
+    case 'RETURN_DELIVERED':
       return 'leaf'
     case 'PICKED_UP':
     case 'SHIPPING':
     case 'SHIPPING_TO_WAREHOUSE':
+    case 'SHOP_APPROVED':
+    case 'ADMIN_APPROVED':
+    case 'APPROVED':
+    case 'RETURN_SHIPPING':
+    case 'RETURN_PICKED_UP':
       return 'blue'
     case 'AWAITING_PAYMENT':
     case 'PENDING':
@@ -47,12 +68,15 @@ export function orderStatusTone(status?: string | null): StatusTone {
     case 'PREPARING':
     case 'QUALITY_CHECKING':
     case 'REFUND_REQUESTED':
+    case 'REFUND_PENDING':
+    case 'DISPUTED':
       return 'amber'
     case 'CANCELLED':
     case 'FAILED':
     case 'QUALITY_REJECTED':
+    case 'RETURN_FAILED':
+    case 'REJECTED':
       return 'rose'
-    case 'REFUNDED':
     default:
       return 'gray'
   }
@@ -92,8 +116,12 @@ export const canRequestReturn = (status?: string | null) => status === 'DELIVERE
 export const canReviewItem = (orderStatus?: string | null, isReviewed?: boolean) =>
   orderStatus === 'COMPLETED' && !isReviewed
 
-export const paymentMethodLabel = (method?: string) =>
-  isOnlinePayment(method) ? 'Chuyển khoản PayOS' : 'Thanh toán khi nhận hàng'
+export const paymentMethodLabel = (method?: string) => {
+  const m = (method || '').toUpperCase()
+  if (m === 'WALLET') return 'Ví CapNong'
+  if (isOnlinePayment(m)) return 'Chuyển khoản PayOS'
+  return 'Thanh toán khi nhận hàng (COD)'
+}
 
 /** Lý do hủy đơn hàng của Buyer, đồng bộ với web */
 export const ORDER_CANCEL_REASONS = [

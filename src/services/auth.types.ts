@@ -38,6 +38,8 @@ export interface ShopRegisterRequest {
   bankAccountHolder?: string
   bankName?: string
   description?: string
+  logoUrl?: string
+  licenseImageUrl?: string
 }
 
 /** Đăng ký tài xế (Shipper) qua POST /users/shippers */
