@@ -8,7 +8,6 @@ import type {
   ShipperReturnActionRequest,
   ShopReturnRespondRequest,
 } from './return.types'
-import { mockDisputes } from '@/mocks/return.mock'
 
 export type * from './return.types'
 
@@ -36,38 +35,16 @@ export const returnService = {
     size = 20,
     status?: ReturnStatus,
   ): Promise<ApiResponse<PageResponse<ReturnRequestResponse>>> {
-    try {
-      const res = await axiosInstance.get('/returns/shop/my-returns', {
-        params: { page, size, status: status || undefined },
-      })
-      return { code: 200, result: unwrap<PageResponse<ReturnRequestResponse>>(res) }
-    } catch {
-      // Fallback mock nếu chưa có dữ liệu test
-      const filtered = status ? mockDisputes.filter((d) => d.status === status) : mockDisputes
-      return {
-        code: 200,
-        result: {
-          content: filtered as ReturnRequestResponse[],
-          page: page,
-          size: size,
-          totalElements: filtered.length,
-          totalPages: Math.ceil(filtered.length / size),
-          first: page === 0,
-          last: true,
-        },
-      }
-    }
+    const res = await axiosInstance.get('/returns/shop/my-returns', {
+      params: { page, size, status: status || undefined },
+    })
+    return { code: 200, result: unwrap<PageResponse<ReturnRequestResponse>>(res) }
   },
 
   /** Chi tiết 1 yêu cầu hoàn trả GET /returns/{id} */
   async getReturnById(id: number): Promise<ApiResponse<ReturnRequestResponse>> {
-    try {
-      const res = await axiosInstance.get(`/returns/${id}`)
-      return { code: 200, result: unwrap<ReturnRequestResponse>(res) }
-    } catch {
-      const target = mockDisputes.find((d) => d.id === id) || mockDisputes[0]
-      return { code: 200, result: target as ReturnRequestResponse }
-    }
+    const res = await axiosInstance.get(`/returns/${id}`)
+    return { code: 200, result: unwrap<ReturnRequestResponse>(res) }
   },
 
   /** Người bán phản hồi khiếu nại POST /returns/{id}/respond */
@@ -81,16 +58,9 @@ export const returnService = {
 
   /** Danh sách khiếu nại dành cho Admin */
   async getDisputes(): Promise<ApiResponse<ReturnRequestResponse[]>> {
-    try {
-      const res = await axiosInstance.get('/returns/admin/disputes/list')
-      const result = unwrap<ReturnRequestResponse[]>(res)
-      if (Array.isArray(result) && result.length > 0) {
-        return { code: 200, result }
-      }
-      return { code: 200, result: [...mockDisputes] as ReturnRequestResponse[] }
-    } catch {
-      return { code: 200, result: [...mockDisputes] as ReturnRequestResponse[] }
-    }
+    const res = await axiosInstance.get('/returns/admin/disputes/list')
+    const result = unwrap<ReturnRequestResponse[]>(res)
+    return { code: 200, result: Array.isArray(result) ? result : [] }
   },
 
   /** Tạo yêu cầu đổi trả */
@@ -101,25 +71,16 @@ export const returnService = {
 
   /** Kiểm tra trạng thái payout khi hoàn tất PayOS */
   async autoCheckPayout(orderCode: number): Promise<ApiResponse<boolean>> {
-    try {
-      const res = await axiosInstance.get(`/returns/auto-check-payout/${orderCode}`)
-      const result = unwrap<boolean>(res)
-      return { code: 200, result: !!result, message: `Payout verified for order ${orderCode}` }
-    } catch {
-      return { code: 200, result: true, message: `Payout verified for order ${orderCode}` }
-    }
+    const res = await axiosInstance.get(`/returns/auto-check-payout/${orderCode}`)
+    const result = unwrap<boolean>(res)
+    return { code: 200, result: !!result, message: `Payout verified for order ${orderCode}` }
   },
 
   /** Kiểm tra trạng thái hoàn tiền của 1 đơn khiếu nại */
   async checkPayoutStatus(id: number): Promise<ApiResponse<{ request: ReturnRequestResponse }>> {
-    try {
-      const res = await axiosInstance.get(`/returns/check-payout-status/${id}`)
-      const result = unwrap<{ request: ReturnRequestResponse }>(res)
-      return { code: 200, result }
-    } catch {
-      const d = mockDisputes.find((m) => m.id === id) || mockDisputes[0]
-      return { code: 200, result: { request: { ...(d as ReturnRequestResponse), status: 'COMPLETED' } } }
-    }
+    const res = await axiosInstance.get(`/returns/check-payout-status/${id}`)
+    const result = unwrap<{ request: ReturnRequestResponse }>(res)
+    return { code: 200, result }
   },
 
   /** Admin phân xử */
@@ -127,35 +88,11 @@ export const returnService = {
     id: number,
     payload: { accept: boolean; response: string; refundAmount: number },
   ): Promise<ApiResponse<{ request: ReturnRequestResponse; checkoutUrl?: string }>> {
-    try {
-      const res = await axiosInstance.post(`/returns/admin-action/${id}`, payload)
-      const result = unwrap<{ request: ReturnRequestResponse; checkoutUrl?: string }>(res)
-      return { code: 200, result }
-    } catch {
-      const target = mockDisputes.find((d) => d.id === id)
-      if (target) {
-        target.status = payload.accept ? 'COMPLETED' : 'REJECTED'
-        target.adminRemark = payload.response
-        target.refundAmount = payload.refundAmount
-      }
-      return {
-        code: 200,
-        result: {
-          request: (target || {
-            id,
-            orderId: 9999,
-            productName: 'Sản phẩm mẫu',
-            refundAmount: payload.refundAmount,
-            reason: 'Ghi chú',
-            status: (payload.accept ? 'COMPLETED' : 'REJECTED') as ReturnStatus,
-            createdAt: new Date().toISOString(),
-          }) as ReturnRequestResponse,
-        },
-      }
-    }
+    const res = await axiosInstance.post(`/returns/admin-action/${id}`, payload)
+    const result = unwrap<{ request: ReturnRequestResponse; checkoutUrl?: string }>(res)
+    return { code: 200, result }
   },
 
-  /** Admin phân xử khiếu nại (chi tiết) */
   async adminDecision(
     id: number,
     data: AdminReturnDecisionRequest,
@@ -164,13 +101,11 @@ export const returnService = {
     return { code: 200, result: unwrap<ReturnRequestResponse>(res) }
   },
 
-  /** Người mua hủy yêu cầu trả hàng */
   async cancelReturnRequest(id: number): Promise<ApiResponse<ReturnRequestResponse>> {
     const res = await axiosInstance.post(`/returns/${id}/cancel`)
     return { code: 200, result: unwrap<ReturnRequestResponse>(res) }
   },
 
-  /** Lấy danh sách yêu cầu hoàn trả của Người mua */
   async getBuyerReturns(
     page = 0,
     size = 10,
@@ -182,13 +117,11 @@ export const returnService = {
     return { code: 200, result: unwrap<PageResponse<ReturnRequestResponse>>(res) }
   },
 
-  /** Shipper nhận đơn giao hàng hoàn trả */
   async shipperAccept(id: number): Promise<ApiResponse<ReturnRequestResponse>> {
     const res = await axiosInstance.post(`/returns/${id}/shipper/accept`)
     return { code: 200, result: unwrap<ReturnRequestResponse>(res) }
   },
 
-  /** Shipper xác nhận đã lấy hàng hoàn từ Người mua */
   async shipperPickup(
     id: number,
     data?: ShipperReturnActionRequest,
@@ -197,7 +130,6 @@ export const returnService = {
     return { code: 200, result: unwrap<ReturnRequestResponse>(res) }
   },
 
-  /** Shipper xác nhận đã giao hàng hoàn trả về cho Shop */
   async shipperDeliver(
     id: number,
     data?: ShipperReturnActionRequest,
@@ -206,18 +138,14 @@ export const returnService = {
     return { code: 200, result: unwrap<ReturnRequestResponse>(res) }
   },
 
-  /** Lấy danh sách đơn hoàn sẵn sàng cho Shipper nhận đơn */
   async getShipperAvailableReturns(
     page = 0,
     size = 10,
   ): Promise<ApiResponse<PageResponse<ReturnRequestResponse>>> {
-    const res = await axiosInstance.get('/returns/shipper/available', {
-      params: { page, size },
-    })
+    const res = await axiosInstance.get('/returns/shipper/available', { params: { page, size } })
     return { code: 200, result: unwrap<PageResponse<ReturnRequestResponse>>(res) }
   },
 
-  /** Lấy danh sách đơn hoàn Shipper đang phụ trách */
   async getShipperMyReturns(
     page = 0,
     size = 10,
@@ -229,7 +157,6 @@ export const returnService = {
     return { code: 200, result: unwrap<PageResponse<ReturnRequestResponse>>(res) }
   },
 
-  /** Shipper báo cáo giao/nhận hàng hoàn thất bại */
   async shipperFail(
     id: number,
     data?: ShipperReturnActionRequest,

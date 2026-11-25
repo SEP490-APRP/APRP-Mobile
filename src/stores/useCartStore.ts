@@ -1,11 +1,21 @@
 import { create } from 'zustand'
 import { persist, type PersistStorage } from 'zustand/middleware'
-import { allProducts, changeQuantity, type Cart } from '@/mocks/catalog'
 import { STORAGE_KEYS } from '@/utils'
 import { asyncStorage, readJson } from './storage'
 
+export type Cart = Record<string, number>
+
+export function changeQuantity(cart: Cart, id: string, delta: number): Cart {
+  const current = cart[id] ?? 0
+  const next = Math.max(0, current + delta)
+  if (next === 0) {
+    const { [id]: _, ...rest } = cart
+    return rest
+  }
+  return { ...cart, [id]: next }
+}
+
 type CartState = {
-  /** id sản phẩm catalog -> số lượng */
   items: Cart
   changeQuantity: (id: string, delta: number) => void
   remove: (id: string) => void
@@ -14,23 +24,15 @@ type CartState = {
 
 type PersistedCart = Pick<CartState, 'items'>
 
-/**
- * Chỉ giữ sản phẩm có trong catalog, số lượng nguyên dương và không vượt tồn kho
- * (giống restoreCart cũ trong App.tsx).
- */
 export function sanitizeCart(saved: unknown): Cart {
   if (!saved || typeof saved !== 'object' || Array.isArray(saved)) return {}
   return Object.fromEntries(
-    allProducts.flatMap((p) => {
-      const n = (saved as Record<string, unknown>)[p.id]
-      return typeof n === 'number' && Number.isInteger(n) && n > 0
-        ? [[p.id, Math.min(n, p.stock)]]
-        : []
-    }),
+    Object.entries(saved as Record<string, unknown>).filter(
+      ([, n]) => typeof n === 'number' && Number.isInteger(n) && n > 0,
+    ) as [string, number][],
   )
 }
 
-/** Giữ định dạng của bản web cho key capnong-cart ({ carrot: 2 }) để không mất giỏ của người dùng. */
 const legacyCartStorage: PersistStorage<PersistedCart> = {
   getItem: async () => ({
     state: { items: sanitizeCart(await readJson(asyncStorage, STORAGE_KEYS.CART)) },
@@ -42,25 +44,27 @@ const legacyCartStorage: PersistStorage<PersistedCart> = {
 
 export const useCartStore = create<CartState>()(
   persist(
-      (set) => ({
-        items: {},
-        changeQuantity: (id, delta) =>
-          set((s) => ({ items: changeQuantity(s.items, id, delta) })),
-        remove: (id) =>
-          set(
-            (s) => ({ items: changeQuantity(s.items, id, -(s.items[id] ?? 0)) }),
-          ),
-        clear: () => set({ items: {} }),
-      }),
-      {
-        name: 'capnong-cart',
-        storage: legacyCartStorage,
-        partialize: ({ items }) => ({ items }),
-      },
+    (set) => ({
+      items: {},
+      changeQuantity: (id, delta) =>
+        set((s) => ({ items: changeQuantity(s.items, id, delta) })),
+      remove: (id) =>
+        set(
+          (s) => ({ items: changeQuantity(s.items, id, -(s.items[id] ?? 0)) }),
+        ),
+      clear: () => set({ items: {} }),
+    }),
+    {
+      name: 'capnong-cart',
+      storage: legacyCartStorage,
+      partialize: ({ items }) => ({ items }),
+    },
   ),
 )
 
 export const cartCount = (items: Cart) => Object.values(items).reduce((a, b) => a + b, 0)
 
-export const cartTotal = (items: Cart) =>
-  allProducts.reduce((sum, p) => sum + p.price * (items[p.id] ?? 0), 0)
+export const cartTotal = (
+  items: Cart,
+  products: ReadonlyArray<{ id: string | number; price: number }> = [],
+) => products.reduce((sum, p) => sum + p.price * (items[String(p.id)] ?? 0), 0)

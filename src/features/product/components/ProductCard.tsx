@@ -22,7 +22,6 @@ export const openProductDetail = (id: string) =>
 
 function ProductCardBase({ product: p, onAdd, inCartQuantity = 0, adding = false }: ProductCardProps) {
   const discount = discountPercent(p)
-  const rescued = Math.min(100, Math.max(0, p.rescued))
   const soldOut = p.stock <= 0
   const reachedStock = inCartQuantity >= p.stock
   const addDisabled = soldOut || reachedStock || adding
@@ -93,26 +92,14 @@ function ProductCardBase({ product: p, onAdd, inCartQuantity = 0, adding = false
           )}
         </View>
 
-        {/* Tiến độ giải cứu & tồn kho */}
-        <View className="gap-1">
-          <View
-            accessibilityRole="progressbar"
-            accessibilityValue={{ min: 0, max: 100, now: rescued }}
-            className="h-1.5 w-full overflow-hidden rounded-full bg-[#e8ece3]"
+        {/* Tồn kho thực tế */}
+        <View className="flex-row items-center justify-between">
+          <AppText
+            weight={p.stock < 20 ? 'bold' : 'medium'}
+            className={cn('text-xs', p.stock < 20 ? 'text-[#b71c1c]' : 'text-ink-muted')}
           >
-            <View className="h-full rounded-full bg-leaf-700" style={{ width: `${rescued}%` }} />
-          </View>
-          <View className="flex-row justify-between gap-1">
-            <AppText weight="medium" className="text-xs text-ink-muted">
-              Đã cứu {rescued}%
-            </AppText>
-            <AppText
-              weight={p.stock < 20 ? 'bold' : 'medium'}
-              className={cn('text-xs', p.stock < 20 ? 'text-[#b71c1c]' : 'text-ink-muted')}
-            >
-              {soldOut ? 'Hết hàng' : `Còn ${p.stock} ${p.unit}`}
-            </AppText>
-          </View>
+            {soldOut ? 'Hết hàng' : `Còn ${p.stock} ${p.unit}`}
+          </AppText>
         </View>
 
         {/* Hành động */}

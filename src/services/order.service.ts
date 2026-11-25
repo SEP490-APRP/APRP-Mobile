@@ -20,7 +20,6 @@ import type {
   CreateOrderRequest,
 } from '@/types/order.types'
 import type { OrderResponse as MockOrderResponse } from './order.types'
-import { mockOrders } from '@/mocks/order.mock'
 
 /** BE luôn wrap response trong { code, message, result } */
 interface ApiResponse<T> {
@@ -212,8 +211,8 @@ export const orderService = {
   completeOrder,
   getAddressSuggestions,
   async getAllOrders(): Promise<{ code: number; result: MockOrderResponse[] }> {
-    await new Promise((r) => setTimeout(r, 200))
-    return { code: 200, result: structuredClone(mockOrders) }
+    const res = await axiosInstance.get('/orders/admin/all')
+    return { code: 200, result: res.data?.result ?? [] }
   },
 }
 

@@ -47,7 +47,7 @@ export function mapMysteryBoxToCard(
   },
   fallbackImage = '',
 ): ComboCardItem {
-  const price = Number(mystery.price) || 79000
+  const price = Number(mystery.price) || 0
   const totalQuantity = Number(mystery.totalQuantity) || 0
   const soldQuantity = Number(mystery.soldQuantity) || 0
 
@@ -57,19 +57,19 @@ export function mapMysteryBoxToCard(
     itemType: 'MYSTERY_BOX',
     name: mystery.boxType || 'Túi mù nông sản',
     image: mystery.imageUrl || fallbackImage,
-    badgeDiscount: '-50%',
+    badgeDiscount: '',
     badgeWeight: 'Túi ngẫu nhiên',
     badgeHighlight: 'Túi mù',
     category: 'Túi mù',
-    portion: mystery.note || 'Gia đình 2–3 người',
-    feature: mystery.description || 'Nông sản tươi ngon ngẫu nhiên thu hoạch trong ngày',
+    portion: mystery.note || '',
+    feature: mystery.description || '',
     price,
-    original: price * 1.5,
+    original: price,
     unit: 'túi',
-    rating: 4.9,
-    reviews: 120,
+    rating: Number((mystery as any).rating ?? (mystery as any).ratingAverage ?? 0),
+    reviews: Number((mystery as any).reviewCount ?? (mystery as any).totalReviews ?? 0),
     sold: soldQuantity,
-    stock: Math.max(0, totalQuantity - soldQuantity) || 20,
+    stock: Math.max(0, totalQuantity - soldQuantity),
   }
 }
 
@@ -89,7 +89,7 @@ export function mapComboToCard(
   },
   fallbackImage = '',
 ): ComboCardItem {
-  const price = Number(combo.price) || 129000
+  const price = Number(combo.price) || 0
   const totalQuantity = Number(combo.totalQuantity) || 0
   const soldQuantity = Number(combo.soldQuantity) || 0
 
@@ -99,18 +99,18 @@ export function mapComboToCard(
     itemType: 'BUILD_COMBO',
     name: combo.comboName || 'Combo nông sản',
     image: combo.imageUrl || fallbackImage,
-    badgeDiscount: '-35%',
-    badgeWeight: combo.region || 'Combo mùa vụ',
+    badgeDiscount: '',
+    badgeWeight: combo.region || '',
     badgeHighlight: normalizeComboCategory(combo.type || combo.mealType || 'combo'),
     category: 'Combo',
-    portion: combo.mealType || 'Gia đình 3–4 người',
-    feature: combo.description || 'Gói nông sản dinh dưỡng tươi ngon từ vườn liên kết',
+    portion: combo.mealType || '',
+    feature: combo.description || '',
     price,
-    original: price * 1.4,
+    original: price,
     unit: 'combo',
-    rating: 4.9,
-    reviews: 85,
+    rating: Number((combo as any).rating ?? (combo as any).ratingAverage ?? 0),
+    reviews: Number((combo as any).reviewCount ?? (combo as any).totalReviews ?? 0),
     sold: soldQuantity,
-    stock: Math.max(0, totalQuantity - soldQuantity) || 15,
+    stock: Math.max(0, totalQuantity - soldQuantity),
   }
 }
