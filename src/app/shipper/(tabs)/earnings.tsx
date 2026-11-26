@@ -1,6 +1,6 @@
-import { router } from 'expo-router'
-import { Banknote, ChevronRight, CircleCheck, CircleX, Info, ReceiptText, Search, Wallet, X } from 'lucide-react-native'
-import { useMemo, useState } from 'react'
+import { router, useFocusEffect } from 'expo-router'
+import { Banknote, ChevronRight, CircleCheck, CircleX, Clock, Info, ReceiptText, Search, Wallet, X } from 'lucide-react-native'
+import { useCallback, useMemo, useState } from 'react'
 import { Pressable, RefreshControl, ScrollView, TextInput, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { AppText, Button, EmptyState, ErrorState, Skeleton } from '@/components/ui'
@@ -16,12 +16,15 @@ import {
   isDelivered,
   isPaidTrip,
   itemsSummary,
+  matchEarningsSource,
   netShipperFee,
   useShipperHistory,
   useShipperMyReturns,
   type DayBar,
   type EarningsPeriod,
+  type EarningsSourceFilter,
 } from '@/features/shipper'
+import { useMyWallet } from '@/features/wallet'
 import { colors } from '@/theme/colors'
 import type { OrderResponse } from '@/types/order.types'
 import { cn } from '@/utils/helpers'
@@ -149,12 +152,29 @@ function HistoryRow({ order, first }: { order: OrderResponse; first: boolean }) 
  * Thu nhập và lịch sử chuyến giao. Bản web chưa có màn này; số liệu tính từ
  * các đơn đã kết thúc của tài xế (GET /orders/shipper/my), vì backend chưa có ví shipper.
  */
+const SOURCE_FILTERS: { value: EarningsSourceFilter; label: string }[] = [
+  { value: 'ALL', label: 'Tất cả' },
+  { value: 'COD', label: 'COD' },
+  { value: 'PAYOS', label: 'PayOS' },
+  { value: 'RETURN', label: 'Hoàn hàng' },
+]
+
 export default function ShipperEarnings() {
   const history = useShipperHistory()
   const myReturns = useShipperMyReturns('COMPLETED')
+  const wallet = useMyWallet()
   const [period, setPeriod] = useState<EarningsPeriod>('7d')
+  const [sourceFilter, setSourceFilter] = useState<EarningsSourceFilter>('ALL')
   const [searchQuery, setSearchQuery] = useState('')
   const [shown, setShown] = useState(PAGE)
+
+  useFocusEffect(
+    useCallback(() => {
+      void history.refetch()
+      void myReturns.refetch()
+      void wallet.refetch()
+    }, [history.refetch, myReturns.refetch, wallet.refetch]),
+  )
 
   const all = useMemo(() => {
     const base = history.data ?? []
@@ -181,15 +201,16 @@ export default function ShipperEarnings() {
   const inRange = useMemo(() => all.filter((o) => inPeriod(o, period)), [all, period])
 
   const searched = useMemo(() => {
-    if (!searchQuery.trim()) return inRange
+    const bySource = inRange.filter((o) => matchEarningsSource(o, sourceFilter))
+    if (!searchQuery.trim()) return bySource
     const q = searchQuery.trim().toLowerCase()
-    return inRange.filter((o) => {
+    return bySource.filter((o) => {
       const idStr = String(orderIdOf(o))
       const buyer = (o.recipientName || o.buyerName || '').toLowerCase()
       const shop = (o.shopName || '').toLowerCase()
       return idStr.includes(q) || buyer.includes(q) || shop.includes(q)
     })
-  }, [inRange, searchQuery])
+  }, [inRange, sourceFilter, searchQuery])
 
   const summary = useMemo(() => earningsSummary(inRange), [inRange])
   const bars = useMemo(() => dailyFees(all), [all])
@@ -272,29 +293,89 @@ export default function ShipperEarnings() {
                 <View className="flex-row items-center gap-1.5">
                   <Wallet size={16} color={colors.sun300} />
                   <AppText weight="semibold" className="text-sm text-leaf-100">
-                    Phí giao nhận được
+                    Tổng thu nhập thực nhận
                   </AppText>
                 </View>
                 <AppText weight="extrabold" className="text-3xl text-white">
                   {money(summary.fees)}
                 </AppText>
+                <AppText className="text-xs text-leaf-100">
+                  Cước gộp: {money(summary.grossFees)} · Phí sàn 3%: -{money(summary.platformFees)}
+                </AppText>
               </View>
               <View className="flex-row rounded-2xl bg-white/10 py-3">
                 {[
                   { label: 'Giao xong', value: String(summary.delivered) },
+                  { label: 'Hoàn có cước', value: String(summary.paidReturns) },
                   { label: 'Thất bại', value: String(summary.failed) },
-                  { label: 'Thành công', value: summary.successRate != null ? `${summary.successRate}%` : '—' },
+                  { label: 'Đạt', value: summary.successRate != null ? `${summary.successRate}%` : '—' },
                 ].map((s, i) => (
                   <View
                     key={s.label}
                     className={cn('flex-1 items-center gap-0.5', i > 0 && 'border-l border-white/20')}
                   >
-                    <AppText weight="extrabold" className="text-lg text-sun-300">
+                    <AppText weight="extrabold" className="text-base text-sun-300">
                       {s.value}
                     </AppText>
-                    <AppText className="text-xs text-leaf-100">{s.label}</AppText>
+                    <AppText className="text-[11px] text-leaf-100">{s.label}</AppText>
                   </View>
                 ))}
+              </View>
+            </View>
+
+            {/* Số dư ví & Cước tạm giữ */}
+            <Pressable
+              onPress={() => router.push('/shipper/wallet' as any)}
+              className="flex-row items-center justify-between rounded-panel border border-leaf-200 bg-white p-4 active:bg-slate-50"
+            >
+              <View className="flex-1 gap-0.5">
+                <AppText className="text-xs text-ink-muted">Số dư khả dụng trong ví</AppText>
+                <AppText weight="extrabold" className="text-lg text-leaf-700">
+                  {money(Number(wallet.data?.availableBalance ?? wallet.data?.balance ?? 0))}
+                </AppText>
+                {Number(wallet.data?.frozenBalance ?? 0) > 0 && (
+                  <View className="flex-row items-center gap-1 pt-0.5">
+                    <Clock size={12} color={colors.soil600} />
+                    <AppText className="text-xs text-amber-800">
+                      Đang tạm giữ (chờ hoàn tất): {money(Number(wallet.data?.frozenBalance ?? 0))}
+                    </AppText>
+                  </View>
+                )}
+              </View>
+              <View className="flex-row items-center gap-1 rounded-lg border border-leaf-200 bg-leaf-50 px-3 py-1.5">
+                <Wallet size={13} color={colors.leaf700} />
+                <AppText weight="bold" className="text-xs text-leaf-700">
+                  Mở ví
+                </AppText>
+              </View>
+            </Pressable>
+
+            {/* Phân tích nguồn thu nhập */}
+            <View className="gap-2 rounded-panel border border-line bg-white p-4">
+              <AppText weight="bold" className="text-sm text-ink">
+                Nguồn thu nhập theo hình thức
+              </AppText>
+              <View className="gap-1.5 pt-1">
+                <View className="flex-row items-center justify-between">
+                  <AppText className="text-xs text-ink-muted">Đơn PayOS / Ví ({summary.prepaidCount} chuyến)</AppText>
+                  <AppText weight="bold" className="text-xs text-leaf-700">
+                    +{money(summary.prepaidFees)}
+                  </AppText>
+                </View>
+                <View className="flex-row items-center justify-between">
+                  <AppText className="text-xs text-ink-muted">Đơn COD ({summary.codCount} chuyến)</AppText>
+                  <AppText weight="bold" className="text-xs text-leaf-700">
+                    +{money(summary.codFees)}
+                  </AppText>
+                </View>
+                <View className="flex-row items-center justify-between">
+                  <AppText className="text-xs text-ink-muted">
+                    Hoàn về Shop & Hoàn trả ({summary.returnCount} chuyến)
+                  </AppText>
+                  <AppText weight="bold" className="text-xs text-leaf-700">
+                    +{money(summary.returnFees)}
+                  </AppText>
+                </View>
               </View>
             </View>
 
@@ -358,6 +439,30 @@ export default function ShipperEarnings() {
                   <X size={16} color={colors.inkMuted} />
                 </Pressable>
               )}
+            </View>
+
+            {/* Chip lọc theo nguồn tiền */}
+            <View className="flex-row gap-2">
+              {SOURCE_FILTERS.map((f) => {
+                const active = sourceFilter === f.value
+                return (
+                  <Pressable
+                    key={f.value}
+                    onPress={() => {
+                      setSourceFilter(f.value)
+                      setShown(PAGE)
+                    }}
+                    className={cn(
+                      'rounded-full border px-3 py-1.5',
+                      active ? 'border-leaf-700 bg-leaf-700' : 'border-line bg-white',
+                    )}
+                  >
+                    <AppText weight="bold" className={cn('text-xs', active ? 'text-white' : 'text-ink-muted')}>
+                      {f.label}
+                    </AppText>
+                  </Pressable>
+                )
+              })}
             </View>
 
             {visibleDays.length === 0 ? (

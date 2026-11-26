@@ -221,12 +221,16 @@ export function DeliveryResultSheet({
           </>
         )}
 
-        <View className="gap-2.5 rounded-2xl border border-dashed border-leaf-600/35 bg-leaf-50/40 p-3.5">
+        <View
+          className={`gap-2.5 rounded-2xl border border-dashed p-3.5 ${
+            touched && errors.photos ? 'border-rose-400 bg-rose-50/50' : 'border-leaf-600/35 bg-leaf-50/40'
+          }`}
+        >
           <View className="flex-row items-center justify-between">
-            <AppText weight="bold" className="text-sm text-ink">
-              {failed ? 'Ảnh bằng chứng' : 'Ảnh giao hàng'}
+            <AppText weight="bold" className={`text-sm ${touched && errors.photos ? 'text-sale' : 'text-ink'}`}>
+              {failed ? 'Ảnh bằng chứng (bắt buộc)' : 'Ảnh giao hàng (bắt buộc)'}
             </AppText>
-            <AppText weight="semibold" className="text-xs text-leaf-700">
+            <AppText weight="semibold" className={`text-xs ${touched && errors.photos ? 'text-sale' : 'text-leaf-700'}`}>
               {photos.length}/{MAX_PROOF_IMAGES} ảnh
             </AppText>
           </View>
@@ -262,7 +266,11 @@ export function DeliveryResultSheet({
                 ? 'Chụp cửa nhà khách, lịch sử cuộc gọi… (tối thiểu 1 ảnh, nhấn ảnh để phóng to).'
                 : 'Bắt buộc ít nhất 1 ảnh (nhấn vào ảnh để phóng to kiểm tra độ nét).'}
           </AppText>
-          {touched && errors.photos && <AppText className="text-xs text-sale">{errors.photos}</AppText>}
+          {touched && errors.photos && (
+            <AppText weight="semibold" className="text-xs text-sale">
+              {errors.photos}
+            </AppText>
+          )}
         </View>
       </View>
     </BottomSheet>

@@ -7,6 +7,7 @@ import { AppText, BottomSheet, Button, ChoiceChips, TextField } from '@/componen
 import { uploadService } from '@/services/upload.service'
 import { useUiStore } from '@/stores'
 import type { UploadFile } from '@/types/upload.types'
+import { cn } from '@/utils/helpers'
 
 export type ReturnActionKind = 'pickup' | 'deliver' | 'fail'
 
@@ -46,12 +47,16 @@ export function ReturnActionSheet({
   const [reasonChip, setReasonChip] = useState<string | null>(null)
   const [note, setNote] = useState('')
   const [uploading, setUploading] = useState(false)
+  const [touched, setTouched] = useState(false)
+  const [uploadError, setUploadError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!visible) return
     setPhoto(null)
     setReasonChip(null)
     setNote('')
+    setTouched(false)
+    setUploadError(null)
   }, [visible, returnId, action])
 
   if (!action) return null
@@ -77,6 +82,12 @@ export function ReturnActionSheet({
 
   const chips = isPickedUp ? FAIL_DELIVER_CHIPS : FAIL_PICKUP_CHIPS
 
+  const trimmedNote = note.trim()
+  const combinedNote = isFail ? [reasonChip, trimmedNote].filter(Boolean).join(' · ') : trimmedNote
+  const reasonError = touched && isFail && !combinedNote ? 'Vui lòng chọn lý do hoặc nhập ghi chú thất bại.' : undefined
+  const photoError =
+    uploadError ?? (touched && !photo ? 'Vui lòng chụp hoặc chọn ít nhất 1 ảnh bằng chứng.' : undefined)
+
   const pickImage = async (fromCamera: boolean) => {
     const perm = fromCamera
       ? await ImagePicker.requestCameraPermissionsAsync()
@@ -90,6 +101,7 @@ export function ReturnActionSheet({
       : await ImagePicker.launchImageLibraryAsync({ quality: 0.7, mediaTypes: ['images'] })
     if (res.canceled || !res.assets?.length) return
     const asset = res.assets[0]
+    setUploadError(null)
     setPhoto({
       uri: asset.uri,
       name: asset.fileName || `return-${returnId}-${Date.now()}.jpg`,
@@ -98,10 +110,8 @@ export function ReturnActionSheet({
   }
 
   const handleConfirm = async () => {
-    const trimmedNote = note.trim()
-    const combinedNote = isFail
-      ? [reasonChip, trimmedNote].filter(Boolean).join(' · ')
-      : trimmedNote
+    setTouched(true)
+    setUploadError(null)
 
     if (isFail && !combinedNote) {
       showToast('Vui lòng chọn lý do hoặc nhập ghi chú thất bại.')
@@ -117,11 +127,13 @@ export function ReturnActionSheet({
       const uploaded = await uploadService.uploadImage(photo, 'delivery-proofs')
       const url = uploaded.result?.url
       if (!url) {
+        setUploadError('Tải ảnh lên thất bại, vui lòng thử lại.')
         showToast('Tải ảnh lên thất bại, thử lại nhé.')
         return
       }
       onSubmit({ note: combinedNote || undefined, proofImageUrl: url })
     } catch {
+      setUploadError('Không tải được ảnh bằng chứng, vui lòng thử lại.')
       showToast('Không tải được ảnh bằng chứng, thử lại nhé.')
     } finally {
       setUploading(false)
@@ -151,12 +163,19 @@ export function ReturnActionSheet({
     >
       <View className="gap-4">
         {isFail && (
-          <ChoiceChips
-            label="Lý do"
-            options={chips}
-            value={reasonChip ?? ''}
-            onChange={(v) => setReasonChip(v)}
-          />
+          <View className="gap-1">
+            <ChoiceChips
+              label="Lý do (bắt buộc)"
+              options={chips}
+              value={reasonChip ?? ''}
+              onChange={(v) => setReasonChip(v)}
+            />
+            {reasonError && (
+              <AppText weight="semibold" className="text-xs text-sale">
+                {reasonError}
+              </AppText>
+            )}
+          </View>
         )}
 
         <TextField
@@ -167,12 +186,19 @@ export function ReturnActionSheet({
           multiline
         />
 
-        <View className="gap-2 rounded-panel border border-dashed border-leaf-300 bg-leaf-50/40 p-3">
+        <View
+          className={cn(
+            'gap-2 rounded-panel border border-dashed p-3',
+            photoError ? 'border-rose-400 bg-rose-50/50' : 'border-leaf-300 bg-leaf-50/40',
+          )}
+        >
           <View className="flex-row items-center justify-between">
-            <AppText weight="bold" className="text-sm text-ink">
+            <AppText weight="bold" className={cn('text-sm', photoError ? 'text-sale' : 'text-ink')}>
               Ảnh bằng chứng (bắt buộc)
             </AppText>
-            <AppText className="text-xs text-leaf-700">{photo ? '1/1 ảnh' : '0/1 ảnh'}</AppText>
+            <AppText weight="semibold" className={cn('text-xs', photoError ? 'text-sale' : 'text-leaf-700')}>
+              {photo ? '1/1 ảnh' : '0/1 ảnh'}
+            </AppText>
           </View>
 
           {photo ? (
@@ -203,6 +229,11 @@ export function ReturnActionSheet({
                 className="min-h-[44px] flex-1 bg-white"
               />
             </View>
+          )}
+          {photoError && (
+            <AppText weight="semibold" className="text-xs text-sale">
+              {photoError}
+            </AppText>
           )}
         </View>
       </View>
