@@ -174,7 +174,7 @@ export default function ShipperEarnings() {
         shopName: r.shopName,
         createdAt: r.createdAt,
         deliveredAt: r.returnedAt || r.updatedAt || r.createdAt,
-        items: [{ productName: r.productName, quantity: r.quantity ?? 1 }],
+        items: [{ productName: r.productName, quantity: r.quantity ?? 1, unitPrice: Number(r.unitPrice ?? 0) }],
       }))
     return [...base, ...returnTrips]
   }, [history.data, myReturns.data])
