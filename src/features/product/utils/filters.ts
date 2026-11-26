@@ -41,22 +41,143 @@ export function countActiveFilters(f: Filters): number {
   ).length
 }
 
-/** Tìm, lọc và sắp xếp phía máy như bản web (API chưa hỗ trợ lọc theo giá). */
+function removeDiacritics(str: string): string {
+  return str
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D')
+    .toLowerCase()
+    .trim()
+}
+
+function stripProducePrefix(raw: string): string {
+  let s = raw.trim().toLowerCase()
+  if (s.includes('/')) {
+    s = s.split('/')[0].trim()
+  }
+  for (const prefix of ['quả ', 'trái ', 'cây ', 'củ ', 'rau ', 'lá ', 'hạt ']) {
+    if (s.startsWith(prefix) && s.length > prefix.length) {
+      return s.slice(prefix.length).trim()
+    }
+  }
+  return s
+}
+
+const PRODUCE_SYNONYM_GROUPS: string[][] = [
+  ['nhàu', 'nhau', 'quả nhàu', 'trái nhàu', 'noni'],
+  ['dứa', 'thơm', 'khóm'],
+  ['bắp', 'ngô', 'bắp mỹ', 'bắp nếp'],
+  ['khổ qua', 'mướp đắng'],
+  ['dưa leo', 'dưa chuột'],
+  ['dưa lưới', 'dưa gang', 'dưa vàng', 'dưa hoàng kim', 'dưa hami'],
+  ['dưa lê', 'dưa bở'],
+  ['bí đao', 'bí xanh'],
+  ['cải bó xôi', 'rau chân vịt'],
+  ['bông cải', 'súp lơ'],
+  ['chanh dây', 'chanh leo'],
+  ['mãng cầu', 'mãng cầu ta', 'mãng cầu xiêm', 'trái na', 'quả na'],
+  ['hồng xiêm', 'sa pô chê', 'sapoche'],
+  ['đậu phộng', 'lạc', 'củ lạc'],
+  ['đậu que', 'đậu cô ve'],
+  ['khoai mì', 'củ sắn', 'sắn'],
+  ['khoai mỡ', 'khoai từ', 'củ từ'],
+  ['củ đậu', 'củ sắn nước'],
+  ['củ sen', 'ngó sen', 'hạt sen'],
+  ['ngò rí', 'ngò', 'rau mùi'],
+  ['ngò gai', 'mùi tàu'],
+  ['bạc hà', 'húng lủi'],
+  ['xà lách xoong', 'cải xoong'],
+  ['cải thìa', 'cải chíp'],
+  ['cải xanh', 'cải bẹ xanh'],
+  ['mồng tơi', 'mùng tơi', 'rau mồng tơi'],
+  ['tắc', 'quất', 'trái tắc', 'quả quất'],
+  ['mận', 'quả roi', 'trái roi', 'mận an phước', 'mận hậu'],
+  ['hành boa rô', 'boa rô', 'tỏi tây'],
+  ['hành tím', 'hành hương'],
+  ['cherry', 'anh đào'],
+]
+
+export function matchesProduceSearch(
+  productName: string,
+  categoryName: string,
+  farmName: string,
+  rawQuery: string,
+): boolean {
+  const qRaw = rawQuery.trim().toLowerCase()
+  if (!qRaw) return true
+
+  const nameLower = productName.toLowerCase()
+  const catLower = categoryName.toLowerCase()
+  const farmLower = farmName.toLowerCase()
+  if (nameLower.includes(qRaw) || catLower.includes(qRaw) || farmLower.includes(qRaw)) return true
+
+  const coreQuery = stripProducePrefix(qRaw)
+  const candidates = new Set<string>([qRaw, coreQuery])
+
+  for (const group of PRODUCE_SYNONYM_GROUPS) {
+    if (
+      group.some(
+        (term) =>
+          term === coreQuery ||
+          term === qRaw ||
+          removeDiacritics(term) === removeDiacritics(coreQuery),
+      )
+    ) {
+      for (const term of group) {
+        candidates.add(term)
+      }
+    }
+  }
+
+  const nameAsciiTokens = removeDiacritics(nameLower).split(/[^a-z0-9]+/).filter(Boolean)
+  const nameAsciiFull = ` ${nameAsciiTokens.join(' ')} `
+
+  for (const cand of candidates) {
+    if (!cand) continue
+    if (nameLower.includes(cand) || catLower.includes(cand)) {
+      if ((cand === 'bắp' || cand === 'bap') && nameLower.includes('bắp cải')) continue
+      return true
+    }
+
+    const candAscii = removeDiacritics(cand)
+    if (!candAscii) continue
+
+    if (candAscii.includes(' ')) {
+      if (nameAsciiFull.includes(` ${candAscii} `)) {
+        if (candAscii === 'bap' && nameAsciiFull.includes(' bap cai ')) continue
+        return true
+      }
+    } else if (candAscii.length >= 3) {
+      if (nameAsciiTokens.includes(candAscii)) {
+        if (candAscii === 'bap' && nameAsciiFull.includes(' bap cai ')) continue
+        if (candAscii === 'dua' && nameLower.includes('dưa') && (cand === 'dừa' || cand === 'dứa')) continue
+        return true
+      }
+    }
+  }
+
+  return false
+}
+
+/** Tìm, lọc và sắp xếp phía máy như bản web (hỗ trợ đồng nghĩa vùng miền, không dấu & Vector match IDs). */
 export function applyFilters(
   items: readonly Product[],
   query: string,
   filters: Filters,
   sort: SortId,
+  visualMatchedIds: readonly string[] = [],
 ): Product[] {
   const range = PRICE_RANGES.find((r) => r.id === filters.price)
   const min = range && 'min' in range ? range.min : 0
   const max = range && 'max' in range ? range.max : Number.POSITIVE_INFINITY
-  const q = query.trim().toLowerCase()
+  const q = query.trim()
   const cat = filters.category.toLowerCase()
+  const visualIdSet = new Set(visualMatchedIds)
 
   const result = items.filter(
     (p) =>
-      (!q || p.name.toLowerCase().includes(q) || p.farm.toLowerCase().includes(q)) &&
+      (!q || visualIdSet.has(p.id) || matchesProduceSearch(p.name, p.category, p.farm, q)) &&
       (filters.category === ALL_CATEGORIES ||
         p.category.toLowerCase().includes(cat) ||
         cat.includes(p.category.toLowerCase())) &&
@@ -67,5 +188,15 @@ export function applyFilters(
   if (sort === 'price-asc') result.sort((a, b) => a.price - b.price)
   else if (sort === 'price-desc') result.sort((a, b) => b.price - a.price)
   else if (sort === 'name-asc') result.sort((a, b) => a.name.localeCompare(b.name, 'vi'))
+  else if (sort === 'featured' && visualMatchedIds.length > 0) {
+    result.sort((a, b) => {
+      const idxA = visualMatchedIds.indexOf(a.id)
+      const idxB = visualMatchedIds.indexOf(b.id)
+      if (idxA !== -1 && idxB !== -1) return idxA - idxB
+      if (idxA !== -1) return -1
+      if (idxB !== -1) return 1
+      return 0
+    })
+  }
   return result
 }
