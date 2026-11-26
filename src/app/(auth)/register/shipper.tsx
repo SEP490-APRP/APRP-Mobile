@@ -5,7 +5,7 @@ import { View } from 'react-native'
 import type { z } from 'zod'
 import { AppText, Banner, Button, Screen } from '@/components/ui'
 import { REGISTER_DEFAULTS, VEHICLE_OPTIONS, shipperRegisterSchema } from '@/features/auth'
-import { AuthHeader, BackButton, FormChoiceChips, FormTextField } from '@/features/auth/components'
+import { AuthHeader, BackButton, FormAddressField, FormChoiceChips, FormTextField } from '@/features/auth/components'
 import { ruleOf } from '@/features/auth/constants/vehicleRules'
 import { useRegisterSubmit } from '@/features/auth/hooks/useRegisterSubmit'
 
@@ -53,7 +53,7 @@ export default function ShipperRegisterScreen() {
         <FormTextField control={control} name="vehicleNumber" label="Biển số xe" icon={Bike} placeholder={rule.plateExample} autoCapitalize="characters" />
         <FormChoiceChips control={control} name="licenseClass" label="Hạng giấy phép lái xe" options={rule.licenses.map((l) => ({ value: l, label: `Hạng ${l}` }))} />
         <FormTextField control={control} name="licenseNumber" label="Số giấy phép lái xe (12 số)" icon={IdCard} placeholder="079xxxxxxxxx" keyboardType="number-pad" maxLength={12} />
-        <FormTextField control={control} name="shipperArea" label="Khu vực hoạt động" icon={MapPin} placeholder="VD: Quận 7, TP. Hồ Chí Minh" />
+        <FormAddressField control={control} name="shipperArea" label="Khu vực hoạt động" icon={MapPin} placeholder="VD: Quận 7, TP. Hồ Chí Minh" multiline />
         <FormTextField control={control} name="password" label="Mật khẩu" icon={Lock} password placeholder="Tối thiểu 8 ký tự" autoComplete="new-password" />
         <FormTextField control={control} name="confirmPassword" label="Xác nhận mật khẩu" icon={Lock} password placeholder="Nhập lại mật khẩu" autoComplete="new-password" />
 

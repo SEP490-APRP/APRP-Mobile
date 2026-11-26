@@ -43,6 +43,7 @@ export default function FreshScreen() {
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [imageSearchOpen, setImageSearchOpen] = useState(false)
   const [aiRecognized, setAiRecognized] = useState<string | null>(null)
+  const [visualMatchedIds, setVisualMatchedIds] = useState<string[]>([])
   const [refreshing, setRefreshing] = useState(false)
 
   const products = useStorefrontProducts()
@@ -63,8 +64,8 @@ export default function FreshScreen() {
   }, [params.openCamera])
 
   const items = useMemo(
-    () => applyFilters(products.data ?? [], query, filters, sort),
-    [products.data, query, filters, sort],
+    () => applyFilters(products.data ?? [], query, filters, sort, visualMatchedIds),
+    [products.data, query, filters, sort, visualMatchedIds],
   )
 
   const activeCount = countActiveFilters(filters) + (query.trim() ? 1 : 0)
@@ -75,6 +76,7 @@ export default function FreshScreen() {
     setSort('featured')
     setQuery('')
     setAiRecognized(null)
+    setVisualMatchedIds([])
   }
 
   const refresh = async () => {
@@ -125,6 +127,7 @@ export default function FreshScreen() {
           <Pressable
             onPress={() => {
               setAiRecognized(null)
+              setVisualMatchedIds([])
               setQuery('')
             }}
             accessibilityRole="button"
@@ -210,7 +213,12 @@ export default function FreshScreen() {
             <Search size={16} color={colors.inkSubtle} />
             <TextInput
               value={query}
-              onChangeText={setQuery}
+              onChangeText={(text) => {
+                setQuery(text)
+                if (aiRecognized && text !== aiRecognized) {
+                  setVisualMatchedIds([])
+                }
+              }}
               placeholder="Tìm theo tên, nhà vườn…"
               placeholderTextColor={colors.inkSubtle}
               accessibilityLabel="Tìm nông sản"
@@ -223,6 +231,7 @@ export default function FreshScreen() {
                 onPress={() => {
                   setQuery('')
                   setAiRecognized(null)
+                  setVisualMatchedIds([])
                 }}
                 accessibilityRole="button"
                 accessibilityLabel="Xóa từ khóa"
@@ -322,7 +331,11 @@ export default function FreshScreen() {
       <ImageSearchModal
         visible={imageSearchOpen}
         onClose={() => setImageSearchOpen(false)}
-        onSelectKeyword={(kw) => {
+        onSelectKeyword={(kw, initialProducts) => {
+          const ids = (initialProducts || [])
+            .map((p: any) => String(p.productId ?? p.id ?? ''))
+            .filter(Boolean)
+          setVisualMatchedIds(ids)
           setQuery(kw)
           setAiRecognized(kw)
         }}

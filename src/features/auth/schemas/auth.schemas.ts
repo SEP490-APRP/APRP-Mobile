@@ -37,6 +37,8 @@ export type RegisterValues = {
   shopRegion: string
   shopFarmingType: string
   shopDescription: string
+  logoUrl?: string
+  licenseImageUrl?: string
   shopBankName?: string
   shopBankAccount?: string
   shopBankHolder?: string

@@ -1,5 +1,5 @@
 import { router, useLocalSearchParams } from 'expo-router'
-import { Clock, Eye, Heart, MessageCircle, Send, Share2, Store } from 'lucide-react-native'
+import { ChevronRight, Clock, Eye, Heart, MessageCircle, Send, Share2, ShoppingBag, Store } from 'lucide-react-native'
 import { useMemo, useState } from 'react'
 import {
   ActivityIndicator,
@@ -35,6 +35,7 @@ import {
   useStoryComments,
   useToggleStoryLike,
 } from '@/features/blog'
+import { money, ProduceImage } from '@/features/product'
 import { useAuth, useUiStore } from '@/stores'
 import { colors } from '@/theme/colors'
 import { fontFamily } from '@/theme/fonts'
@@ -221,6 +222,45 @@ export default function StoryScreen() {
             <StoryBody blocks={blocks} />
           ) : (
             <AppText className="text-sm italic text-ink-muted">Bài viết chưa có nội dung.</AppText>
+          )}
+
+          {/* Nông sản đính kèm trong bài viết */}
+          {!!b.productId && (
+            <Pressable
+              onPress={() => router.push({ pathname: '/buyer/product/[id]', params: { id: String(b.productId) } })}
+              accessibilityRole="link"
+              accessibilityLabel={`Xem chi tiết nông sản ${b.productName || ''}`}
+              className="mt-2 flex-row items-center gap-3 rounded-2xl border-2 border-leaf-600/30 bg-leaf-50/60 p-3.5 active:bg-leaf-100/70 shadow-xs"
+            >
+              <View className="h-16 w-16 overflow-hidden rounded-xl border border-line bg-white shadow-2xs">
+                {b.productImage ? (
+                  <ProduceImage src={b.productImage} alt={b.productName || 'Nông sản'} />
+                ) : (
+                  <View className="h-full w-full items-center justify-center bg-leaf-100">
+                    <ShoppingBag size={22} color={colors.leaf700} />
+                  </View>
+                )}
+              </View>
+              <View className="min-w-0 flex-1">
+                <View className="self-start rounded-md bg-leaf-100 px-2 py-0.5">
+                  <AppText className="text-[10px] font-extrabold uppercase tracking-wider text-leaf-800">
+                    Sản phẩm trong bài viết
+                  </AppText>
+                </View>
+                <AppText weight="extrabold" numberOfLines={1} className="mt-1 text-sm text-ink">
+                  {b.productName || 'Nông sản đang mở bán'}
+                </AppText>
+                <AppText className="mt-0.5 text-xs font-black text-rose-600">
+                  {money(Number(b.productPrice || 0))}
+                  {b.productUnit ? (
+                    <AppText className="text-xs font-normal text-ink-muted"> / {b.productUnit}</AppText>
+                  ) : null}
+                </AppText>
+              </View>
+              <View className="h-8 w-8 items-center justify-center rounded-full bg-leaf-700">
+                <ChevronRight size={18} color="#ffffff" />
+              </View>
+            </Pressable>
           )}
 
           <View className="mt-2 flex-row gap-3">

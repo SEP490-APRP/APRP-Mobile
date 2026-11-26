@@ -89,6 +89,8 @@ async function registerByRole(role: RegisterRole, values: RegisterValues) {
       address: values.shopAddress.trim() || 'Lâm Đồng, Việt Nam',
       cccd: values.cccd.trim(),
       shopName: values.shopName.trim(),
+      logoUrl: values.logoUrl,
+      licenseImageUrl: values.licenseImageUrl,
       description:
         values.shopDescription.trim() ||
         `Khu vực: ${values.shopRegion}. Canh tác: ${values.shopFarmingType}`,

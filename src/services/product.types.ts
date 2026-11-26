@@ -87,6 +87,7 @@ export interface ProductCreationRequest {
   unit: string
   sellingPrice: number
   stockQuantity: number
+  origin?: string
   description?: string
   expiryDate: string // YYYY-MM-DD
   discountPercent?: number
@@ -100,6 +101,7 @@ export interface ProductUpdateRequest {
   unit: string
   sellingPrice: number
   stockQuantity: number
+  origin?: string
   description?: string
   status?: string
   expiryDate: string // YYYY-MM-DD
@@ -136,6 +138,7 @@ export interface ProductResponse {
   discountStartDate?: string
   discountEndDate?: string
   expiryDate?: string
+  origin?: string
   status: ProductStatus
   rejectReason?: string
   defectReason?: string

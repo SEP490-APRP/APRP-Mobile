@@ -273,7 +273,9 @@ export const productService = {
       return { code: 1000, result: newImg }
     }
 
-    const res = await axiosInstance.post<ApiResponse<ProductImageResponse>>(`/products/${productId}/images`, request)
+    const res = await axiosInstance.post<ApiResponse<ProductImageResponse>>(`/products/${productId}/images`, request, {
+      timeout: 60_000,
+    })
     return res.data
   },
 

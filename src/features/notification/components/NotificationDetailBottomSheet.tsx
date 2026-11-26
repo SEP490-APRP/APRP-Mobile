@@ -1,6 +1,7 @@
 import * as WebBrowser from 'expo-web-browser'
 import { router } from 'expo-router'
 import {
+  AlertTriangle,
   Bell,
   Calendar,
   ExternalLink,
@@ -57,7 +58,21 @@ export function NotificationDetailBottomSheet({
   let categoryColor: string = colors.leaf700
   let categoryBg = 'bg-leaf-100'
 
-  if (
+  const isDisputeRelated =
+    type.includes('RETURN') ||
+    type.includes('DISPUTE') ||
+    type.includes('ADMIN_APPROVED') ||
+    textContent.includes('khiếu nại') ||
+    textContent.includes('hoàn trả') ||
+    textContent.includes('trả hàng') ||
+    textContent.includes('hoàn tiền')
+
+  if (isDisputeRelated) {
+    categoryLabel = 'KHIẾU NẠI'
+    CategoryIcon = AlertTriangle
+    categoryColor = '#e11d48'
+    categoryBg = 'bg-rose-100'
+  } else if (
     type.includes('ORDER') ||
     type.includes('SHIPPER') ||
     type.includes('DISPATCH') ||
@@ -126,6 +141,22 @@ export function NotificationDetailBottomSheet({
   const handlePrimaryAction = () => {
     onClose()
 
+    // Điều hướng khiếu nại / hoàn trả
+    if (isDisputeRelated) {
+      if (role === 'shop') {
+        if (targetOrderId) {
+          router.push({ pathname: '/shop/dispute/[id]' as any, params: { id: targetOrderId } })
+        } else {
+          router.push('/shop/disputes' as any)
+        }
+      } else if (targetOrderId) {
+        router.push({ pathname: '/buyer/order/[id]', params: { id: targetOrderId } })
+      } else {
+        router.push('/buyer/orders')
+      }
+      return
+    }
+
     // Điều hướng đơn hàng
     if (targetOrderId) {
       if (role === 'shop') {
@@ -174,12 +205,19 @@ export function NotificationDetailBottomSheet({
   }
 
   const hasSmartAction =
+    isDisputeRelated ||
     Boolean(targetOrderId) ||
     categoryLabel === 'TÀI CHÍNH' ||
     (categoryLabel === 'ƯU ĐÃI' && (role === 'buyer' || role === 'shop'))
 
   let smartActionTitle = 'Xem chi tiết'
-  if (targetOrderId) {
+  if (isDisputeRelated) {
+    if (role === 'shop') {
+      smartActionTitle = targetOrderId ? `Xử lý khiếu nại #${targetOrderId}` : 'Đến trung tâm khiếu nại'
+    } else {
+      smartActionTitle = targetOrderId ? `Xem đơn hàng #${targetOrderId}` : 'Xem đơn hàng của tôi'
+    }
+  } else if (targetOrderId) {
     smartActionTitle = `Xem chi tiết đơn hàng #${targetOrderId}`
   } else if (categoryLabel === 'TÀI CHÍNH') {
     smartActionTitle = 'Đến ví tiền'

@@ -1,25 +1,38 @@
 import { Image } from 'expo-image'
 import { router, useLocalSearchParams } from 'expo-router'
-import { Eye, ImagePlus, PenLine, RefreshCw, Save, Send } from 'lucide-react-native'
+import { Eye, ImagePlus, PenLine, RefreshCw, Save, Send, ShoppingBag, Trash2 } from 'lucide-react-native'
 import { useEffect, useMemo, useState } from 'react'
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, TextInput, View } from 'react-native'
+import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, TextInput, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { AppText, Button, ChoiceChips, ErrorState, Skeleton, TextField } from '@/components/ui'
 import { BackButton } from '@/features/auth/components'
 import { StoryBody } from '@/features/blog/components/StoryBody'
-import { parseStoryContent, storyId, storyImage } from '@/features/blog/utils/storyContent'
+import {
+  parseStoryContent,
+  readingMinutes,
+  storyId,
+  storyImage,
+  storyPlainText,
+} from '@/features/blog/utils/storyContent'
+import { money, ProduceImage } from '@/features/product'
 import {
   blogToDraft,
   draftBodyToHtml,
   emptyBlogDraft,
   ImageSourceSheet,
+  productIdOf,
+  productImageOf,
+  productPrice,
   SHOP_BLOG_CATEGORIES,
+  SingleProductPickerSheet,
   useMyShopBlogs,
+  useMyShopProducts,
   usePickProductImage,
   useSaveShopBlog,
   validateBlogDraft,
   type BlogDraft,
 } from '@/features/shop'
+import { uploadService } from '@/services'
 import type { BlogStatus } from '@/services/blog.types'
 import { useUiStore } from '@/stores'
 import { colors } from '@/theme/colors'
@@ -28,15 +41,19 @@ import type { UploadFile } from '@/types/upload.types'
 import { getErrorMessage } from '@/utils/errors'
 import { cn } from '@/utils/helpers'
 
-/** Nút chèn nhanh định dạng, thay cho thanh công cụ soạn thảo HTML của web. */
+/** Nút chèn nhanh định dạng, tương đồng thanh công cụ CKEditor bản web. */
 const SNIPPETS = [
   { label: 'Tiêu đề', text: '\n\n## ' },
-  { label: 'Gạch đầu dòng', text: '\n- ' },
   { label: 'In đậm', text: '**chữ đậm**' },
+  { label: 'In nghiêng', text: '*chữ nghiêng*' },
+  { label: 'Gạch đầu dòng', text: '\n- ' },
+  { label: 'Đánh số', text: '\n1. ' },
   { label: 'Trích dẫn', text: '\n\n> ' },
 ] as const
 
-/** Viết / sửa bài của Nhà vườn, chuyển từ BlogEditorModal bản web. */
+type ImagePickTarget = 'cover' | 'inline'
+
+/** Viết / sửa bài của Nhà vườn, đồng bộ với BlogEditorModal (CKEditor 5) bản web. */
 export default function ShopBlogEditor() {
   const { id: raw } = useLocalSearchParams<{ id?: string }>()
   const id = Number(raw) || 0
@@ -45,14 +62,34 @@ export default function ShopBlogEditor() {
   const save = useSaveShopBlog()
   const pick = usePickProductImage()
   const showToast = useUiStore((s) => s.showToast)
+  const myProductsQuery = useMyShopProducts()
+  const myProducts = myProductsQuery.data ?? []
 
   const [draft, setDraft] = useState<BlogDraft>(emptyBlogDraft)
   const [errors, setErrors] = useState<Partial<Record<keyof BlogDraft, string>>>({})
   const [cover, setCover] = useState<UploadFile>()
   const [coverUrl, setCoverUrl] = useState<string>()
-  const [sheet, setSheet] = useState(false)
+  const [pickTarget, setPickTarget] = useState<ImagePickTarget | null>(null)
+  const [uploadingInline, setUploadingInline] = useState(false)
+  const [productSheet, setProductSheet] = useState(false)
   const [preview, setPreview] = useState(false)
   const [loaded, setLoaded] = useState(id === 0)
+
+  const attachedProduct = useMemo(() => {
+    if (!draft.productId) return null
+    const found = myProducts.find((p) => productIdOf(p) === draft.productId)
+    if (found) return found
+    if (existing?.productId === draft.productId) {
+      return {
+        productId: existing.productId,
+        productName: existing.productName,
+        images: existing.productImage ? [{ imageUrl: existing.productImage }] : [],
+        price: existing.productPrice,
+        unit: existing.productUnit,
+      } as any
+    }
+    return null
+  }, [myProducts, draft.productId, existing])
 
   useEffect(() => {
     if (loaded || !existing) return
@@ -60,6 +97,15 @@ export default function ShopBlogEditor() {
     setCoverUrl(storyImage(existing))
     setLoaded(true)
   }, [loaded, existing])
+
+  const wordStats = useMemo(() => {
+    const html = draftBodyToHtml(draft.body)
+    const words = storyPlainText(html).split(/\s+/).filter(Boolean).length
+    return {
+      words,
+      minutes: readingMinutes(html),
+    }
+  }, [draft.body])
 
   const goBack = () => (router.canGoBack() ? router.back() : router.replace('/shop/blogs'))
   const change = (patch: Partial<BlogDraft>) => {
@@ -71,7 +117,42 @@ export default function ShopBlogEditor() {
     })
   }
 
+  const handlePickedImage = async (source: 'library' | 'camera') => {
+    const target = pickTarget ?? 'cover'
+    const f = await pick(source, target === 'cover' ? [16, 9] : undefined)
+    if (!f) return
+
+    if (target === 'cover') {
+      setCover(f)
+      return
+    }
+
+    setUploadingInline(true)
+    try {
+      const uploadedUrl = (await uploadService.uploadImage(f, 'blogs')).result?.url
+      if (!uploadedUrl) throw new Error('Không nhận được đường dẫn ảnh từ máy chủ')
+      setDraft((d) => {
+        const prefix = d.body.trimEnd() ? `${d.body.trimEnd()}\n\n` : ''
+        return { ...d, body: `${prefix}![](${uploadedUrl})\n\n` }
+      })
+      setErrors((e) => {
+        if (!e.body) return e
+        const next = { ...e }
+        delete next.body
+        return next
+      })
+      showToast('Đã chèn ảnh vào bài viết.')
+    } catch (err) {
+      showToast(getErrorMessage(err, 'Chưa tải được ảnh lên, thử lại nhé.'))
+    } finally {
+      setUploadingInline(false)
+    }
+  }
+
   const submit = (status: BlogStatus) => {
+    if (uploadingInline) {
+      return showToast('Vui lòng chờ tải ảnh chèn vào bài hoàn tất.')
+    }
     const next = validateBlogDraft(draft)
     setErrors(next)
     if (Object.keys(next).length > 0) return showToast('Bài viết cần tiêu đề và nội dung đầy đủ hơn.')
@@ -153,30 +234,74 @@ export default function ShopBlogEditor() {
               {draft.title || 'Tiêu đề bài viết'}
             </AppText>
             <StoryBody blocks={parseStoryContent(draftBodyToHtml(draft.body))} />
+
+            {/* Xem trước nông sản đính kèm */}
+            {!!attachedProduct && (
+              <View className="mt-2 flex-row items-center gap-3 rounded-2xl border border-leaf-300 bg-leaf-50/70 p-3.5">
+                <View className="h-14 w-14 overflow-hidden rounded-xl border border-line bg-white">
+                  <ProduceImage src={productImageOf(attachedProduct) ?? ''} alt={attachedProduct.productName || 'Nông sản'} />
+                </View>
+                <View className="min-w-0 flex-1">
+                  <AppText className="text-[10px] font-bold uppercase tracking-wider text-leaf-800">
+                    Sản phẩm trong bài viết
+                  </AppText>
+                  <AppText weight="bold" numberOfLines={1} className="text-sm text-ink mt-0.5">
+                    {attachedProduct.productName || (attachedProduct as any).name}
+                  </AppText>
+                  <AppText className="text-xs font-bold text-rose-600 mt-0.5">
+                    {money(productPrice(attachedProduct))}/{(attachedProduct as any).unit || 'kg'}
+                  </AppText>
+                </View>
+              </View>
+            )}
           </ScrollView>
         ) : (
           <ScrollView contentContainerClassName="gap-5 p-4 pb-8" keyboardShouldPersistTaps="handled">
-            <Pressable
-              onPress={() => setSheet(true)}
-              accessibilityRole="button"
-              accessibilityLabel={coverSrc ? 'Đổi ảnh bìa' : 'Thêm ảnh bìa'}
-              className={cn(
-                'aspect-[16/9] w-full overflow-hidden rounded-panel',
-                !coverSrc && 'border-2 border-dashed border-leaf-200 bg-white',
-              )}
-            >
+            <View className="gap-1.5">
+              <View className="flex-row items-center justify-between">
+                <AppText weight="semibold" className="text-sm text-ink">
+                  Ảnh bìa bài viết
+                </AppText>
+                <AppText className="text-xs text-ink-muted">Khuyến nghị tỉ lệ 16:9</AppText>
+              </View>
               {coverSrc ? (
-                <>
+                <View className="aspect-[16/9] w-full overflow-hidden rounded-panel">
                   <Image source={{ uri: coverSrc }} contentFit="cover" style={{ width: '100%', height: '100%' }} />
-                  <View className="absolute bottom-3 right-3 flex-row items-center gap-1.5 rounded-full bg-black/60 px-3 py-1.5">
-                    <RefreshCw size={14} color={colors.white} />
-                    <AppText weight="bold" className="text-sm text-white">
-                      Đổi ảnh bìa
-                    </AppText>
+                  <View className="absolute bottom-3 right-3 flex-row items-center gap-2">
+                    <Pressable
+                      onPress={() => {
+                        setCover(undefined)
+                        setCoverUrl(undefined)
+                      }}
+                      accessibilityRole="button"
+                      accessibilityLabel="Bỏ ảnh bìa"
+                      className="flex-row items-center gap-1 rounded-full bg-black/60 px-3 py-1.5"
+                    >
+                      <Trash2 size={13} color={colors.white} />
+                      <AppText weight="bold" className="text-xs text-white">
+                        Bỏ ảnh
+                      </AppText>
+                    </Pressable>
+                    <Pressable
+                      onPress={() => setPickTarget('cover')}
+                      accessibilityRole="button"
+                      accessibilityLabel="Đổi ảnh bìa"
+                      className="flex-row items-center gap-1.5 rounded-full bg-black/60 px-3 py-1.5"
+                    >
+                      <RefreshCw size={14} color={colors.white} />
+                      <AppText weight="bold" className="text-xs text-white">
+                        Đổi ảnh
+                      </AppText>
+                    </Pressable>
                   </View>
-                </>
+                </View>
               ) : (
-                <View className="flex-1 items-center justify-center gap-1.5 px-6">
+                <Pressable
+                  onPress={() => setPickTarget('cover')}
+                  accessibilityRole="button"
+                  accessibilityLabel="Thêm ảnh bìa"
+                  className="aspect-[16/9] w-full items-center justify-center gap-1.5 overflow-hidden rounded-panel border-2 border-dashed border-leaf-200 bg-white px-6"
+                >
                   <ImagePlus size={26} color={colors.leaf700} />
                   <AppText weight="bold" className="text-base text-leaf-800">
                     Thêm ảnh bìa
@@ -184,9 +309,9 @@ export default function ShopBlogEditor() {
                   <AppText className="text-center text-sm text-ink-muted">
                     Ảnh vườn, mùa vụ hoặc nông sản của bạn
                   </AppText>
-                </View>
+                </Pressable>
               )}
-            </Pressable>
+            </View>
 
             <TextField
               label="Tiêu đề *"
@@ -204,11 +329,86 @@ export default function ShopBlogEditor() {
               onChange={(category) => change({ category })}
             />
 
+            {/* Đính kèm nông sản */}
+            <View className="gap-2">
+              <View className="flex-row items-baseline justify-between">
+                <AppText weight="semibold" className="text-sm text-ink">
+                  Nông sản đính kèm (tuỳ chọn)
+                </AppText>
+                {!!attachedProduct && (
+                  <Pressable onPress={() => change({ productId: null })} hitSlop={6}>
+                    <AppText className="text-xs font-semibold text-sale">Gỡ đính kèm</AppText>
+                  </Pressable>
+                )}
+              </View>
+
+              {attachedProduct ? (
+                <View className="flex-row items-center gap-3 rounded-2xl border border-leaf-300 bg-leaf-50 p-3">
+                  <View className="h-14 w-14 overflow-hidden rounded-xl border border-line bg-white">
+                    <ProduceImage
+                      src={productImageOf(attachedProduct) ?? ''}
+                      alt={attachedProduct.productName || (attachedProduct as any).name || 'Nông sản'}
+                    />
+                  </View>
+                  <View className="min-w-0 flex-1">
+                    <AppText weight="bold" numberOfLines={1} className="text-sm text-ink">
+                      {attachedProduct.productName || (attachedProduct as any).name}
+                    </AppText>
+                    <AppText className="text-xs font-bold text-rose-600 mt-0.5">
+                      {money(productPrice(attachedProduct))}/{(attachedProduct as any).unit || 'kg'}
+                    </AppText>
+                  </View>
+                  <Pressable
+                    onPress={() => setProductSheet(true)}
+                    className="rounded-full bg-white px-3 py-1.5 border border-leaf-700 active:bg-leaf-100"
+                  >
+                    <AppText weight="bold" className="text-xs text-leaf-700">
+                      Đổi
+                    </AppText>
+                  </Pressable>
+                </View>
+              ) : (
+                <Pressable
+                  onPress={() => setProductSheet(true)}
+                  className="flex-row items-center justify-center gap-2 rounded-2xl border border-dashed border-line-strong bg-white p-3.5 active:bg-paper"
+                >
+                  <ShoppingBag size={18} color={colors.leaf700} />
+                  <AppText weight="bold" className="text-sm text-leaf-700">
+                    Chọn 1 nông sản đính kèm vào bài viết
+                  </AppText>
+                </Pressable>
+              )}
+            </View>
+
             <View className="gap-1.5">
-              <AppText weight="semibold" className="text-sm text-ink">
-                Nội dung *
-              </AppText>
+              <View className="flex-row items-center justify-between">
+                <AppText weight="semibold" className="text-sm text-ink">
+                  Nội dung *
+                </AppText>
+                <AppText className="text-xs text-ink-muted">
+                  {wordStats.words} từ{wordStats.words > 0 ? ` · ~${wordStats.minutes} phút đọc` : ''}
+                </AppText>
+              </View>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerClassName="gap-2">
+                <Pressable
+                  onPress={() => setPickTarget('inline')}
+                  disabled={uploadingInline}
+                  accessibilityRole="button"
+                  accessibilityLabel="Chèn ảnh vào giữa bài viết"
+                  className={cn(
+                    'h-9 flex-row items-center gap-1.5 rounded-full border border-leaf-500 bg-leaf-50 px-3',
+                    uploadingInline && 'opacity-60',
+                  )}
+                >
+                  {uploadingInline ? (
+                    <ActivityIndicator size="small" color={colors.leaf700} />
+                  ) : (
+                    <ImagePlus size={14} color={colors.leaf700} />
+                  )}
+                  <AppText weight="bold" className="text-sm text-leaf-800">
+                    {uploadingInline ? 'Đang tải ảnh…' : '+ Chèn ảnh'}
+                  </AppText>
+                </Pressable>
                 {SNIPPETS.map((s) => (
                   <Pressable
                     key={s.label}
@@ -226,7 +426,7 @@ export default function ShopBlogEditor() {
               <TextInput
                 value={draft.body}
                 onChangeText={(body) => change({ body })}
-                placeholder={'Sáng nay cả nhà ra vườn nhổ cà rốt…\n\nĐể trống một dòng để sang đoạn mới.'}
+                placeholder={'Sáng nay cả nhà ra vườn nhổ cà rốt…\n\nĐể trống một dòng để sang đoạn mới, hoặc bấm "+ Chèn ảnh" để thêm hình giữa bài.'}
                 placeholderTextColor={colors.inkSubtle}
                 accessibilityLabel="Nội dung"
                 multiline
@@ -241,7 +441,7 @@ export default function ShopBlogEditor() {
                 <AppText className="text-caption text-sale">{errors.body}</AppText>
               ) : (
                 <AppText className="text-xs text-ink-muted">
-                  Để trống một dòng giữa các đoạn. Bấm Xem trước để thấy bài như khách thấy.
+                  Hỗ trợ tiêu đề, chữ đậm/nghiêng, danh sách, trích dẫn và chèn ảnh giữa bài. Bấm Xem trước để xem đúng giao diện khách đọc.
                 </AppText>
               )}
             </View>
@@ -256,7 +456,7 @@ export default function ShopBlogEditor() {
             variant="outline"
             icon={Save}
             loading={save.isPending && save.variables?.status === 'DRAFT'}
-            disabled={save.isPending}
+            disabled={save.isPending || uploadingInline}
             onPress={() => submit('DRAFT')}
             className="min-h-[48px] flex-1"
           />
@@ -265,22 +465,30 @@ export default function ShopBlogEditor() {
           title={published ? 'Lưu thay đổi' : 'Đăng bài'}
           icon={published ? Save : Send}
           loading={save.isPending && save.variables?.status === 'PUBLISHED'}
-          disabled={save.isPending}
+          disabled={save.isPending || uploadingInline}
           onPress={() => submit('PUBLISHED')}
           className="min-h-[48px] flex-[1.4]"
         />
       </View>
 
       <ImageSourceSheet
-        visible={sheet}
-        onClose={() => setSheet(false)}
-        title="Ảnh bìa bài viết"
-        subtitle="Ảnh ngang hiển thị đẹp nhất"
-        onPick={(s) =>
-          void pick(s, [16, 9]).then((f) => {
-            if (f) setCover(f)
-          })
+        visible={pickTarget !== null}
+        onClose={() => setPickTarget(null)}
+        title={pickTarget === 'inline' ? 'Chèn ảnh vào bài viết' : 'Ảnh bìa bài viết'}
+        subtitle={
+          pickTarget === 'inline'
+            ? 'Ảnh sẽ được tải lên và hiển thị ngay trong nội dung bài'
+            : 'Ảnh ngang 16:9 hiển thị đẹp nhất'
         }
+        onPick={(s) => void handlePickedImage(s)}
+      />
+
+      <SingleProductPickerSheet
+        visible={productSheet}
+        onClose={() => setProductSheet(false)}
+        products={myProducts}
+        selectedId={draft.productId}
+        onSelect={(pid) => change({ productId: pid })}
       />
     </SafeAreaView>
   )
