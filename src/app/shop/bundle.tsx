@@ -20,6 +20,7 @@ import {
   BUNDLE_LABEL,
   BUNDLE_NAME_MAX,
   BundleItemsEditor,
+  COMBO_TYPE_OPTIONS,
   bundleItemsFrom,
   bundleSaving,
   digitsOnly,
@@ -290,11 +291,15 @@ export default function ShopBundleEditor() {
                 onChange={(mealType) => change({ mealType })}
               />
               {/* Xếp dọc: hai ô nửa bề ngang làm cụt chữ trên máy nhỏ */}
-              <TextField
-                label="Thể loại"
+              <ChoiceChips
+                label="Thể loại combo"
+                options={
+                  values.type && !COMBO_TYPE_OPTIONS.some((opt) => opt.value === values.type)
+                    ? [{ value: values.type, label: values.type }, ...COMBO_TYPE_OPTIONS]
+                    : COMBO_TYPE_OPTIONS
+                }
                 value={values.type}
-                onChangeText={(type) => change({ type })}
-                placeholder="Món lẩu, nấu canh…"
+                onChange={(type) => change({ type })}
               />
               <TextField
                 label="Vùng xuất xứ"
