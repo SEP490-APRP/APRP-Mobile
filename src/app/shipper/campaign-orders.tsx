@@ -1,12 +1,11 @@
-import { CheckCircle2, Flame, Package, Truck, type LucideIcon } from 'lucide-react-native'
+import { Package, Route, Truck, Warehouse, type LucideIcon } from 'lucide-react-native'
 import { useState, type ReactNode } from 'react'
 import { RefreshControl, ScrollView, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { AppText, Button, Skeleton } from '@/components/ui'
+import { AppText, Skeleton } from '@/components/ui'
 import { BackButton } from '@/features/auth/components'
-import { DeliveringActions, ShipperPreOrderCard, useShipperPreOrderAction, useShipperPreOrders } from '@/features/campaign'
+import { DeliveringActions, HubPickupActions, HubRunPicker, HubTripCard, routeOrder, ShipperPreOrderCard, useHubTrips, useShipperPreOrderAction, useShipperPreOrders } from '@/features/campaign'
 import { formatVnd } from '@/features/campaign/utils/campaignFormat'
-import type { PreOrderResponse } from '@/services'
 import { useUiStore } from '@/stores'
 import { colors } from '@/theme/colors'
 import { getErrorMessage } from '@/utils/errors'
@@ -14,30 +13,29 @@ import { getErrorMessage } from '@/utils/errors'
 /** Đơn chiến dịch của tài xế (ShipperCampaignOrders bản web): đang giao, được giao, tại hub chờ nhận */
 export default function ShipperCampaignOrdersScreen() {
   const { ready, mine } = useShipperPreOrders()
-  const { accept, deliver, fail } = useShipperPreOrderAction()
+  const hubTrips = useHubTrips()
+  const { deliver, fail } = useShipperPreOrderAction()
   const showToast = useUiStore((s) => s.showToast)
   const [refreshing, setRefreshing] = useState(false)
 
   const onError = (e: unknown) => showToast(getErrorMessage(e, 'Thao tác thất bại.'))
   const all = mine.data ?? []
   const assignedWaiting = all.filter((o) => o.status === 'READY' && !o.pickedUpAt)
-  const delivering = all.filter((o) => o.status === 'SHIPPING' || (o.status === 'READY' && o.pickedUpAt))
+  const carrying = all.filter((o) => o.status === 'SHIPPING' || (o.status === 'READY' && o.pickedUpAt))
+  // Đang giao xếp theo đường ngắn, xuất phát từ hub của đơn đầu tiên
+  const first = carrying[0]
+  const delivering = routeOrder(first?.hubLatitude != null ? [Number(first.hubLatitude), Number(first.hubLongitude)] : null, carrying)
+  // Chuyến xe ra hub: của tôi (chưa giao tới hub) và các chuyến đang chờ tài xế
+  const tripsMine = (hubTrips.mine.data ?? []).filter((t) => t.status !== 'DELIVERED')
+  // Chuyến đã bấm không nhận xếp cuối
+  const tripsOpen = [...(hubTrips.open.data ?? [])].sort((x, y) => Number(x.declined ?? false) - Number(y.declined ?? false))
   const done = all.filter((o) => o.status === 'DELIVERED' || o.status === 'FAILED').slice(0, 10)
 
   const refresh = async () => {
     setRefreshing(true)
-    await Promise.all([ready.refetch(), mine.refetch()])
+    await Promise.all([ready.refetch(), mine.refetch(), hubTrips.open.refetch(), hubTrips.mine.refetch()])
     setRefreshing(false)
   }
-
-  const acceptBtn = (o: PreOrderResponse, title: string, icon: LucideIcon) => (
-    <Button
-      title={title}
-      icon={icon}
-      loading={accept.isPending && accept.variables === o.preOrderId}
-      onPress={() => accept.mutate(o.preOrderId, { onError, onSuccess: () => showToast('Đã nhận đơn.') })}
-    />
-  )
 
   return (
     <SafeAreaView className="flex-1 bg-paper" edges={['top']}>
@@ -51,7 +49,23 @@ export default function ShipperCampaignOrdersScreen() {
         contentContainerClassName="gap-7 px-4 pb-12"
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.leaf700} colors={[colors.leaf700]} />}
       >
-        <Section icon={Truck} title="Đang giao" hint="Đã lấy hàng ở hub, giao tới khách và thu tiền còn lại" empty="Chưa có đơn chiến dịch nào đang giao." loading={mine.isPending} count={delivering.length}>
+        <Section
+          icon={Warehouse}
+          title="Chuyến chở hàng ra hub"
+          hint="Chở hàng từ điểm tập kết ra hub, shipper tại hub nhận đơn giao chặng cuối"
+          empty="Chưa có chuyến chở hàng ra hub nào đang kêu gọi."
+          loading={hubTrips.open.isPending || hubTrips.mine.isPending}
+          count={tripsMine.length + tripsOpen.length}
+        >
+          {tripsMine.map((t) => (
+            <HubTripCard key={t.tripId} t={t} />
+          ))}
+          {tripsOpen.map((t) => (
+            <HubTripCard key={t.tripId} t={t} />
+          ))}
+        </Section>
+
+        <Section icon={Truck} title="Đang giao" hint="Xếp theo thứ tự nên giao, giao tới khách và thu tiền còn lại" empty="Chưa có đơn chiến dịch nào đang giao." loading={mine.isPending} count={delivering.length}>
           {delivering.map((o) => (
             <ShipperPreOrderCard
               key={o.preOrderId}
@@ -68,16 +82,14 @@ export default function ShipperCampaignOrdersScreen() {
           ))}
         </Section>
 
-        <Section icon={Package} title="Admin đã giao cho bạn" hint="Tới hub ghi trên đơn lấy hàng rồi bấm Đã lấy hàng" empty="Chưa có đơn nào được giao cho bạn." loading={mine.isPending} count={assignedWaiting.length}>
+        <Section icon={Package} title="Chờ bạn lấy ở hub" hint="Tới hub ghi trên đơn, lấy đủ thùng rồi mới giao" empty="Chưa có đơn nào chờ bạn lấy." loading={mine.isPending} count={assignedWaiting.length}>
           {assignedWaiting.map((o) => (
-            <ShipperPreOrderCard key={o.preOrderId} o={o} action={acceptBtn(o, 'Đã lấy hàng ở hub', Package)} />
+            <ShipperPreOrderCard key={o.preOrderId} o={o} action={<HubPickupActions o={o} />} />
           ))}
         </Section>
 
-        <Section icon={Flame} title="Tại hub chờ nhận" hint="Xe CapNong đã chở hàng tới hub, nhận đơn rồi tới hub lấy hàng" empty="Hub chưa có đơn chiến dịch nào chờ shipper." loading={ready.isPending} count={ready.data?.length ?? 0}>
-          {(ready.data ?? []).map((o) => (
-            <ShipperPreOrderCard key={o.preOrderId} o={o} action={acceptBtn(o, 'Nhận đơn', CheckCircle2)} />
-          ))}
+        <Section icon={Route} title="Tạo chuyến giao từ hub" hint="Chỉ hiện đơn hub đã xác nhận. Nhận đơn xong thì tới hub lấy đủ thùng" empty="Hub chưa có đơn chiến dịch nào chờ shipper." loading={ready.isPending} count={ready.data?.length ?? 0}>
+          <HubRunPicker orders={ready.data ?? []} />
         </Section>
 
         {done.length > 0 && (

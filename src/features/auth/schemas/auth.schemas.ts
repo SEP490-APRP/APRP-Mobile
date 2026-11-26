@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { vehicleError } from '../constants/vehicleRules'
 
 /**
  * Validation constants matching Backend requirements
@@ -28,6 +29,8 @@ export type RegisterValues = {
   dietPreference: string
   shipperVehicle: string
   vehicleNumber: string
+  licenseClass: string
+  licenseNumber: string
   shipperArea: string
   shopName: string
   shopAddress: string
@@ -54,8 +57,10 @@ export const REGISTER_DEFAULTS: RegisterValues = {
   confirmPassword: '',
   buyerAddress: '',
   dietPreference: 'NON_VEGETARIAN',
-  shipperVehicle: 'Xe máy kèm thùng bảo ôn',
+  shipperVehicle: 'MOTORBIKE',
   vehicleNumber: '',
+  licenseClass: '',
+  licenseNumber: '',
   shipperArea: '',
   shopName: '',
   shopAddress: '',
@@ -106,10 +111,17 @@ export const shipperRegisterSchema = z
       .trim()
       .min(1, 'Vui lòng cung cấp khu vực hoặc địa chỉ hoạt động giao hàng'),
     shipperVehicle: z.string().optional(),
+    licenseClass: z.string().trim().min(1, 'Vui lòng chọn hạng giấy phép lái xe'),
+    licenseNumber: z.string().trim().min(1, 'Vui lòng nhập số giấy phép lái xe'),
     password: z.string().min(PASSWORD_MIN, 'Mật khẩu phải có ít nhất 8 ký tự'),
     confirmPassword: z.string(),
   })
   .refine(passwordsMatch, MISMATCH)
+  .superRefine((v, ctx) => {
+    // Xe phải đủ điều kiện: biển số đúng loại, giấy phép đủ hạng
+    const err = vehicleError({ vehicleType: v.shipperVehicle, vehicleNumber: v.vehicleNumber, licenseClass: v.licenseClass, licenseNumber: v.licenseNumber })
+    if (err) ctx.addIssue({ code: 'custom', path: [err.field], message: err.message })
+  })
 
 /** Bước 1 đăng ký nhà vườn: thông tin chủ hộ (bắt buộc CCCD, SĐT, Email, Mật khẩu). */
 export const shopAccountSchema = z

@@ -49,6 +49,10 @@ export interface ShipperRegisterRequest {
   address: string
   cccd: string
   vehicleNumber: string
+  /** MOTORBIKE | VAN | TRUCK_1T | TRUCK_2T | TRUCK_5T */
+  vehicleType?: string
+  /** Hạng và số giấy phép lái xe */
+  licenseClass: string
   bankAccount?: string
   bankAccountHolder?: string
   bankName?: string

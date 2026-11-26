@@ -9,6 +9,7 @@ import type {
   FarmRegistrationRequest,
   FarmRegistrationResponse,
   HomeBannerConfig,
+  HubTrip, ShipperCapacity,
   PreOrderCreateRequest,
   PreOrderResponse,
   ShippingQuote,
@@ -22,7 +23,7 @@ const pad = (n: number) => String(n).padStart(2, '0')
  * BE trả LocalDate/LocalDateTime dạng mảng [yyyy, M, d, H, m, s]. Interceptor chung chỉ đổi khoá …At/…Date,
  * nên ở đây đổi thêm deliverBy, damageClaimDeadline (giống campaign.service bản web).
  */
-export function normalizeCampaignDates<T>(v: T, keyPattern = /(At|Date|By|Deadline)$/): T {
+export function normalizeCampaignDates<T>(v: T, keyPattern = /(At|Date|By|Deadline|Before)$/): T {
   if (Array.isArray(v)) return v.map((x) => normalizeCampaignDates(x, keyPattern)) as T
   if (!v || typeof v !== 'object') return v
   const out: Record<string, unknown> = {}
@@ -92,7 +93,7 @@ export const campaignService = {
   async getOpenFarmCalls(): Promise<CampaignResponse[]> {
     return unwrap(await axiosInstance.get('/shop/campaigns/calls'))
   },
-  /** Đăng ký lô hàng (sản phẩm, số kg, ảnh, giá đề xuất, cam kết, thời gian bảo quản) */
+  /** Đăng ký lô hàng (sản phẩm, số kg, ảnh, cam kết, thời gian bảo quản); giá theo chiến dịch */
   async registerFarm(campaignId: number, body: FarmRegistrationRequest): Promise<FarmRegistrationResponse> {
     return unwrap(await axiosInstance.post(`/shop/campaigns/${campaignId}/register`, body))
   },
@@ -101,8 +102,50 @@ export const campaignService = {
   },
 }
 
+/** Tài xế nhận chuyến chở hàng chiến dịch từ điểm tập kết ra hub: /shipper/hub-trips/* */
+export const shipperHubTripService = {
+  /** Chuyến chưa có tài xế (đang kêu gọi) */
+  async open(): Promise<HubTrip[]> {
+    return unwrap(await axiosInstance.get('/shipper/hub-trips/open'))
+  },
+  async mine(): Promise<HubTrip[]> {
+    return unwrap(await axiosInstance.get('/shipper/hub-trips/my'))
+  },
+  async accept(id: number): Promise<HubTrip> {
+    return unwrap(await axiosInstance.put(`/shipper/hub-trips/${id}/accept`))
+  },
+  /** Không nhận chuyến đang chờ (vẫn nhận lại được nếu chưa ai nhận) */
+  async decline(id: number): Promise<HubTrip> {
+    return unwrap(await axiosInstance.put(`/shipper/hub-trips/${id}/decline`))
+  },
+  /** Trả chuyến để người khác nhận (chỉ khi chưa lấy hàng) */
+  async release(id: number): Promise<HubTrip> {
+    return unwrap(await axiosInstance.put(`/shipper/hub-trips/${id}/release`))
+  },
+  /** Đánh dấu các thùng của một đơn đã nhận lên xe */
+  async loadBoxes(id: number, orderId: number, loaded: number[]): Promise<HubTrip> {
+    return unwrap(await axiosInstance.put(`/shipper/hub-trips/${id}/boxes`, { orderId, loaded }))
+  },
+  /** Đã lấy hàng tại điểm tập kết, bắt đầu chở ra hub */
+  async start(id: number, photoUrl: string): Promise<HubTrip> {
+    return unwrap(await axiosInstance.put(`/shipper/hub-trips/${id}/start`, { photoUrl }))
+  },
+  /** Đã giao hàng của một hub trên lộ trình */
+  async arriveStop(id: number, hubId: number, photoUrl: string): Promise<HubTrip> {
+    return unwrap(await axiosInstance.put(`/shipper/hub-trips/${id}/stops/${hubId}/arrive`, { photoUrl }))
+  },
+}
+
 /** Shipper nhận và giao đơn chiến dịch tại hub: /shipper/pre-orders/* */
 export const shipperPreOrderService = {
+  /** Xe chở được bao nhiêu, đang chở bao nhiêu, ví còn ký quỹ được bao nhiêu */
+  async capacity(): Promise<ShipperCapacity> {
+    return unwrap(await axiosInstance.get('/shipper/pre-orders/capacity'))
+  },
+  /** Nhận một lần nhiều đơn cùng hub thành chuyến giao */
+  async acceptBatch(preOrderIds: number[]): Promise<PreOrderResponse[]> {
+    return unwrap(await axiosInstance.put('/shipper/pre-orders/accept-batch', { preOrderIds }))
+  },
   /** Đơn tại hub chưa có ai nhận (xếp theo độ gấp) */
   async ready(): Promise<PreOrderResponse[]> {
     return unwrap(await axiosInstance.get('/shipper/pre-orders/ready'))
@@ -113,6 +156,14 @@ export const shipperPreOrderService = {
   },
   async accept(id: number): Promise<PreOrderResponse> {
     return unwrap(await axiosInstance.put(`/shipper/pre-orders/${id}/accept`))
+  },
+  /** Đã kiểm đủ thùng tại hub, bắt đầu giao */
+  async pickup(id: number, crates: number[]): Promise<PreOrderResponse> {
+    return unwrap(await axiosInstance.put(`/shipper/pre-orders/${id}/pickup`, { crates }))
+  },
+  /** Bỏ nhận đơn chưa lấy khỏi hub */
+  async release(id: number): Promise<PreOrderResponse> {
+    return unwrap(await axiosInstance.put(`/shipper/pre-orders/${id}/release`))
   },
   async deliver(id: number, podImageUrl?: string): Promise<PreOrderResponse> {
     return unwrap(await axiosInstance.put(`/shipper/pre-orders/${id}/deliver`, { podImageUrl }))

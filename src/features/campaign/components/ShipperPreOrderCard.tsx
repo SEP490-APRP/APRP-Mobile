@@ -21,7 +21,8 @@ export const FAIL_REASONS = ['Không liên lạc được người nhận', 'Ng�
 
 /** Phí dịch vụ shipper (khớp capnong.wallet.shipper-fee-rate) */
 const SHIPPER_FEE_RATE = 0.03
-const shipperEarn = (o: PreOrderResponse) => Math.round(Number(o.shippingBaseFee ?? o.shippingFee ?? 0) * (1 - SHIPPER_FEE_RATE))
+const shipperEarn = (o: PreOrderResponse) =>
+  o.shipperEarnEstimate != null ? Math.round(Number(o.shipperEarnEstimate)) : Math.round(Number(o.shippingBaseFee ?? o.shippingFee ?? 0) * (1 - SHIPPER_FEE_RATE))
 
 /** Thẻ đơn chiến dịch cho tài xế (OrderCard trong ShipperCampaignOrders bản web) */
 export function ShipperPreOrderCard({ o, action }: { o: PreOrderResponse; action: ReactNode }) {

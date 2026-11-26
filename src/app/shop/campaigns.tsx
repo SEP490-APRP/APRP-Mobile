@@ -9,6 +9,8 @@ import { BackButton } from '@/features/auth/components'
 import {
   CallCard,
   invitesFromNotifications,
+  openingText,
+  registrationOpen,
   markInviteDeclined,
   Notice,
   ProposalsPanel,
@@ -250,7 +252,13 @@ function AdminInviteSheet({
         <View className="flex-1 flex-row gap-2">
           <Button title="Từ chối" variant="ghost" icon={XCircle} onPress={() => onDecline(inv)} />
           {invites.length > 1 && <Button title="Tiếp" variant="outline" onPress={() => setIdx((idx + 1) % invites.length)} />}
-          <Button className="flex-1" title="Đăng ký góp hàng" icon={Sprout} onPress={() => onRegister(c)} />
+          <Button
+            className="flex-1"
+            title={registrationOpen(c) ? 'Đăng ký góp hàng' : openingText(c)}
+            icon={Sprout}
+            disabled={!registrationOpen(c)}
+            onPress={() => onRegister(c)}
+          />
         </View>
       }
     >

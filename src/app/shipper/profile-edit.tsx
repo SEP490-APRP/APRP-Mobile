@@ -1,17 +1,19 @@
 import { Image } from 'expo-image'
 import * as ImagePicker from 'expo-image-picker'
 import { router } from 'expo-router'
-import { Bike, Camera, Mail, MapPin, Phone, User } from 'lucide-react-native'
+import { IdCard, Bike, Camera, Mail, MapPin, Phone, User } from 'lucide-react-native'
 import { useEffect, useState } from 'react'
 import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { AppText, Button, CapNongLoading, ErrorState, TextField } from '@/components/ui'
+import { AppText, Button, CapNongLoading, ChoiceChips, ErrorState, TextField } from '@/components/ui'
 import { cleanPhone } from '@/features/address'
+import { VEHICLE_OPTIONS } from '@/features/auth'
 import { BackButton } from '@/features/auth/components'
 import { useMyProfile, useUpdateAvatar, useUpdateProfile } from '@/features/profile'
 import { useUiStore } from '@/stores'
 import { colors } from '@/theme/colors'
 import { getErrorMessage } from '@/utils/errors'
+import { normalizePlate, ruleOf, vehicleError } from '@/features/auth/constants/vehicleRules'
 
 const PHONE_RE = /^(0|\+84)\d{9,10}$/
 
@@ -26,8 +28,11 @@ export default function ShipperProfileEditScreen() {
     phoneNumber: '',
     address: '',
     vehicleNumber: '',
+    vehicleType: 'MOTORBIKE',
+    licenseClass: '',
+    licenseNumber: '',
   })
-  const [errors, setErrors] = useState<{ fullName?: string; phoneNumber?: string; vehicleNumber?: string }>({})
+  const [errors, setErrors] = useState<{ fullName?: string; phoneNumber?: string; vehicleNumber?: string; licenseClass?: string; licenseNumber?: string }>({})
 
   const p = profile.data
 
@@ -38,6 +43,9 @@ export default function ShipperProfileEditScreen() {
         phoneNumber: p.phoneNumber || p.phone || '',
         address: p.address ?? '',
         vehicleNumber: p.vehicleNumber || p.licensePlate || '',
+        vehicleType: p.vehicleType || 'MOTORBIKE',
+        licenseClass: p.licenseClass ?? '',
+        licenseNumber: p.license ?? '',
       })
     }
   }, [p])
@@ -70,9 +78,14 @@ export default function ShipperProfileEditScreen() {
     if (form.phoneNumber && !PHONE_RE.test(cleanPhone(form.phoneNumber))) {
       nextErrors.phoneNumber = 'Số điện thoại không hợp lệ'
     }
-    if (form.vehicleNumber && form.vehicleNumber.trim().length < 4) {
-      nextErrors.vehicleNumber = 'Biển số xe không hợp lệ (VD: 59A-123.45)'
-    }
+    // Đổi thông tin xe hoặc giấy phép thì cả bộ phải đủ điều kiện
+    const vehicleChanged =
+      form.vehicleType !== (p?.vehicleType || 'MOTORBIKE') ||
+      normalizePlate(form.vehicleNumber) !== normalizePlate(p?.vehicleNumber || p?.licensePlate || '') ||
+      form.licenseClass !== (p?.licenseClass ?? '') ||
+      form.licenseNumber.trim() !== (p?.license ?? '')
+    const vehicle = vehicleChanged ? vehicleError(form) : null
+    if (vehicle) nextErrors[vehicle.field as 'vehicleNumber' | 'licenseClass' | 'licenseNumber'] = vehicle.message
     setErrors(nextErrors)
     if (Object.keys(nextErrors).length > 0) return
 
@@ -82,6 +95,8 @@ export default function ShipperProfileEditScreen() {
         phoneNumber: cleanPhone(form.phoneNumber),
         address: form.address.trim(),
         vehicleNumber: form.vehicleNumber.trim().toUpperCase(),
+        vehicleType: form.vehicleType,
+        ...(vehicleChanged ? { licenseClass: form.licenseClass, license: form.licenseNumber.trim() } : {}),
       } as any,
       {
         onSuccess: () => {
@@ -188,14 +203,42 @@ export default function ShipperProfileEditScreen() {
               </AppText>
             </View>
 
+            <ChoiceChips
+              label="Loại xe"
+              options={VEHICLE_OPTIONS}
+              value={form.vehicleType}
+              onChange={(v) => setForm((prev) => ({ ...prev, vehicleType: v }))}
+            />
+            <AppText className="px-1 text-[11px] text-ink-muted">
+              Chỉ tài xế có xe từ 300 kg trở lên (ba gác, bán tải, xe tải) nhận được chuyến chở hàng ra hub và tiền cước chuyến.
+            </AppText>
+
             <TextField
               label="Biển số xe giao hàng"
               icon={Bike}
               value={form.vehicleNumber}
               onChangeText={(txt) => setForm((prev) => ({ ...prev, vehicleNumber: txt.toUpperCase() }))}
-              placeholder="VD: 59A-123.45"
+              placeholder={`VD: ${ruleOf(form.vehicleType).plateExample}`}
               autoCapitalize="characters"
               error={errors.vehicleNumber}
+            />
+
+            <ChoiceChips
+              label="Hạng giấy phép lái xe"
+              options={ruleOf(form.vehicleType).licenses.map((l) => ({ value: l, label: `Hạng ${l}` }))}
+              value={form.licenseClass}
+              onChange={(v) => setForm((prev) => ({ ...prev, licenseClass: v }))}
+            />
+            {!!errors.licenseClass && <AppText className="px-1 text-xs text-sale">{errors.licenseClass}</AppText>}
+
+            <TextField
+              label="Số giấy phép lái xe (12 số)"
+              icon={IdCard}
+              value={form.licenseNumber}
+              onChangeText={(txt) => setForm((prev) => ({ ...prev, licenseNumber: txt.replace(/\D/g, '') }))}
+              keyboardType="number-pad"
+              maxLength={12}
+              error={errors.licenseNumber}
             />
 
             <TextField

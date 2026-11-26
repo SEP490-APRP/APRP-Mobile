@@ -7,10 +7,13 @@ export const DIET_OPTIONS: readonly Choice[] = [
   { value: 'VEGAN', label: 'Thuần chay' },
 ]
 
+/** Loại xe tài xế (khớp VehicleType ở BE); chỉ xe từ 300 kg trở lên nhận được chuyến chở hàng ra hub */
 export const VEHICLE_OPTIONS: readonly Choice[] = [
-  { value: 'Xe máy kèm thùng bảo ôn', label: 'Xe máy (thùng bảo ôn)' },
-  { value: 'Xe ba gác nông sản', label: 'Xe ba gác' },
-  { value: 'Xe tải 500kg - 1.5 tấn', label: 'Xe tải 500kg – 1.5 tấn' },
+  { value: 'MOTORBIKE', label: 'Xe máy (thùng bảo ôn)' },
+  { value: 'VAN', label: 'Xe ba gác / bán tải (~500 kg)' },
+  { value: 'TRUCK_1T', label: 'Xe tải 1 tấn' },
+  { value: 'TRUCK_2T', label: 'Xe tải 2 tấn' },
+  { value: 'TRUCK_5T', label: 'Xe tải 5 tấn' },
 ]
 
 export const REGION_OPTIONS: readonly Choice[] = [
