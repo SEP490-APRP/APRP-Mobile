@@ -1,6 +1,6 @@
-import { router } from 'expo-router'
-import { Banknote, ChevronRight, CircleCheck, CircleX, Info, ReceiptText, Search, Wallet, X } from 'lucide-react-native'
-import { useMemo, useState } from 'react'
+import { router, useFocusEffect } from 'expo-router'
+import { Banknote, ChevronRight, CircleCheck, CircleX, Clock, Info, ReceiptText, Search, Wallet, X } from 'lucide-react-native'
+import { useCallback, useMemo, useState } from 'react'
 import { Pressable, RefreshControl, ScrollView, TextInput, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { AppText, Button, EmptyState, ErrorState, Skeleton } from '@/components/ui'
@@ -14,11 +14,17 @@ import {
   inPeriod,
   isCod,
   isDelivered,
+  isPaidTrip,
   itemsSummary,
+  matchEarningsSource,
+  netShipperFee,
   useShipperHistory,
+  useShipperMyReturns,
   type DayBar,
   type EarningsPeriod,
+  type EarningsSourceFilter,
 } from '@/features/shipper'
+import { useMyWallet } from '@/features/wallet'
 import { colors } from '@/theme/colors'
 import type { OrderResponse } from '@/types/order.types'
 import { cn } from '@/utils/helpers'
@@ -67,35 +73,68 @@ function WeekChart({ bars }: { bars: DayBar[] }) {
 }
 
 function HistoryRow({ order, first }: { order: OrderResponse; first: boolean }) {
+  const isReturnTrip = order.note?.startsWith('__RETURN__:')
+  const returnId = isReturnTrip ? Number(order.note!.split(':')[1]) : null
+  const paid = isPaidTrip(order)
   const ok = isDelivered(order)
+  const isPaidReturnToShop = !ok && paid
+  const netFee = netShipperFee(Number(order.shippingFee ?? 0))
+
   return (
     <Pressable
-      onPress={() => router.push(`/shipper/order/${orderIdOf(order)}` as any)}
+      onPress={() =>
+        isReturnTrip && returnId
+          ? router.push({ pathname: '/shipper/return/[id]' as any, params: { id: String(returnId) } })
+          : router.push(`/shipper/order/${orderIdOf(order)}` as any)
+      }
       className={cn('flex-row items-center gap-3 px-4 py-3 active:bg-slate-50', !first && 'border-t border-line')}
     >
-      <View className={cn('h-9 w-9 items-center justify-center rounded-full', ok ? 'bg-leaf-50' : 'bg-rose-50')}>
-        {ok ? <CircleCheck size={18} color={colors.leaf700} /> : <CircleX size={18} color={colors.sale} />}
+      <View className={cn('h-9 w-9 items-center justify-center rounded-full', paid ? 'bg-leaf-50' : 'bg-rose-50')}>
+        {paid ? <CircleCheck size={18} color={colors.leaf700} /> : <CircleX size={18} color={colors.sale} />}
       </View>
       <View className="min-w-0 flex-1 gap-0.5">
         <View className="flex-row items-center justify-between gap-2">
           <AppText weight="bold" numberOfLines={1} className="flex-1 text-sm">
-            #{orderIdOf(order)} · {order.recipientName || order.buyerName || 'Khách hàng'}
+            {isReturnTrip ? `Hoàn trả #${returnId}` : `#${orderIdOf(order)}`} ·{' '}
+            {order.recipientName || order.buyerName || 'Khách hàng'}
           </AppText>
-          <AppText weight="bold" className={cn('text-sm', ok ? 'text-leaf-700' : 'text-ink-subtle line-through')}>
-            {ok ? '+' : ''}
-            {money(Number(order.shippingFee ?? 0))}
+          <AppText weight="bold" className={cn('text-sm', paid ? 'text-leaf-700' : 'text-ink-subtle line-through')}>
+            {paid ? `+${money(netFee)}` : money(0)}
           </AppText>
         </View>
         <AppText numberOfLines={1} className="text-xs text-ink-muted">
           Từ {order.shopName || 'nhà vườn'} · {itemsSummary(order)}
         </AppText>
         <View className="flex-row flex-wrap items-center gap-1.5 pt-0.5">
-          <View className={cn('rounded-full px-2 py-0.5', ok ? 'bg-leaf-50' : 'bg-rose-50')}>
-            <AppText weight="semibold" className={cn('text-xs', ok ? 'text-leaf-800' : 'text-rose-700')}>
-              {ok ? 'Giao thành công' : 'Giao thất bại'}
+          <View
+            className={cn(
+              'rounded-full px-2 py-0.5',
+              isReturnTrip ? 'bg-sky-50' : isPaidReturnToShop ? 'bg-amber-50' : ok ? 'bg-leaf-50' : 'bg-rose-50',
+            )}
+          >
+            <AppText
+              weight="semibold"
+              className={cn(
+                'text-xs',
+                isReturnTrip
+                  ? 'text-sky-800'
+                  : isPaidReturnToShop
+                    ? 'text-amber-800'
+                    : ok
+                      ? 'text-leaf-800'
+                      : 'text-rose-700',
+              )}
+            >
+              {isReturnTrip
+                ? 'Hoàn trả thành công'
+                : isPaidReturnToShop
+                  ? 'Hoàn về Shop (có cước)'
+                  : ok
+                    ? 'Giao thành công'
+                    : 'Giao thất bại'}
             </AppText>
           </View>
-          {isCod(order) && ok && (
+          {isCod(order) && ok && !isReturnTrip && (
             <View className="rounded-full bg-amber-100 px-2 py-0.5">
               <AppText weight="semibold" className="text-xs text-amber-800">
                 Thu COD {money(Number(order.codAmount ?? order.totalAmount ?? 0))}
@@ -113,25 +152,65 @@ function HistoryRow({ order, first }: { order: OrderResponse; first: boolean }) 
  * Thu nhập và lịch sử chuyến giao. Bản web chưa có màn này; số liệu tính từ
  * các đơn đã kết thúc của tài xế (GET /orders/shipper/my), vì backend chưa có ví shipper.
  */
+const SOURCE_FILTERS: { value: EarningsSourceFilter; label: string }[] = [
+  { value: 'ALL', label: 'Tất cả' },
+  { value: 'COD', label: 'COD' },
+  { value: 'PAYOS', label: 'PayOS' },
+  { value: 'RETURN', label: 'Hoàn hàng' },
+]
+
 export default function ShipperEarnings() {
   const history = useShipperHistory()
+  const myReturns = useShipperMyReturns('COMPLETED')
+  const wallet = useMyWallet()
   const [period, setPeriod] = useState<EarningsPeriod>('7d')
+  const [sourceFilter, setSourceFilter] = useState<EarningsSourceFilter>('ALL')
   const [searchQuery, setSearchQuery] = useState('')
   const [shown, setShown] = useState(PAGE)
 
-  const all = useMemo(() => history.data ?? [], [history.data])
+  useFocusEffect(
+    useCallback(() => {
+      void history.refetch()
+      void myReturns.refetch()
+      void wallet.refetch()
+    }, [history.refetch, myReturns.refetch, wallet.refetch]),
+  )
+
+  const all = useMemo(() => {
+    const base = history.data ?? []
+    const returnTrips: OrderResponse[] = (myReturns.data ?? [])
+      .filter((r) => Number(r.returnShippingFee ?? 0) > 0)
+      .map((r) => ({
+        id: r.orderId,
+        orderId: r.orderId,
+        status: 'COMPLETED',
+        recipientName: r.buyerName || 'Khách hàng',
+        recipientPhone: r.buyerPhone || '',
+        shippingAddress: r.buyerAddress || '',
+        paymentMethod: r.shippingPaymentMethod || 'WALLET',
+        note: `__RETURN__:${r.id}`,
+        totalAmount: Number(r.refundAmount ?? 0),
+        shippingFee: Number(r.returnShippingFee ?? 0),
+        shopName: r.shopName,
+        createdAt: r.createdAt,
+        deliveredAt: r.returnedAt || r.updatedAt || r.createdAt,
+        items: [{ productName: r.productName, quantity: r.quantity ?? 1, unitPrice: Number(r.unitPrice ?? 0) }],
+      }))
+    return [...base, ...returnTrips]
+  }, [history.data, myReturns.data])
   const inRange = useMemo(() => all.filter((o) => inPeriod(o, period)), [all, period])
 
   const searched = useMemo(() => {
-    if (!searchQuery.trim()) return inRange
+    const bySource = inRange.filter((o) => matchEarningsSource(o, sourceFilter))
+    if (!searchQuery.trim()) return bySource
     const q = searchQuery.trim().toLowerCase()
-    return inRange.filter((o) => {
+    return bySource.filter((o) => {
       const idStr = String(orderIdOf(o))
       const buyer = (o.recipientName || o.buyerName || '').toLowerCase()
       const shop = (o.shopName || '').toLowerCase()
       return idStr.includes(q) || buyer.includes(q) || shop.includes(q)
     })
-  }, [inRange, searchQuery])
+  }, [inRange, sourceFilter, searchQuery])
 
   const summary = useMemo(() => earningsSummary(inRange), [inRange])
   const bars = useMemo(() => dailyFees(all), [all])
@@ -158,8 +237,11 @@ export default function ShipperEarnings() {
         contentContainerClassName="gap-4 p-4 pb-10"
         refreshControl={
           <RefreshControl
-            refreshing={history.isRefetching}
-            onRefresh={() => void history.refetch()}
+            refreshing={history.isRefetching || myReturns.isRefetching}
+            onRefresh={() => {
+              void history.refetch()
+              void myReturns.refetch()
+            }}
             tintColor={colors.leaf700}
             colors={[colors.leaf700]}
           />
@@ -211,29 +293,89 @@ export default function ShipperEarnings() {
                 <View className="flex-row items-center gap-1.5">
                   <Wallet size={16} color={colors.sun300} />
                   <AppText weight="semibold" className="text-sm text-leaf-100">
-                    Phí giao nhận được
+                    Tổng thu nhập thực nhận
                   </AppText>
                 </View>
                 <AppText weight="extrabold" className="text-3xl text-white">
                   {money(summary.fees)}
                 </AppText>
+                <AppText className="text-xs text-leaf-100">
+                  Cước gộp: {money(summary.grossFees)} · Phí sàn 3%: -{money(summary.platformFees)}
+                </AppText>
               </View>
               <View className="flex-row rounded-2xl bg-white/10 py-3">
                 {[
                   { label: 'Giao xong', value: String(summary.delivered) },
+                  { label: 'Hoàn có cước', value: String(summary.paidReturns) },
                   { label: 'Thất bại', value: String(summary.failed) },
-                  { label: 'Thành công', value: summary.successRate != null ? `${summary.successRate}%` : '—' },
+                  { label: 'Đạt', value: summary.successRate != null ? `${summary.successRate}%` : '—' },
                 ].map((s, i) => (
                   <View
                     key={s.label}
                     className={cn('flex-1 items-center gap-0.5', i > 0 && 'border-l border-white/20')}
                   >
-                    <AppText weight="extrabold" className="text-lg text-sun-300">
+                    <AppText weight="extrabold" className="text-base text-sun-300">
                       {s.value}
                     </AppText>
-                    <AppText className="text-xs text-leaf-100">{s.label}</AppText>
+                    <AppText className="text-[11px] text-leaf-100">{s.label}</AppText>
                   </View>
                 ))}
+              </View>
+            </View>
+
+            {/* Số dư ví & Cước tạm giữ */}
+            <Pressable
+              onPress={() => router.push('/shipper/wallet' as any)}
+              className="flex-row items-center justify-between rounded-panel border border-leaf-200 bg-white p-4 active:bg-slate-50"
+            >
+              <View className="flex-1 gap-0.5">
+                <AppText className="text-xs text-ink-muted">Số dư khả dụng trong ví</AppText>
+                <AppText weight="extrabold" className="text-lg text-leaf-700">
+                  {money(Number(wallet.data?.availableBalance ?? wallet.data?.balance ?? 0))}
+                </AppText>
+                {Number(wallet.data?.frozenBalance ?? 0) > 0 && (
+                  <View className="flex-row items-center gap-1 pt-0.5">
+                    <Clock size={12} color={colors.soil600} />
+                    <AppText className="text-xs text-amber-800">
+                      Đang tạm giữ (chờ hoàn tất): {money(Number(wallet.data?.frozenBalance ?? 0))}
+                    </AppText>
+                  </View>
+                )}
+              </View>
+              <View className="flex-row items-center gap-1 rounded-lg border border-leaf-200 bg-leaf-50 px-3 py-1.5">
+                <Wallet size={13} color={colors.leaf700} />
+                <AppText weight="bold" className="text-xs text-leaf-700">
+                  Mở ví
+                </AppText>
+              </View>
+            </Pressable>
+
+            {/* Phân tích nguồn thu nhập */}
+            <View className="gap-2 rounded-panel border border-line bg-white p-4">
+              <AppText weight="bold" className="text-sm text-ink">
+                Nguồn thu nhập theo hình thức
+              </AppText>
+              <View className="gap-1.5 pt-1">
+                <View className="flex-row items-center justify-between">
+                  <AppText className="text-xs text-ink-muted">Đơn PayOS / Ví ({summary.prepaidCount} chuyến)</AppText>
+                  <AppText weight="bold" className="text-xs text-leaf-700">
+                    +{money(summary.prepaidFees)}
+                  </AppText>
+                </View>
+                <View className="flex-row items-center justify-between">
+                  <AppText className="text-xs text-ink-muted">Đơn COD ({summary.codCount} chuyến)</AppText>
+                  <AppText weight="bold" className="text-xs text-leaf-700">
+                    +{money(summary.codFees)}
+                  </AppText>
+                </View>
+                <View className="flex-row items-center justify-between">
+                  <AppText className="text-xs text-ink-muted">
+                    Hoàn về Shop & Hoàn trả ({summary.returnCount} chuyến)
+                  </AppText>
+                  <AppText weight="bold" className="text-xs text-leaf-700">
+                    +{money(summary.returnFees)}
+                  </AppText>
+                </View>
               </View>
             </View>
 
@@ -297,6 +439,30 @@ export default function ShipperEarnings() {
                   <X size={16} color={colors.inkMuted} />
                 </Pressable>
               )}
+            </View>
+
+            {/* Chip lọc theo nguồn tiền */}
+            <View className="flex-row gap-2">
+              {SOURCE_FILTERS.map((f) => {
+                const active = sourceFilter === f.value
+                return (
+                  <Pressable
+                    key={f.value}
+                    onPress={() => {
+                      setSourceFilter(f.value)
+                      setShown(PAGE)
+                    }}
+                    className={cn(
+                      'rounded-full border px-3 py-1.5',
+                      active ? 'border-leaf-700 bg-leaf-700' : 'border-line bg-white',
+                    )}
+                  >
+                    <AppText weight="bold" className={cn('text-xs', active ? 'text-white' : 'text-ink-muted')}>
+                      {f.label}
+                    </AppText>
+                  </Pressable>
+                )
+              })}
             </View>
 
             {visibleDays.length === 0 ? (

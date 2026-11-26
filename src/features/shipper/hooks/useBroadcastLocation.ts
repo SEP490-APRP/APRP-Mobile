@@ -9,9 +9,20 @@ import { ENV } from '@/utils/env'
 export type BroadcastState = 'off' | 'connecting' | 'live' | 'no-permission' | 'error'
 
 /** Trạng thái chia sẻ vị trí, để tab Đang giao hiện ra mà không phải mở thêm kết nối. */
-export const useBroadcastState = create<{ state: BroadcastState; set: (s: BroadcastState) => void }>((set) => ({
+export const useBroadcastState = create<{
+  state: BroadcastState
+  fakeGpsActive: boolean
+  fakeCoords: { latitude: number; longitude: number } | null
+  set: (s: BroadcastState) => void
+  setFakeGpsActive: (active: boolean) => void
+  setFakeCoords: (coords: { latitude: number; longitude: number } | null) => void
+}>((set) => ({
   state: 'off',
+  fakeGpsActive: false,
+  fakeCoords: null,
   set: (state) => set({ state }),
+  setFakeGpsActive: (fakeGpsActive) => set({ fakeGpsActive }),
+  setFakeCoords: (fakeCoords) => set({ fakeCoords }),
 }))
 
 /** Gửi vị trí theo nhịp này, đủ mượt cho bản đồ mà không tốn pin. */
@@ -23,7 +34,12 @@ const SEND_MS = 4000
  */
 export function useBroadcastLocation(orderId: number | undefined, orderStatus?: string) {
   // Gửi kèm chặng để bản đồ của nhà vườn và người mua hiện đúng (backend lưu lại phase này).
-  const phase = orderStatus === 'PICKED_UP' ? 'TO_BUYER' : 'TO_SHOP'
+  const phase =
+    orderStatus === 'PICKED_UP'
+      ? 'TO_BUYER'
+      : orderStatus === 'RETURNING_TO_SHOP'
+        ? 'RETURN_TO_SHOP'
+        : 'TO_SHOP'
   const phaseRef = useRef(phase)
   phaseRef.current = phase
   const token = useAuthStore((s) => s.token)
@@ -79,7 +95,10 @@ export function useBroadcastLocation(orderId: number | undefined, orderStatus?: 
         },
       ).catch(() => null)
       if (cancelled) watch?.remove()
-      timer = setInterval(() => last.current && send({ ...last.current, deliveryPhase: phaseRef.current }), SEND_MS)
+      timer = setInterval(() => {
+        if (useBroadcastState.getState().fakeGpsActive) return
+        if (last.current) send({ ...last.current, deliveryPhase: phaseRef.current })
+      }, SEND_MS)
     })()
 
     return () => {

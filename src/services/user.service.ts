@@ -1,7 +1,6 @@
 import axiosInstance from '@/services/api/axiosInstance'
 import type { ApiResponse, PageResponse } from '@/types'
 import type { AdminUserReport, UserResponse } from './user.types'
-import { mockReportData } from '@/mocks/user.mock'
 
 export type * from './user.types'
 
@@ -55,28 +54,30 @@ export const userService = {
   },
 
   async getAdminUserReport(
-    _type?: unknown,
-    _from?: string,
-    _to?: string,
+    type?: string,
+    from?: string,
+    to?: string,
   ): Promise<ApiResponse<AdminUserReport>> {
-    // TBD: Replace with real BE endpoint once available
-    await new Promise((r) => setTimeout(r, 300))
-    return {
-      code: 200,
-      result: mockReportData,
-    }
+    return this.generateAdminUserReport(type ? { type } : null, from, to)
   },
 
   async generateAdminUserReport(
-    _param?: unknown,
-    _from?: string,
-    _to?: string,
+    param?: unknown,
+    from?: string,
+    to?: string,
   ): Promise<ApiResponse<AdminUserReport>> {
-    // TBD: Replace with real BE endpoint once available
-    await new Promise((r) => setTimeout(r, 300))
-    return {
-      code: 200,
-      result: mockReportData,
+    const params = new URLSearchParams()
+    if (param && typeof param === 'object') {
+      const p = param as Record<string, string | undefined>
+      if (p.type) params.append('type', p.type)
+      if (p.from) params.append('from', p.from)
+      if (p.to) params.append('to', p.to)
     }
+    if (from) params.append('from', from)
+    if (to) params.append('to', to)
+
+    const queryStr = params.toString()
+    const res = await axiosInstance.get(`/users/report${queryStr ? `?${queryStr}` : ''}`)
+    return res.data
   },
 }

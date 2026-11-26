@@ -42,6 +42,7 @@ import {
 } from '@/features/order'
 import { money } from '@/features/product'
 import { ReviewSheet } from '@/features/review'
+import { failReasonLabel } from '@/features/shipper/utils/deliveryProof'
 import { canTrackOrder } from '@/features/tracking'
 import { useUiStore } from '@/stores'
 import { colors } from '@/theme/colors'
@@ -141,6 +142,44 @@ export default function OrderDetailScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.leaf700} colors={[colors.leaf700]} />
         }
       >
+        {/* Thông tin giao thất bại cho Buyer */}
+        {(order.status === 'FAILED' || order.status === 'RETURNING_TO_SHOP' || order.status === 'RETURNED_TO_SHOP') && (
+          <View className="gap-2 rounded-panel border border-rose-200 bg-rose-50 p-4">
+            <View className="flex-row items-center gap-2">
+              <XCircle size={20} color={colors.sale} />
+              <AppText weight="bold" className="flex-1 text-sm text-rose-900">
+                {order.status === 'FAILED'
+                  ? 'Đơn hàng giao không thành công'
+                  : 'Giao không thành công · Hàng đang hoàn về nhà vườn'}
+              </AppText>
+            </View>
+            {Boolean(order.failReason) && (
+              <AppText className="text-xs text-rose-800">
+                Lý do: <AppText weight="bold">{failReasonLabel(order.failReason)}</AppText>
+              </AppText>
+            )}
+            {order.failCallAttempts != null && (
+              <AppText className="text-xs text-rose-800">
+                Số lần tài xế liên hệ: {order.failCallAttempts} lần
+              </AppText>
+            )}
+            {Boolean(order.failNote) && (
+              <AppText className="text-xs text-rose-800">
+                Ghi chú tài xế: {order.failNote}
+              </AppText>
+            )}
+            {order.failProofUrls && order.failProofUrls.length > 0 && (
+              <View className="flex-row flex-wrap gap-2 pt-1">
+                {order.failProofUrls.map((url, idx) => (
+                  <View key={idx} className="h-20 w-20 overflow-hidden rounded-lg border border-rose-200 bg-white">
+                    <Image source={{ uri: url }} style={{ width: 80, height: 80 }} contentFit="cover" />
+                  </View>
+                ))}
+              </View>
+            )}
+          </View>
+        )}
+
         {/* Thông báo trả hàng / hoàn tiền */}
         {order.status === 'REFUND_REQUESTED' && (
           <View className="flex-row items-center gap-3 rounded-panel border border-amber-300 bg-amber-50 p-4">
@@ -324,7 +363,14 @@ export default function OrderDetailScreen() {
           {goods > 0 && <Line label="Tiền hàng" value={money(goods)} />}
           {order.shippingFee != null && <Line label="Phí vận chuyển" value={money(order.shippingFee)} />}
           {!!order.voucherDiscountAmount && <Line label="Giảm giá voucher" value={`-${money(order.voucherDiscountAmount)}`} />}
-          {!!order.refundAmount && <Line label="Số tiền đã hoàn" value={money(order.refundAmount)} />}
+          {!!order.refundAmount && (
+            <View className="gap-0.5">
+              <Line label="Số tiền hoàn lại" value={money(order.refundAmount)} />
+              {Boolean(order.refundReason) && (
+                <AppText className="text-right text-[11px] text-rose-600">{order.refundReason}</AppText>
+              )}
+            </View>
+          )}
           <View className="mt-1 flex-row items-baseline justify-between border-t border-line pt-3">
             <AppText weight="bold" className="text-base">
               Tổng thanh toán

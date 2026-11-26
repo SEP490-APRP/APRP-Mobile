@@ -1,4 +1,4 @@
-import { Navigation, Phone } from 'lucide-react-native'
+import { ChevronRight, Map as MapIcon, Navigation, Phone } from 'lucide-react-native'
 import type { ReactNode } from 'react'
 import { Linking, Pressable, View } from 'react-native'
 import { AppText } from '@/components/ui'
@@ -9,9 +9,13 @@ import { cn } from '@/utils/helpers'
 
 export function ShipperReturnCard({
   returnItem,
+  onOpen,
+  onTrack,
   footer,
 }: {
   returnItem: ReturnRequestResponse
+  onOpen?: () => void
+  onTrack?: () => void
   footer?: ReactNode
 }) {
   const isPickedUp = returnItem.status === 'RETURN_PICKED_UP'
@@ -31,7 +35,11 @@ export function ShipperReturnCard({
   return (
     <View className="overflow-hidden rounded-panel border border-leaf-500 bg-white">
       {/* Header */}
-      <View className="flex-row items-start justify-between gap-3 px-4 pt-4">
+      <Pressable
+        onPress={onOpen}
+        disabled={!onOpen}
+        className="flex-row items-start justify-between gap-3 px-4 pt-4 active:opacity-80"
+      >
         <View className="gap-1">
           <View className="flex-row items-center gap-1.5">
             <View className="rounded-md bg-amber-100 px-2 py-0.5">
@@ -39,6 +47,7 @@ export function ShipperReturnCard({
                 ĐƠN HOÀN TRẢ #{returnItem.id}
               </AppText>
             </View>
+            {onOpen && <ChevronRight size={15} color={colors.inkMuted} />}
           </View>
           <AppText className="text-xs text-ink-muted">
             Đơn gốc #{returnItem.orderId}
@@ -50,7 +59,7 @@ export function ShipperReturnCard({
             {money(Number(returnItem.returnShippingFee ?? 0))}
           </AppText>
         </View>
-      </View>
+      </Pressable>
 
       {/* Thông tin món hàng */}
       <View className="mx-4 mt-3 rounded-card bg-slate-50 p-3">
@@ -126,8 +135,20 @@ export function ShipperReturnCard({
         </View>
       </View>
 
-      {/* Nút thao tác nhanh gọi & chỉ đường */}
+      {/* Nút thao tác nhanh bản đồ, chỉ đường & gọi */}
       <View className="flex-row gap-2 px-4 pb-3">
+        {onTrack && (
+          <Pressable
+            onPress={onTrack}
+            className="h-11 flex-1 flex-row items-center justify-center gap-1.5 rounded-xl border border-leaf-200 bg-white active:bg-leaf-50"
+          >
+            <MapIcon size={15} color={colors.leaf700} />
+            <AppText weight="bold" className="text-sm text-leaf-700">
+              Bản đồ
+            </AppText>
+          </Pressable>
+        )}
+
         <Pressable
           onPress={openDirections}
           disabled={!targetAddress}
@@ -135,7 +156,7 @@ export function ShipperReturnCard({
         >
           <Navigation size={15} color={colors.leaf700} />
           <AppText weight="bold" className="text-sm text-leaf-700">
-            {isPickedUp ? 'Đường về vườn' : 'Đường tới khách'}
+            Chỉ đường
           </AppText>
         </Pressable>
 
@@ -146,7 +167,7 @@ export function ShipperReturnCard({
         >
           <Phone size={15} color={colors.leaf700} />
           <AppText weight="bold" className="text-sm text-leaf-700">
-            {isPickedUp ? 'Gọi nhà vườn' : 'Gọi người mua'}
+            {isPickedUp ? 'Gọi vườn' : 'Gọi khách'}
           </AppText>
         </Pressable>
       </View>

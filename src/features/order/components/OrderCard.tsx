@@ -11,6 +11,7 @@ import {
 import { Pressable, View } from 'react-native'
 import { AppText, Button } from '@/components/ui'
 import { money } from '@/features/product'
+import { failReasonLabel } from '@/features/shipper/utils/deliveryProof'
 import { canTrackOrder } from '@/features/tracking'
 import { colors } from '@/theme/colors'
 import type { OrderResponse } from '@/types/order.types'
@@ -125,6 +126,24 @@ export function OrderCard({
             <AppText weight="bold" className="text-xs text-rose-700">
               {money(order.refundAmount)}
             </AppText>
+          </View>
+        )}
+
+        {(order.status === 'FAILED' || order.status === 'RETURNING_TO_SHOP' || order.status === 'RETURNED_TO_SHOP') && (
+          <View className="flex-row items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2">
+            <XCircle size={15} color={colors.sale} />
+            <View className="flex-1">
+              <AppText weight="bold" className="text-xs text-rose-900">
+                {order.status === 'FAILED'
+                  ? 'Đơn hàng giao không thành công'
+                  : 'Giao không thành công · Hàng đang hoàn về nhà vườn'}
+              </AppText>
+              {Boolean(order.failReason) && (
+                <AppText className="mt-0.5 text-xs text-rose-800">
+                  Lý do: {failReasonLabel(order.failReason)}
+                </AppText>
+              )}
+            </View>
           </View>
         )}
 

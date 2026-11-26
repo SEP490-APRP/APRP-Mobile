@@ -97,7 +97,7 @@ export function useAcceptOrder() {
   })
 }
 
-export type DeliveryAction = 'pickup' | 'deliver' | 'fail'
+export type DeliveryAction = 'pickup' | 'deliver' | 'fail' | 'return_shop'
 
 /** Dữ liệu xác nhận giao (deliver / fail): ảnh chưa upload + lý do */
 export interface DeliveryProof {
@@ -126,6 +126,7 @@ export function useDeliveryAction() {
       const urls = await shipperService.uploadProofImages(proof?.photos ?? [])
       if (urls.length === 0) throw new Error('Không tải được ảnh lên. Vui lòng thử lại.')
       if (action === 'deliver') return shipperService.deliverOrder(orderId, urls, coords)
+      if (action === 'return_shop') return shipperService.returnOrderToShop(orderId, urls, coords)
       return shipperService.failOrder(orderId, {
         reason: proof?.reason ?? 'KHAC',
         note: proof?.note?.trim() || undefined,

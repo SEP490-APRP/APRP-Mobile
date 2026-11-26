@@ -1,5 +1,5 @@
 import type { OrderResponse } from '@/types/order.types'
-import { codToCollect } from './shipperOrders'
+import { codToCollect, isCod } from './shipperOrders'
 
 /**
  * Thu nhập của tài xế tính từ các đơn đã giao.
@@ -25,6 +25,27 @@ export const EARNINGS_PERIODS: { value: EarningsPeriod; label: string }[] = [
 
 export const isDelivered = (o: Pick<OrderResponse, 'status'>) => o.status === 'DELIVERED' || o.status === 'COMPLETED'
 
+/** Đơn có phát sinh thu nhập cước cho Shipper (giao thành công hoặc đã trả hàng hoàn về Shop và được quyết toán). */
+export const isPaidTrip = (o: Pick<OrderResponse, 'status' | 'shipperPaidAt' | 'returnConfirmedAt'>) =>
+  isDelivered(o) || (o.status === 'FAILED' && Boolean(o.shipperPaidAt || o.returnConfirmedAt))
+
+export const isReturnEarningsTrip = (o: Pick<OrderResponse, 'status' | 'note' | 'shipperPaidAt' | 'returnConfirmedAt'>) =>
+  Boolean(o.note?.startsWith('__RETURN__:')) || (o.status === 'FAILED' && Boolean(o.shipperPaidAt || o.returnConfirmedAt))
+
+export type EarningsSourceFilter = 'ALL' | 'COD' | 'PAYOS' | 'RETURN'
+
+export function matchEarningsSource(
+  o: Pick<OrderResponse, 'status' | 'note' | 'paymentMethod' | 'shipperPaidAt' | 'returnConfirmedAt'>,
+  filter: EarningsSourceFilter,
+): boolean {
+  if (filter === 'ALL') return true
+  const isRet = isReturnEarningsTrip(o)
+  if (filter === 'RETURN') return isRet
+  if (isRet) return false
+  if (filter === 'COD') return isCod(o as OrderResponse)
+  return !isCod(o as OrderResponse)
+}
+
 /** Ngày tài xế chạy đơn: ưu tiên lúc giao xong / kết thúc, sau đó lúc lấy hàng hoặc tạo đơn */
 export function workDate(
   o: Pick<OrderResponse, 'deliveredAt' | 'failedAt' | 'pickedUpAt' | 'createdAt'>,
@@ -49,27 +70,78 @@ export function inPeriod(o: OrderResponse, period: EarningsPeriod, now = new Dat
 
 export interface EarningsSummary {
   delivered: number
+  paidReturns: number
   failed: number
+  grossFees: number
+  platformFees: number
   fees: number
   cod: number
-  /** Phần trăm giao thành công, undefined khi chưa có đơn nào kết thúc */
+  codCount: number
+  codFees: number
+  prepaidCount: number
+  prepaidFees: number
+  returnCount: number
+  returnFees: number
+  /** Phần trăm chuyến có thu nhập trên tổng chuyến kết thúc, undefined khi chưa có đơn nào kết thúc */
   successRate?: number
 }
 
 export function earningsSummary(orders: readonly OrderResponse[]): EarningsSummary {
   let delivered = 0
+  let paidReturns = 0
   let failed = 0
+  let grossFees = 0
   let fees = 0
   let cod = 0
+  let codCount = 0
+  let codFees = 0
+  let prepaidCount = 0
+  let prepaidFees = 0
+  let returnCount = 0
+  let returnFees = 0
+
   for (const o of orders) {
-    if (isDelivered(o)) {
-      delivered++
-      fees += netShipperFee(Number(o.shippingFee ?? 0))
-      cod += codToCollect(o)
-    } else if (o.status === 'FAILED') failed++
+    if (isPaidTrip(o)) {
+      const gross = Math.round(Number(o.shippingFee ?? 0))
+      const net = netShipperFee(gross)
+      grossFees += gross
+      fees += net
+      if (isReturnEarningsTrip(o)) {
+        paidReturns++
+        returnCount++
+        returnFees += net
+      } else {
+        delivered++
+        if (isCod(o)) {
+          codCount++
+          codFees += net
+          cod += codToCollect(o)
+        } else {
+          prepaidCount++
+          prepaidFees += net
+        }
+      }
+    } else if (o.status === 'FAILED') {
+      failed++
+    }
   }
-  const done = delivered + failed
-  return { delivered, failed, fees, cod, successRate: done ? Math.round((delivered / done) * 100) : undefined }
+  const done = delivered + paidReturns + failed
+  return {
+    delivered,
+    paidReturns,
+    failed,
+    grossFees,
+    platformFees: Math.max(0, grossFees - fees),
+    fees,
+    cod,
+    codCount,
+    codFees,
+    prepaidCount,
+    prepaidFees,
+    returnCount,
+    returnFees,
+    successRate: done ? Math.round(((delivered + paidReturns) / done) * 100) : undefined,
+  }
 }
 
 const WEEKDAYS = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7']
@@ -92,7 +164,7 @@ export function dailyFees(orders: readonly OrderResponse[], days = 7, now = new 
   })
   const byKey = new Map(bars.map((b) => [b.key, b]))
   for (const o of orders) {
-    if (!isDelivered(o)) continue
+    if (!isPaidTrip(o)) continue
     const d = workDate(o)
     const bar = d && byKey.get(dayKey(d))
     if (!bar) continue
@@ -129,7 +201,7 @@ export function groupByDay(orders: readonly OrderResponse[], now = new Date()): 
       groups.set(key, g)
     }
     g.orders.push(o)
-    if (isDelivered(o)) g.fees += netShipperFee(Number(o.shippingFee ?? 0))
+    if (isPaidTrip(o)) g.fees += netShipperFee(Number(o.shippingFee ?? 0))
   }
   return [...groups.values()]
 }

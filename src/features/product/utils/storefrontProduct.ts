@@ -1,12 +1,26 @@
 import type { ProductResponse } from '@/services'
-import type { Product } from '@/mocks/catalog'
+import { money } from '@/utils/helpers'
 
-export { money, type Product } from '@/mocks/catalog'
+export { money }
+
+export type Product = {
+  id: string
+  name: string
+  price: number
+  original: number
+  image: string
+  category: string
+  farm: string
+  region: string
+  flaw: string
+  score: number
+  stock: number
+  rescued: number
+  unit: string
+}
 
 /**
  * Đổi ProductResponse của API sang Product mà ProductCard hiển thị.
- * Bản web lặp đoạn này ở TodayRescue và Fresh; các giá trị region/flaw/score/rescued
- * vẫn là giá trị mặc định như web vì backend chưa trả về.
  */
 export function toStorefrontProduct(p: ProductResponse): Product {
   const price = p.sellingPrice ?? p.price ?? 0
@@ -16,20 +30,22 @@ export function toStorefrontProduct(p: ProductResponse): Product {
       ? p.category.name
       : typeof p.category === 'string'
         ? p.category
-        : 'Rau củ'
+        : ''
+  const rawAddress = p.shop?.address || ''
+  const region = rawAddress ? rawAddress.split(',').pop()?.trim() || rawAddress : ''
   return {
     id: String(p.productId || p.id),
-    name: p.productName || p.name || 'Nông sản',
+    name: p.productName || p.name || '',
     price,
     original,
     image: p.primaryImageUrl || p.imageUrl || p.image || '',
     category,
-    farm: p.shop?.shopName || 'Nhà vườn CapNong',
-    region: 'Đà Lạt',
-    flaw: 'Ngoại hình tự nhiên',
-    score: 96,
-    stock: p.stockQuantity ?? p.stock ?? 100,
-    rescued: 50,
+    farm: p.shop?.shopName || p.shopName || '',
+    region,
+    flaw: p.defectReason || '',
+    score: 0,
+    stock: p.stockQuantity ?? p.stock ?? 0,
+    rescued: 0,
     unit: p.unit || 'kg',
   }
 }

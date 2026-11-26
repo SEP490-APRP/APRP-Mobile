@@ -24,7 +24,14 @@ export function BottomSheet({
 }) {
   const insets = useSafeAreaInsets()
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <Modal
+      visible={visible}
+      transparent
+      statusBarTranslucent
+      navigationBarTranslucent
+      animationType="slide"
+      onRequestClose={onClose}
+    >
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} className="flex-1 justify-end bg-black/40">
         <Pressable accessibilityLabel={`Đóng ${title}`} className="flex-1" onPress={onClose} />
         <View

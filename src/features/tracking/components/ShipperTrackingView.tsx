@@ -1,6 +1,6 @@
 import { ArrowLeft, Crosshair, Home, Phone, RefreshCw, Store } from 'lucide-react-native'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Linking, Pressable, View } from 'react-native'
+import { Linking, Pressable, ScrollView, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { AppText } from '@/components/ui'
 import { colors } from '@/theme/colors'
@@ -27,6 +27,8 @@ import { DemoGpsControl } from './DemoGpsControl'
 type Props = {
   orderId: number
   role: TrackingRole
+  mode?: 'DELIVERY' | 'RETURN'
+  overrideOrderStatus?: string
   /** Toạ độ có sẵn trên đơn, dùng trước khi BE gửi vị trí */
   initial?: { shop?: Partial<LatLng>; dest?: Partial<LatLng> }
   fallback?: { shopName?: string; shopAddress?: string; recipientName?: string; destinationAddress?: string }
@@ -39,11 +41,21 @@ type Props = {
  * Màn theo dõi shipper dùng chung cho Buyer, Shop và chính tài xế,
  * chuyển từ GoogleMapTrackingModal bản web: bản đồ toàn màn hình, thẻ trạng thái ở dưới.
  */
-export function ShipperTrackingView({ orderId, role, initial, fallback, actions, onBack }: Props) {
+export function ShipperTrackingView({
+  orderId,
+  role,
+  mode = 'DELIVERY',
+  overrideOrderStatus,
+  initial,
+  fallback,
+  actions,
+  onBack,
+}: Props) {
   const { data, connected, gpsPaused, refresh } = useShipperLocation(orderId)
   const [follow, setFollow] = useState(true)
   const [recenter, setRecenter] = useState(0)
   const [mapError, setMapError] = useState<string | null>(null)
+  const [demoRoute, setDemoRoute] = useState<{ phase: 'TO_SHOP' | 'TO_BUYER'; points: LatLng[] } | null>(null)
   const heading = useRef(0)
   const lastPos = useRef<LatLng | null>(null)
 
@@ -60,19 +72,23 @@ export function ShipperTrackingView({ orderId, role, initial, fallback, actions,
     if (pos) lastPos.current = pos
   }, [pos?.lat, pos?.lng])
 
+  const activeDemoRoute = demoRoute && demoRoute.phase === phase ? demoRoute.points : null
+
   const mapState = useMemo<MapState>(
     () => ({
       shop,
       dest,
       shipper: visible ? pos : null,
       heading: heading.current,
+      phase,
       routes,
+      demoRoute: activeDemoRoute,
       follow: follow && visible,
       recenter,
     }),
     // Toạ độ là số nguyên thuỷ nên so theo giá trị để không đẩy xuống bản đồ thừa.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [shop.lat, shop.lng, dest.lat, dest.lng, visible, pos?.lat, pos?.lng, follow, recenter, role],
+    [shop.lat, shop.lng, dest.lat, dest.lng, visible, pos?.lat, pos?.lng, phase, activeDemoRoute, follow, recenter, role],
   )
 
   const onMapEvent = (e: MapEvent) => {
@@ -172,8 +188,8 @@ export function ShipperTrackingView({ orderId, role, initial, fallback, actions,
       </View>
 
       {/* Thẻ trạng thái */}
-      <SafeAreaView edges={['bottom']} className="-mt-7 rounded-t-[28px] bg-white shadow-lg">
-        <View className="gap-3 px-4 pb-2 pt-4">
+      <SafeAreaView edges={['bottom']} className="-mt-7 max-h-[58%] rounded-t-[28px] bg-white shadow-lg">
+        <ScrollView bounces={false} showsVerticalScrollIndicator={false} contentContainerClassName="gap-3 px-4 pb-5 pt-4">
           <View className="flex-row items-center gap-2 rounded-2xl bg-leaf-50 px-3 py-2.5">
             <View className="h-2.5 w-2.5 rounded-full bg-leaf-600" />
             <AppText weight="bold" className="flex-1 text-sm text-leaf-800">
@@ -221,35 +237,58 @@ export function ShipperTrackingView({ orderId, role, initial, fallback, actions,
             <Stop
               icon={<Store size={15} color="#7c3aed" />}
               box="bg-purple-50"
-              title={data?.shopName || fallback?.shopName || 'Nhà vườn'}
-              subtitle={data?.shopAddress || fallback?.shopAddress}
+              title={
+                mode === 'RETURN'
+                  ? fallback?.shopName || data?.recipientName || 'Điểm lấy hàng hoàn'
+                  : data?.shopName || fallback?.shopName || 'Nhà vườn'
+              }
+              subtitle={
+                mode === 'RETURN'
+                  ? fallback?.shopAddress || data?.destinationAddress
+                  : data?.shopAddress || fallback?.shopAddress
+              }
             />
             <Stop
               icon={<Home size={15} color="#e11d48" />}
               box="bg-rose-50"
-              title={data?.recipientName || fallback?.recipientName || 'Người nhận'}
-              subtitle={data?.destinationAddress || fallback?.destinationAddress}
+              title={
+                mode === 'RETURN'
+                  ? fallback?.recipientName || data?.shopName || 'Nhà vườn'
+                  : data?.recipientName || fallback?.recipientName || 'Người nhận'
+              }
+              subtitle={
+                mode === 'RETURN'
+                  ? fallback?.destinationAddress || data?.shopAddress
+                  : data?.destinationAddress || fallback?.destinationAddress
+              }
             />
           </View>
 
           <View className="flex-row flex-wrap items-center gap-x-4 gap-y-1">
-            {routes.toShop && <Legend color="#EA580C" label="Shipper ➔ Nhà vườn" />}
-            {routes.toBuyer && <Legend color="#00B14F" label="Nhà vườn ➔ Người nhận" />}
+            {routes.toShop && (
+              <Legend color="#EA580C" label={mode === 'RETURN' ? 'Shipper ➔ Khách lấy hàng' : 'Shipper ➔ Nhà vườn'} />
+            )}
+            {routes.toBuyer && (
+              <Legend color="#00B14F" label={mode === 'RETURN' ? 'Khách ➔ Nhà vườn' : 'Nhà vườn ➔ Người nhận'} />
+            )}
           </View>
+
+          {actions}
 
           {role === 'SHIPPER' && (
             <DemoGpsControl
               orderId={orderId}
+              currentPos={pos}
               shopLat={shop.lat}
               shopLng={shop.lng}
               destLat={dest.lat}
               destLng={dest.lng}
-              orderStatus={data?.orderStatus}
+              orderStatus={overrideOrderStatus ?? data?.orderStatus}
+              mode={mode}
+              onRouteReady={setDemoRoute}
             />
           )}
-
-          {actions}
-        </View>
+        </ScrollView>
       </SafeAreaView>
     </View>
   )

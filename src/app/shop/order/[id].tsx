@@ -1,3 +1,4 @@
+import { Image } from 'expo-image'
 import { router, useLocalSearchParams } from 'expo-router'
 import { Boxes, CheckCircle2, MapPin, Navigation, Phone, StickyNote, UserRound } from 'lucide-react-native'
 import { useState } from 'react'
@@ -7,6 +8,8 @@ import { AppText, Button, Checkbox, ConfirmDialog, ErrorState, Skeleton } from '
 import { BackButton } from '@/features/auth/components'
 import { needsPickupCode, OrderStatusBadge, orderIdOf, PickupCodeTag, useOrder } from '@/features/order'
 import { money } from '@/features/product'
+import { failReasonLabel } from '@/features/shipper/utils/deliveryProof'
+import { OrderSettlementCard } from '@/features/wallet/components/OrderSettlementCard'
 import {
   itemSubtotal,
   OrderItemRow,
@@ -41,7 +44,7 @@ export default function ShopOrderDetail() {
 
   const goBack = () => (router.canGoBack() ? router.back() : router.replace('/shop/orders'))
 
-  const run = (kind: 'confirm' | 'ready' | 'cancel', ok: string) =>
+  const run = (kind: 'confirm' | 'ready' | 'cancel' | 'confirm_return', ok: string) =>
     action.mutate(
       { id, action: kind },
       {
@@ -210,9 +213,46 @@ export default function ShopOrderDetail() {
         )}
 
         {stage === 'confirm' && <WeightPledge checked={pledged} onToggle={() => setPledged((v) => !v)} />}
+
+        {/* Thông tin giao thất bại / hoàn hàng về Vườn */}
+        {(o.status === 'RETURNING_TO_SHOP' || o.status === 'RETURNED_TO_SHOP' || o.status === 'FAILED') && (
+          <View className="gap-2 rounded-panel border border-amber-300 bg-amber-50 p-4">
+            <AppText weight="bold" className="text-sm text-amber-900">
+              {o.status === 'RETURNING_TO_SHOP'
+                ? 'Đơn giao thất bại · Tài xế đang mang hàng hoàn về vườn'
+                : o.status === 'RETURNED_TO_SHOP'
+                  ? 'Tài xế đã trả hàng về vườn · Chờ bạn xác nhận hoàn kho'
+                  : 'Đơn hàng giao thất bại'}
+            </AppText>
+            {Boolean(o.failReason) && (
+              <AppText className="text-xs text-amber-800">
+                Lý do: {failReasonLabel(o.failReason)}
+                {o.failNote ? ` · ${o.failNote}` : ''}
+              </AppText>
+            )}
+            {o.returnToShopProofUrls && o.returnToShopProofUrls.length > 0 && (
+              <View className="gap-1.5 pt-1">
+                <AppText weight="semibold" className="text-xs text-amber-900">
+                  Ảnh bàn giao hàng hoàn tại vườn:
+                </AppText>
+                <View className="flex-row flex-wrap gap-2">
+                  {o.returnToShopProofUrls.map((url, idx) => (
+                    <View key={idx} className="h-20 w-20 overflow-hidden rounded-lg border border-amber-300 bg-white">
+                      <Image source={{ uri: url }} style={{ width: 80, height: 80 }} contentFit="cover" />
+                    </View>
+                  ))}
+                </View>
+              </View>
+            )}
+          </View>
+        )}
+
+        {o.status !== 'CANCELLED' && o.status !== 'AWAITING_PAYMENT' && (
+          <OrderSettlementCard orderId={orderId} viewer="SHOP" />
+        )}
       </ScrollView>
 
-      {(stage === 'confirm' || stage === 'pack' || stage === 'shipping') && (
+      {(stage === 'confirm' || stage === 'pack' || stage === 'shipping' || o.status === 'RETURNING_TO_SHOP' || o.status === 'RETURNED_TO_SHOP') && (
         <View className="flex-row gap-2 border-t border-line bg-white px-4 pb-2 pt-3">
           {shopCanCancel(o.status) && (
             <Button
@@ -243,11 +283,20 @@ export default function ShopOrderDetail() {
               className="min-h-[48px] flex-[1.6]"
             />
           )}
-          {stage === 'shipping' && (
+          {(stage === 'shipping' || o.status === 'RETURNING_TO_SHOP') && (
             <Button
-              title="Theo dõi shipper trên bản đồ"
+              title={o.status === 'RETURNING_TO_SHOP' ? 'Theo dõi tài xế trả hàng' : 'Theo dõi shipper trên bản đồ'}
               icon={Navigation}
               onPress={() => router.push({ pathname: '/shop/tracking/[id]', params: { id: String(orderId) } })}
+              className="min-h-[48px] flex-1"
+            />
+          )}
+          {o.status === 'RETURNED_TO_SHOP' && (
+            <Button
+              title="Xác nhận đã nhận lại hàng (Hoàn kho)"
+              icon={CheckCircle2}
+              loading={busy && action.variables?.action === 'confirm_return'}
+              onPress={() => run('confirm_return', `Đã xác nhận nhận lại hàng đơn #${orderId}. Tồn kho đã được hoàn lại.`)}
               className="min-h-[48px] flex-1"
             />
           )}

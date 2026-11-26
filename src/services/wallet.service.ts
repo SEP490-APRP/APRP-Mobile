@@ -33,6 +33,10 @@ function unwrap<T>(res: unknown): T {
 }
 
 export const walletService = {
+  async getOrderSettlement(orderId: number) {
+    const res = await axiosInstance.get(`/wallets/orders/${orderId}/settlement`)
+    return unwrap<any>(res)
+  },
   /** Lấy thông tin ví của user đang đăng nhập (Shop, Shipper...) GET /wallets/me */
   async getMyWallet(): Promise<ApiResponse<MyWalletResponse>> {
     const res = await axiosInstance.get('/wallets/me')

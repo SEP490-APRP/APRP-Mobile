@@ -15,3 +15,7 @@ export function absoluteUrl(route: string): string {
   const cleanRoute = route.startsWith('/') ? route : `/${route}`
   return `${ENV.WEB_URL}${cleanRoute}`
 }
+
+export function money(n: number): string {
+  return `${Number(n || 0).toLocaleString('vi-VN')}đ`
+}
