@@ -35,12 +35,25 @@ export function useShipperMyReturns(status?: ReturnStatus) {
   })
 }
 
+export function useShipperReturnDetail(id: number, enabled = true) {
+  return useQuery({
+    queryKey: [...SHIPPER_RETURN_KEYS.all, 'detail', id] as const,
+    queryFn: async () => {
+      const res = await returnService.getReturnById(id)
+      return res.result
+    },
+    enabled: enabled && Number.isFinite(id) && id > 0,
+    refetchInterval: enabled ? 10_000 : false,
+  })
+}
+
 export function useShipperAcceptReturn() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (id: number) => returnService.shipperAccept(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: SHIPPER_RETURN_KEYS.all })
+      qc.invalidateQueries({ queryKey: ['shipper'] })
     },
   })
 }
@@ -63,6 +76,7 @@ export function useShipperDeliverReturn() {
       returnService.shipperDeliver(id, data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: SHIPPER_RETURN_KEYS.all })
+      qc.invalidateQueries({ queryKey: ['shipper'] })
       qc.invalidateQueries({ queryKey: walletKeys.all })
     },
   })
@@ -75,6 +89,7 @@ export function useShipperFailReturn() {
       returnService.shipperFail(id, data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: SHIPPER_RETURN_KEYS.all })
+      qc.invalidateQueries({ queryKey: ['shipper'] })
       qc.invalidateQueries({ queryKey: walletKeys.all })
     },
   })

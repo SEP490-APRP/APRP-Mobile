@@ -25,6 +25,10 @@ export const EARNINGS_PERIODS: { value: EarningsPeriod; label: string }[] = [
 
 export const isDelivered = (o: Pick<OrderResponse, 'status'>) => o.status === 'DELIVERED' || o.status === 'COMPLETED'
 
+/** Đơn có phát sinh thu nhập cước cho Shipper (giao thành công hoặc đã trả hàng hoàn về Shop và được quyết toán). */
+export const isPaidTrip = (o: Pick<OrderResponse, 'status' | 'shipperPaidAt'>) =>
+  isDelivered(o) || (o.status === 'FAILED' && Boolean(o.shipperPaidAt))
+
 /** Ngày tài xế chạy đơn: ưu tiên lúc giao xong / kết thúc, sau đó lúc lấy hàng hoặc tạo đơn */
 export function workDate(
   o: Pick<OrderResponse, 'deliveredAt' | 'failedAt' | 'pickedUpAt' | 'createdAt'>,
@@ -62,10 +66,11 @@ export function earningsSummary(orders: readonly OrderResponse[]): EarningsSumma
   let fees = 0
   let cod = 0
   for (const o of orders) {
-    if (isDelivered(o)) {
-      delivered++
+    if (isPaidTrip(o)) {
+      if (isDelivered(o)) delivered++
+      else failed++
       fees += netShipperFee(Number(o.shippingFee ?? 0))
-      cod += codToCollect(o)
+      if (isDelivered(o)) cod += codToCollect(o)
     } else if (o.status === 'FAILED') failed++
   }
   const done = delivered + failed
@@ -92,7 +97,7 @@ export function dailyFees(orders: readonly OrderResponse[], days = 7, now = new 
   })
   const byKey = new Map(bars.map((b) => [b.key, b]))
   for (const o of orders) {
-    if (!isDelivered(o)) continue
+    if (!isPaidTrip(o)) continue
     const d = workDate(o)
     const bar = d && byKey.get(dayKey(d))
     if (!bar) continue
@@ -129,7 +134,7 @@ export function groupByDay(orders: readonly OrderResponse[], now = new Date()): 
       groups.set(key, g)
     }
     g.orders.push(o)
-    if (isDelivered(o)) g.fees += netShipperFee(Number(o.shippingFee ?? 0))
+    if (isPaidTrip(o)) g.fees += netShipperFee(Number(o.shippingFee ?? 0))
   }
   return [...groups.values()]
 }

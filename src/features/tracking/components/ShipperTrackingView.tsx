@@ -27,6 +27,8 @@ import { DemoGpsControl } from './DemoGpsControl'
 type Props = {
   orderId: number
   role: TrackingRole
+  mode?: 'DELIVERY' | 'RETURN'
+  overrideOrderStatus?: string
   /** Toạ độ có sẵn trên đơn, dùng trước khi BE gửi vị trí */
   initial?: { shop?: Partial<LatLng>; dest?: Partial<LatLng> }
   fallback?: { shopName?: string; shopAddress?: string; recipientName?: string; destinationAddress?: string }
@@ -39,7 +41,16 @@ type Props = {
  * Màn theo dõi shipper dùng chung cho Buyer, Shop và chính tài xế,
  * chuyển từ GoogleMapTrackingModal bản web: bản đồ toàn màn hình, thẻ trạng thái ở dưới.
  */
-export function ShipperTrackingView({ orderId, role, initial, fallback, actions, onBack }: Props) {
+export function ShipperTrackingView({
+  orderId,
+  role,
+  mode = 'DELIVERY',
+  overrideOrderStatus,
+  initial,
+  fallback,
+  actions,
+  onBack,
+}: Props) {
   const { data, connected, gpsPaused, refresh } = useShipperLocation(orderId)
   const [follow, setFollow] = useState(true)
   const [recenter, setRecenter] = useState(0)
@@ -226,20 +237,40 @@ export function ShipperTrackingView({ orderId, role, initial, fallback, actions,
             <Stop
               icon={<Store size={15} color="#7c3aed" />}
               box="bg-purple-50"
-              title={data?.shopName || fallback?.shopName || 'Nhà vườn'}
-              subtitle={data?.shopAddress || fallback?.shopAddress}
+              title={
+                mode === 'RETURN'
+                  ? fallback?.shopName || data?.recipientName || 'Điểm lấy hàng hoàn'
+                  : data?.shopName || fallback?.shopName || 'Nhà vườn'
+              }
+              subtitle={
+                mode === 'RETURN'
+                  ? fallback?.shopAddress || data?.destinationAddress
+                  : data?.shopAddress || fallback?.shopAddress
+              }
             />
             <Stop
               icon={<Home size={15} color="#e11d48" />}
               box="bg-rose-50"
-              title={data?.recipientName || fallback?.recipientName || 'Người nhận'}
-              subtitle={data?.destinationAddress || fallback?.destinationAddress}
+              title={
+                mode === 'RETURN'
+                  ? fallback?.recipientName || data?.shopName || 'Nhà vườn'
+                  : data?.recipientName || fallback?.recipientName || 'Người nhận'
+              }
+              subtitle={
+                mode === 'RETURN'
+                  ? fallback?.destinationAddress || data?.shopAddress
+                  : data?.destinationAddress || fallback?.destinationAddress
+              }
             />
           </View>
 
           <View className="flex-row flex-wrap items-center gap-x-4 gap-y-1">
-            {routes.toShop && <Legend color="#EA580C" label="Shipper ➔ Nhà vườn" />}
-            {routes.toBuyer && <Legend color="#00B14F" label="Nhà vườn ➔ Người nhận" />}
+            {routes.toShop && (
+              <Legend color="#EA580C" label={mode === 'RETURN' ? 'Shipper ➔ Khách lấy hàng' : 'Shipper ➔ Nhà vườn'} />
+            )}
+            {routes.toBuyer && (
+              <Legend color="#00B14F" label={mode === 'RETURN' ? 'Khách ➔ Nhà vườn' : 'Nhà vườn ➔ Người nhận'} />
+            )}
           </View>
 
           {actions}
@@ -252,7 +283,8 @@ export function ShipperTrackingView({ orderId, role, initial, fallback, actions,
               shopLng={shop.lng}
               destLat={dest.lat}
               destLng={dest.lng}
-              orderStatus={data?.orderStatus}
+              orderStatus={overrideOrderStatus ?? data?.orderStatus}
+              mode={mode}
               onRouteReady={setDemoRoute}
             />
           )}

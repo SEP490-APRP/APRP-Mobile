@@ -13,6 +13,7 @@ import {
   DeliveryResultSheet,
   directionsUrl,
   ShipperOrderCard,
+  ShipperReturnActions,
   ShipperReturnCard,
   shipperErrorCode,
   shipperErrorMessage,
@@ -327,42 +328,11 @@ export default function ShipperDelivering() {
                   <ReturnStage pickedUp={isPickedUp} />
                   <ShipperReturnCard
                     returnItem={ret}
-                    footer={
-                      <View className="flex-row gap-2">
-                        {isPickedUp ? (
-                          <>
-                            <Button
-                              title="Báo thất bại"
-                              variant="outline"
-                              icon={CircleX}
-                              onPress={() => setAskReturn({ item: ret, action: 'fail' })}
-                              className="min-h-[48px] flex-1"
-                            />
-                            <Button
-                              title="Đã giao về Shop"
-                              icon={CircleCheck}
-                              onPress={() => setAskReturn({ item: ret, action: 'deliver' })}
-                              className="min-h-[48px] flex-1"
-                            />
-                          </>
-                        ) : (
-                          <>
-                            <Button
-                              title="Không lấy được"
-                              variant="outline"
-                              onPress={() => setAskReturn({ item: ret, action: 'fail' })}
-                              className="min-h-[48px] flex-1"
-                            />
-                            <Button
-                              title="Đã lấy từ khách"
-                              icon={PackageCheck}
-                              onPress={() => setAskReturn({ item: ret, action: 'pickup' })}
-                              className="min-h-[48px] flex-1"
-                            />
-                          </>
-                        )}
-                      </View>
+                    onOpen={() => router.push({ pathname: '/shipper/return/[id]' as any, params: { id: String(ret.id) } })}
+                    onTrack={() =>
+                      router.push({ pathname: '/shipper/return-tracking/[id]' as any, params: { id: String(ret.id) } })
                     }
+                    footer={<ShipperReturnActions returnItem={ret} />}
                   />
                 </View>
               )

@@ -1,4 +1,4 @@
-import { router } from 'expo-router'
+import { router, useLocalSearchParams } from 'expo-router'
 import { ChevronRight, LocateOff, Power, RefreshCw, Truck, Zap } from 'lucide-react-native'
 import { useEffect, useMemo, useState } from 'react'
 import { ActivityIndicator, BackHandler, FlatList, Pressable, RefreshControl, View } from 'react-native'
@@ -23,6 +23,7 @@ import {
   useReadyOrders,
   useShipperAvailableReturns,
   useShipperAcceptReturn,
+  useShipperMyReturns,
   useShipperStatus,
   useToggleOnline,
 } from '@/features/shipper'
@@ -51,14 +52,25 @@ export default function ShipperHome() {
   const [switching, setSwitching] = useState(false)
   const isToggling = toggle.isPending || switching
 
-  const [orderType, setOrderType] = useState<'DELIVERY' | 'RETURNS'>('DELIVERY')
+  const params = useLocalSearchParams<{ type?: string }>()
+  const [orderType, setOrderType] = useState<'DELIVERY' | 'RETURNS'>(params.type === 'RETURNS' ? 'RETURNS' : 'DELIVERY')
+  useEffect(() => {
+    if (params.type === 'RETURNS' || params.type === 'DELIVERY') {
+      setOrderType(params.type)
+    }
+  }, [params.type])
+
   const returnsQuery = useShipperAvailableReturns(online)
+  const myReturnsQuery = useShipperMyReturns()
   const acceptReturn = useShipperAcceptReturn()
   const returnsList = returnsQuery.data ?? []
 
   const name = profile.data?.fullName || user?.name || 'Tài xế'
   const current = active.data?.[0]
-  const busy = current != null
+  const activeReturn = (myReturnsQuery.data ?? []).find(
+    (r) => r.status === 'RETURN_SHIPPING' || r.status === 'RETURN_PICKED_UP',
+  )
+  const busy = current != null || activeReturn != null
   const orders = useMemo(() => sortReadyOrders(ready.data?.content ?? [], gps.position), [ready.data, gps.position])
   const available = wallet.data?.availableBalance ?? wallet.data?.balance
   const reserve = picked ? codReserveCheck(picked, available) : { required: 0, missing: 0 }
@@ -193,7 +205,8 @@ export default function ShipperHome() {
     </View>
   )
 
-  const banner = current ? (
+  const activeBannerItem = current ?? activeReturn
+  const banner = activeBannerItem ? (
     <Pressable
       onPress={() => router.navigate('/shipper/delivering')}
       accessibilityRole="button"
@@ -202,16 +215,22 @@ export default function ShipperHome() {
       <Truck size={20} color="#92400e" />
       <View className="flex-1">
         <AppText weight="bold" className="text-sm text-amber-900">
-          {current.status === 'RETURNING_TO_SHOP'
-            ? `Đang hoàn hàng đơn #${orderIdOf(current)}`
-            : `Bạn đang giao đơn #${orderIdOf(current)}`}
+          {current
+            ? current.status === 'RETURNING_TO_SHOP'
+              ? `Đang hoàn hàng đơn #${orderIdOf(current)}`
+              : `Bạn đang giao đơn #${orderIdOf(current)}`
+            : `Đang thực hiện đơn hoàn trả #${activeReturn!.id}`}
         </AppText>
         <AppText className="text-xs text-amber-800">
-          {current.status === 'RETURNING_TO_SHOP'
-            ? 'Giao thất bại, đang mang hàng về nhà vườn · trả xong mới nhận được đơn mới'
-            : current.status === 'SHIPPING'
-              ? 'Đến nhà vườn lấy hàng · giao xong mới nhận được đơn mới'
-              : 'Đã lấy hàng, đang giao cho khách · giao xong mới nhận được đơn mới'}
+          {current
+            ? current.status === 'RETURNING_TO_SHOP'
+              ? 'Giao thất bại, đang mang hàng về nhà vườn · trả xong mới nhận được đơn mới'
+              : current.status === 'SHIPPING'
+                ? 'Đến nhà vườn lấy hàng · giao xong mới nhận được đơn mới'
+                : 'Đã lấy hàng, đang giao cho khách · giao xong mới nhận được đơn mới'
+            : activeReturn!.status === 'RETURN_PICKED_UP'
+              ? 'Đã lấy hàng hoàn từ khách, đang giao về nhà vườn · hoàn tất mới nhận được đơn mới'
+              : 'Đang đi lấy hàng hoàn từ người mua · hoàn tất mới nhận được đơn mới'}
         </AppText>
       </View>
       <ChevronRight size={18} color="#92400e" />
@@ -348,33 +367,42 @@ export default function ShipperHome() {
             return (
               <View className={cn('px-4', index === 0 && 'pt-3')}>
                 <View className="gap-3 rounded-2xl border border-line bg-white p-4 shadow-2xs">
-                  <View className="flex-row items-center justify-between border-b border-slate-100 pb-2">
-                    <AppText weight="bold" className="text-xs text-leaf-800">
-                      Đơn hoàn trả #{ret.id}
-                    </AppText>
-                    <AppText weight="extrabold" className="text-sm text-leaf-700">
-                      Cước: {money(ret.returnShippingFee ?? 0)}
-                    </AppText>
-                  </View>
-                  <View className="gap-1">
-                    <AppText weight="bold" className="text-sm text-ink">
-                      {ret.productName}
-                    </AppText>
-                    <AppText className="text-xs text-ink-muted">
-                      Tiền hoàn khách nhận: {money(ret.refundAmount ?? 0)}
-                    </AppText>
-                  </View>
-                  <View className="gap-1 rounded-xl bg-slate-50 p-2.5">
-                    <AppText className="text-xs text-ink leading-relaxed">
-                      📍 <AppText weight="semibold">Lấy hàng tại:</AppText> {ret.buyerAddress || 'Địa chỉ người mua'} ({ret.buyerName})
-                    </AppText>
-                    <AppText className="text-xs text-ink leading-relaxed">
-                      🏠 <AppText weight="semibold">Trả về cho:</AppText> {ret.shopAddress || 'Địa chỉ nhà vườn'} ({ret.shopName})
-                    </AppText>
-                  </View>
+                  <Pressable
+                    onPress={() => router.push({ pathname: '/shipper/return/[id]' as any, params: { id: String(ret.id) } })}
+                    className="gap-3 active:opacity-80"
+                  >
+                    <View className="flex-row items-center justify-between border-b border-slate-100 pb-2">
+                      <View className="flex-row items-center gap-1">
+                        <AppText weight="bold" className="text-xs text-leaf-800">
+                          Đơn hoàn trả #{ret.id}
+                        </AppText>
+                        <ChevronRight size={14} color={colors.leaf700} />
+                      </View>
+                      <AppText weight="extrabold" className="text-sm text-leaf-700">
+                        Cước: {money(ret.returnShippingFee ?? 0)}
+                      </AppText>
+                    </View>
+                    <View className="gap-1">
+                      <AppText weight="bold" className="text-sm text-ink">
+                        {ret.productName}
+                      </AppText>
+                      <AppText className="text-xs text-ink-muted">
+                        Tiền hoàn khách nhận: {money(ret.refundAmount ?? 0)}
+                      </AppText>
+                    </View>
+                    <View className="gap-1 rounded-xl bg-slate-50 p-2.5">
+                      <AppText className="text-xs text-ink leading-relaxed">
+                        📍 <AppText weight="semibold">Lấy hàng tại:</AppText> {ret.buyerAddress || 'Địa chỉ người mua'} ({ret.buyerName})
+                      </AppText>
+                      <AppText className="text-xs text-ink leading-relaxed">
+                        🏠 <AppText weight="semibold">Trả về cho:</AppText> {ret.shopAddress || 'Địa chỉ nhà vườn'} ({ret.shopName})
+                      </AppText>
+                    </View>
+                  </Pressable>
                   <Button
-                    title="Nhận đơn hoàn này"
+                    title={busy ? 'Hoàn tất đơn hiện tại để nhận thêm' : 'Nhận đơn hoàn này'}
                     icon={ChevronRight}
+                    disabled={busy}
                     loading={acceptReturn.isPending}
                     onPress={() => {
                       acceptReturn.mutate(ret.id, {

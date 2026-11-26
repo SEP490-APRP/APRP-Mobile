@@ -1,6 +1,6 @@
 import { router } from 'expo-router'
-import { ArrowDownLeft, ArrowUpRight, Clock, Plus, ShieldCheck } from 'lucide-react-native'
-import { useState } from 'react'
+import { ArrowDownLeft, ArrowUpRight, ChevronRight, Clock, Plus, ShieldCheck } from 'lucide-react-native'
+import { useMemo, useState } from 'react'
 import { Pressable, RefreshControl, ScrollView, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { AppText, Button, EmptyState, ErrorState, Skeleton } from '@/components/ui'
@@ -27,10 +27,25 @@ export default function ShipperWallet() {
   const [topupOpen, setTopupOpen] = useState(false)
   const [withdrawOpen, setWithdrawOpen] = useState(false)
   const [historyTab, setHistoryTab] = useState<'tx' | 'withdraw'>('tx')
+  const [txMode, setTxMode] = useState<'compact' | 'ledger'>('compact')
   const w = wallet.data
   const negative = (w?.balance ?? 0) < 0
   const refreshing = wallet.isRefetching || tx.isRefetching || withdrawals.isRefetching
   const availableAmount = Number(w?.availableBalance ?? w?.balance ?? 0)
+
+  const allTxs = tx.data?.content ?? []
+  const compactTxs = useMemo(() => {
+    const releasedOrderIds = new Set(
+      allTxs.filter((t) => t.type === 'COD_RESERVE_RELEASED' && t.orderId != null).map((t) => t.orderId!),
+    )
+    return allTxs.filter((t) => {
+      if (t.hold) return false
+      if (t.type === 'COD_RESERVE_RELEASED') return false
+      if (t.type === 'COD_RESERVED' && t.orderId != null && releasedOrderIds.has(t.orderId)) return false
+      return true
+    })
+  }, [allTxs])
+  const displayedTxs = txMode === 'compact' ? compactTxs : allTxs
 
   return (
     <SafeAreaView className="flex-1 bg-paper" edges={['top']}>
@@ -146,6 +161,19 @@ export default function ShipperWallet() {
 
         {historyTab === 'tx' ? (
           <>
+            <View className="flex-row items-center justify-between px-1">
+              <AppText className="text-xs text-ink-muted">
+                {txMode === 'compact' ? 'Chỉ hiện biến động chính' : 'Hiện toàn bộ bút toán sổ cái'}
+              </AppText>
+              <Pressable
+                onPress={() => setTxMode((m) => (m === 'compact' ? 'ledger' : 'compact'))}
+                className="rounded-full border border-leaf-200 bg-leaf-50 px-3 py-1 active:opacity-80"
+              >
+                <AppText weight="bold" className="text-[11px] text-leaf-800">
+                  {txMode === 'compact' ? 'Xem sổ cái đầy đủ' : 'Thu gọn'}
+                </AppText>
+              </Pressable>
+            </View>
             {tx.isPending ? (
               <View className="gap-2">
                 <Skeleton className="h-16 w-full rounded-card" />
@@ -153,11 +181,11 @@ export default function ShipperWallet() {
               </View>
             ) : tx.isError ? (
               <ErrorState onRetry={() => void tx.refetch()} />
-            ) : (tx.data?.content ?? []).length === 0 ? (
+            ) : displayedTxs.length === 0 ? (
               <EmptyState title="Chưa có giao dịch" description="Nạp ví hoặc nhận đơn để bắt đầu." />
             ) : (
               <View className="overflow-hidden rounded-card border border-line bg-white">
-                {(tx.data?.content ?? []).map((t, i) => (
+                {displayedTxs.map((t, i) => (
                   <TxRow key={t.id} tx={t} first={i === 0} />
                 ))}
               </View>
@@ -195,11 +223,37 @@ function Stat({ icon, label, value, hint }: { icon: React.ReactNode; label: stri
   )
 }
 
+function formatTxShortTime(raw?: unknown): string {
+  if (!raw) return ''
+  let d: Date | null = null
+  if (Array.isArray(raw) && raw.length >= 3) {
+    const [y, m, day, hh = 0, mm = 0] = raw as number[]
+    d = new Date(y, m - 1, day, hh, mm)
+  } else if (typeof raw === 'string') {
+    d = new Date(raw)
+  }
+  if (!d || Number.isNaN(d.getTime())) return ''
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${pad(d.getHours())}:${pad(d.getMinutes())} · ${pad(d.getDate())}/${pad(d.getMonth() + 1)}`
+}
+
 function TxRow({ tx, first }: { tx: WalletTransactionResponse; first: boolean }) {
-  const soft = tx.hold || tx.reserve
-  const isIn = tx.amount >= 0
+  const soft = Boolean(tx.hold || tx.reserve)
+  const isIn = Number(tx.amount) >= 0
+  const bucketLabel = tx.reserve || tx.type === 'COD_RESERVED' || tx.type === 'COD_RESERVE_RELEASED'
+    ? 'Ký quỹ COD'
+    : tx.hold || String(tx.type ?? '').includes('HOLD')
+      ? 'Cước tạm giữ'
+      : 'Số dư khả dụng'
+  const bucketBg = tx.reserve || tx.hold || String(tx.type ?? '').includes('HOLD') ? 'bg-amber-100' : 'bg-leaf-50'
+  const bucketText = tx.reserve || tx.hold || String(tx.type ?? '').includes('HOLD') ? 'text-amber-900' : 'text-leaf-800'
+  const timeText = formatTxShortTime(tx.createdAt)
+
   return (
-    <View className={cn('flex-row items-center gap-3 p-3', !first && 'border-t border-line')}>
+    <Pressable
+      onPress={() => router.push({ pathname: '/shipper/wallet-tx/[id]' as any, params: { id: String(tx.id) } })}
+      className={cn('flex-row items-center gap-3 p-3.5 active:bg-slate-50', !first && 'border-t border-line')}
+    >
       <View className={cn('h-9 w-9 items-center justify-center rounded-xl', soft ? 'bg-sun-300/40' : isIn ? 'bg-leaf-50' : 'bg-sale-soft')}>
         {soft ? (
           <Clock size={16} color={colors.leaf800} />
@@ -209,21 +263,35 @@ function TxRow({ tx, first }: { tx: WalletTransactionResponse; first: boolean })
           <ArrowUpRight size={16} color={colors.sale} />
         )}
       </View>
-      <View className="min-w-0 flex-1">
+      <View className="min-w-0 flex-1 gap-1">
         <AppText weight="bold" numberOfLines={1} className="text-sm">
           {WALLET_TX_LABEL[tx.type] ?? tx.type}
-          {tx.orderId ? ` · Đơn #${tx.orderId}` : ''}
+          {tx.orderId ? ` · #${tx.orderId}` : ''}
         </AppText>
+        <View className="flex-row flex-wrap items-center gap-1.5">
+          <View className={cn('rounded-full px-2 py-0.5', bucketBg)}>
+            <AppText weight="semibold" className={cn('text-[10px]', bucketText)}>
+              {bucketLabel}
+            </AppText>
+          </View>
+          {!!timeText && <AppText className="text-[11px] text-ink-subtle">{timeText}</AppText>}
+        </View>
         {!!tx.description && (
-          <AppText numberOfLines={2} className="text-xs text-ink-muted">
+          <AppText numberOfLines={1} className="text-xs text-ink-muted">
             {tx.description}
           </AppText>
         )}
       </View>
-      <AppText weight="extrabold" className={cn('text-sm', soft ? 'text-leaf-900' : isIn ? 'text-leaf-700' : 'text-sale')}>
-        {isIn ? '+' : '-'}
-        {money(Math.abs(Number(tx.amount)))}
-      </AppText>
-    </View>
+      <View className="items-end gap-0.5">
+        <AppText weight="extrabold" className={cn('text-sm', soft ? 'text-leaf-900' : isIn ? 'text-leaf-700' : 'text-sale')}>
+          {isIn ? '+' : '-'}
+          {money(Math.abs(Number(tx.amount)))}
+        </AppText>
+        {!soft && tx.balanceAfter != null && (
+          <AppText className="text-[10px] text-ink-subtle">Sau GD: {money(Number(tx.balanceAfter))}</AppText>
+        )}
+      </View>
+      <ChevronRight size={15} color={colors.inkSubtle} />
+    </Pressable>
   )
 }

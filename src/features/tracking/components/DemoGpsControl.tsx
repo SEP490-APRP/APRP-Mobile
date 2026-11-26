@@ -24,6 +24,7 @@ export function DemoGpsControl({
   destLat,
   destLng,
   orderStatus,
+  mode = 'DELIVERY',
   onRouteReady,
 }: {
   orderId: number
@@ -33,6 +34,7 @@ export function DemoGpsControl({
   destLat?: number
   destLng?: number
   orderStatus?: string
+  mode?: 'DELIVERY' | 'RETURN'
   onRouteReady?: (route: { phase: 'TO_SHOP' | 'TO_BUYER'; points: LatLng[] } | null) => void
 }) {
   const token = useAuthStore((s) => s.token)
@@ -352,7 +354,11 @@ export function DemoGpsControl({
                   weight="bold"
                   className={cn('text-xs', stage === 'TO_SHOP' ? 'text-amber-900' : 'text-ink-muted')}
                 >
-                  {isReturning ? '↩️ Quay về Vườn' : '1. Chạy tới Vườn'}
+                  {mode === 'RETURN'
+                    ? '1. Chạy tới Khách'
+                    : isReturning
+                      ? '↩️ Quay về Vườn'
+                      : '1. Chạy tới Vườn'}
                 </AppText>
               </Pressable>
             )}
@@ -372,7 +378,7 @@ export function DemoGpsControl({
                   weight="bold"
                   className={cn('text-xs', stage === 'TO_BUYER' ? 'text-amber-900' : 'text-ink-muted')}
                 >
-                  2. Chạy tới Khách
+                  {mode === 'RETURN' ? '2. Chạy về Vườn' : '2. Chạy tới Khách'}
                 </AppText>
               </Pressable>
             )}
@@ -457,7 +463,7 @@ export function DemoGpsControl({
               >
                 <MapPin size={13} color={colors.soil600} />
                 <AppText weight="bold" className="text-xs text-amber-900">
-                  {isReturning ? 'Về Vườn ngay' : 'Tới Vườn ngay'}
+                  {mode === 'RETURN' ? 'Tới Khách ngay' : isReturning ? 'Về Vườn ngay' : 'Tới Vườn ngay'}
                 </AppText>
               </Pressable>
             )}
@@ -469,7 +475,7 @@ export function DemoGpsControl({
               >
                 <FastForward size={13} color={colors.leaf700} />
                 <AppText weight="bold" className="text-xs text-leaf-800">
-                  Tới Khách ngay
+                  {mode === 'RETURN' ? 'Về Vườn ngay' : 'Tới Khách ngay'}
                 </AppText>
               </Pressable>
             )}

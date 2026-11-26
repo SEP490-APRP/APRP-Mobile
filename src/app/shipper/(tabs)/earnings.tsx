@@ -14,8 +14,11 @@ import {
   inPeriod,
   isCod,
   isDelivered,
+  isPaidTrip,
   itemsSummary,
+  netShipperFee,
   useShipperHistory,
+  useShipperMyReturns,
   type DayBar,
   type EarningsPeriod,
 } from '@/features/shipper'
@@ -67,35 +70,68 @@ function WeekChart({ bars }: { bars: DayBar[] }) {
 }
 
 function HistoryRow({ order, first }: { order: OrderResponse; first: boolean }) {
+  const isReturnTrip = order.note?.startsWith('__RETURN__:')
+  const returnId = isReturnTrip ? Number(order.note!.split(':')[1]) : null
+  const paid = isPaidTrip(order)
   const ok = isDelivered(order)
+  const isPaidReturnToShop = !ok && paid
+  const netFee = netShipperFee(Number(order.shippingFee ?? 0))
+
   return (
     <Pressable
-      onPress={() => router.push(`/shipper/order/${orderIdOf(order)}` as any)}
+      onPress={() =>
+        isReturnTrip && returnId
+          ? router.push({ pathname: '/shipper/return/[id]' as any, params: { id: String(returnId) } })
+          : router.push(`/shipper/order/${orderIdOf(order)}` as any)
+      }
       className={cn('flex-row items-center gap-3 px-4 py-3 active:bg-slate-50', !first && 'border-t border-line')}
     >
-      <View className={cn('h-9 w-9 items-center justify-center rounded-full', ok ? 'bg-leaf-50' : 'bg-rose-50')}>
-        {ok ? <CircleCheck size={18} color={colors.leaf700} /> : <CircleX size={18} color={colors.sale} />}
+      <View className={cn('h-9 w-9 items-center justify-center rounded-full', paid ? 'bg-leaf-50' : 'bg-rose-50')}>
+        {paid ? <CircleCheck size={18} color={colors.leaf700} /> : <CircleX size={18} color={colors.sale} />}
       </View>
       <View className="min-w-0 flex-1 gap-0.5">
         <View className="flex-row items-center justify-between gap-2">
           <AppText weight="bold" numberOfLines={1} className="flex-1 text-sm">
-            #{orderIdOf(order)} · {order.recipientName || order.buyerName || 'Khách hàng'}
+            {isReturnTrip ? `Hoàn trả #${returnId}` : `#${orderIdOf(order)}`} ·{' '}
+            {order.recipientName || order.buyerName || 'Khách hàng'}
           </AppText>
-          <AppText weight="bold" className={cn('text-sm', ok ? 'text-leaf-700' : 'text-ink-subtle line-through')}>
-            {ok ? '+' : ''}
-            {money(Number(order.shippingFee ?? 0))}
+          <AppText weight="bold" className={cn('text-sm', paid ? 'text-leaf-700' : 'text-ink-subtle line-through')}>
+            {paid ? `+${money(netFee)}` : money(0)}
           </AppText>
         </View>
         <AppText numberOfLines={1} className="text-xs text-ink-muted">
           Từ {order.shopName || 'nhà vườn'} · {itemsSummary(order)}
         </AppText>
         <View className="flex-row flex-wrap items-center gap-1.5 pt-0.5">
-          <View className={cn('rounded-full px-2 py-0.5', ok ? 'bg-leaf-50' : 'bg-rose-50')}>
-            <AppText weight="semibold" className={cn('text-xs', ok ? 'text-leaf-800' : 'text-rose-700')}>
-              {ok ? 'Giao thành công' : 'Giao thất bại'}
+          <View
+            className={cn(
+              'rounded-full px-2 py-0.5',
+              isReturnTrip ? 'bg-sky-50' : isPaidReturnToShop ? 'bg-amber-50' : ok ? 'bg-leaf-50' : 'bg-rose-50',
+            )}
+          >
+            <AppText
+              weight="semibold"
+              className={cn(
+                'text-xs',
+                isReturnTrip
+                  ? 'text-sky-800'
+                  : isPaidReturnToShop
+                    ? 'text-amber-800'
+                    : ok
+                      ? 'text-leaf-800'
+                      : 'text-rose-700',
+              )}
+            >
+              {isReturnTrip
+                ? 'Hoàn trả thành công'
+                : isPaidReturnToShop
+                  ? 'Hoàn về Shop (có cước)'
+                  : ok
+                    ? 'Giao thành công'
+                    : 'Giao thất bại'}
             </AppText>
           </View>
-          {isCod(order) && ok && (
+          {isCod(order) && ok && !isReturnTrip && (
             <View className="rounded-full bg-amber-100 px-2 py-0.5">
               <AppText weight="semibold" className="text-xs text-amber-800">
                 Thu COD {money(Number(order.codAmount ?? order.totalAmount ?? 0))}
@@ -115,11 +151,33 @@ function HistoryRow({ order, first }: { order: OrderResponse; first: boolean }) 
  */
 export default function ShipperEarnings() {
   const history = useShipperHistory()
+  const myReturns = useShipperMyReturns('COMPLETED')
   const [period, setPeriod] = useState<EarningsPeriod>('7d')
   const [searchQuery, setSearchQuery] = useState('')
   const [shown, setShown] = useState(PAGE)
 
-  const all = useMemo(() => history.data ?? [], [history.data])
+  const all = useMemo(() => {
+    const base = history.data ?? []
+    const returnTrips: OrderResponse[] = (myReturns.data ?? [])
+      .filter((r) => Number(r.returnShippingFee ?? 0) > 0)
+      .map((r) => ({
+        id: r.orderId,
+        orderId: r.orderId,
+        status: 'COMPLETED',
+        recipientName: r.buyerName || 'Khách hàng',
+        recipientPhone: r.buyerPhone || '',
+        shippingAddress: r.buyerAddress || '',
+        paymentMethod: r.shippingPaymentMethod || 'WALLET',
+        note: `__RETURN__:${r.id}`,
+        totalAmount: Number(r.refundAmount ?? 0),
+        shippingFee: Number(r.returnShippingFee ?? 0),
+        shopName: r.shopName,
+        createdAt: r.createdAt,
+        deliveredAt: r.returnedAt || r.updatedAt || r.createdAt,
+        items: [{ productName: r.productName, quantity: r.quantity ?? 1 }],
+      }))
+    return [...base, ...returnTrips]
+  }, [history.data, myReturns.data])
   const inRange = useMemo(() => all.filter((o) => inPeriod(o, period)), [all, period])
 
   const searched = useMemo(() => {
@@ -158,8 +216,11 @@ export default function ShipperEarnings() {
         contentContainerClassName="gap-4 p-4 pb-10"
         refreshControl={
           <RefreshControl
-            refreshing={history.isRefetching}
-            onRefresh={() => void history.refetch()}
+            refreshing={history.isRefetching || myReturns.isRefetching}
+            onRefresh={() => {
+              void history.refetch()
+              void myReturns.refetch()
+            }}
             tintColor={colors.leaf700}
             colors={[colors.leaf700]}
           />

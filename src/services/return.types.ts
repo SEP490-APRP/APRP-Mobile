@@ -39,10 +39,14 @@ export interface ReturnRequestResponse {
   buyerName?: string
   buyerPhone?: string
   buyerAddress?: string
+  buyerLatitude?: number
+  buyerLongitude?: number
   shopId?: number
   shopName?: string
   shopPhone?: string
   shopAddress?: string
+  shopLatitude?: number
+  shopLongitude?: number
   shipperId?: number
   shipperName?: string
   shipperPhone?: string

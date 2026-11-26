@@ -68,6 +68,7 @@ export interface OrderResponse {
   voucherDiscountAmount?: number
   refundAmount?: number
   refundReason?: string | null
+  shipperPaidAt?: string | null
   shippingLatitude?: number
   shippingLongitude?: number
   shopLatitude?: number
