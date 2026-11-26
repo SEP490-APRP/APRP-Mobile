@@ -1,5 +1,6 @@
 export { ListingRow, ListingStatusChip, ShopOrderRow, StatTile } from './components/ShopWidgets'
 export {
+  createProductWithImages,
   shopKeys,
   useMyShopBoxes,
   useMyShopCombos,
@@ -15,6 +16,10 @@ export {
   useShopProductImages,
   useSuggestDescription,
   useUpdateShopProduct,
+  type BatchImageAddResult,
+  type CreateProductWithImagesParams,
+  type CreateProductWithImagesResult,
+  type FailedImageUpload,
   type ProductImageAction,
   type ShopOrderAction,
 } from './hooks/useShopQueries'
@@ -27,8 +32,10 @@ export { OrderItemRow, PaymentChip, ShopOrderCard, StageHint, WeightPledge } fro
 export { ImageSourceSheet } from './components/ImageSourceSheet'
 export { ProductFormFields } from './components/ProductFormFields'
 export { ShopListingCard } from './components/ShopListingCard'
-export { useProductForm } from './hooks/useProductForm'
-export { usePickProductImage, type ImageSource } from './hooks/usePickProductImage'
+export {
+  useProductForm,
+} from './hooks/useProductForm'
+export { usePickProductImage, usePickProductImages, type ImageSource } from './hooks/usePickProductImage'
 export { BundleItemsEditor, ProductPickerSheet } from './components/BundleItemsEditor'
 export { SingleProductPickerSheet } from './components/SingleProductPickerSheet'
 export {

@@ -41,6 +41,18 @@ export const MEAL_TYPE_OPTIONS = [
   { value: 'SNACK', label: 'Ăn nhẹ, tráng miệng' },
 ] as const
 
+export const COMBO_TYPE_OPTIONS = [
+  { value: 'Món Canh / Súp', label: 'Món Canh / Súp' },
+  { value: 'Món Xào', label: 'Món Xào' },
+  { value: 'Món Kho / Hầm', label: 'Món Kho / Hầm' },
+  { value: 'Món Hấp / Luộc', label: 'Món Hấp / Luộc' },
+  { value: 'Món Lẩu', label: 'Món Lẩu' },
+  { value: 'Món Chay', label: 'Món Chay' },
+  { value: 'Salad Eat Clean', label: 'Salad Eat Clean' },
+  { value: 'Nước Ép / Sinh Tố', label: 'Nước Ép / Sinh Tố' },
+  { value: 'Tráng Miệng', label: 'Tráng Miệng' },
+] as const
+
 export const BUNDLE_NAME_MAX: Record<BundleKind, number> = { COMBO: 100, MYSTERY_BOX: 50 }
 
 export const BUNDLE_LABEL: Record<BundleKind, string> = { COMBO: 'combo', MYSTERY_BOX: 'túi mù' }

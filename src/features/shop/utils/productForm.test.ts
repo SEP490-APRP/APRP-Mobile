@@ -6,6 +6,8 @@ import {
   emptyProductForm,
   imageProblem,
   imageUploadMessage,
+  nextPrimaryIndexAfterRemove,
+  orderImagesWithPrimary,
   productToForm,
   toProductRequest,
   validateProductForm,
@@ -77,7 +79,17 @@ describe('productForm', () => {
 
   it('báo lỗi ảnh theo mã BE', () => {
     expect(imageUploadMessage({ data: { code: 3022 } }, 'Image rejected')).toMatch(/AI/)
+    expect(imageUploadMessage({ data: { code: 4002 } }, 'Too large')).toMatch(/Dung lượng/)
     expect(imageUploadMessage({}, 'Sản phẩm chỉ được tối đa 8 ảnh')).toMatch(/tối đa 8/)
     expect(imageUploadMessage({}, 'Network down')).toBe('Network down')
+  })
+
+  it('sắp xếp ảnh chính lên đầu và cập nhật vị trí khi xoá ảnh', () => {
+    expect(orderImagesWithPrimary(['a', 'b', 'c'], 1)).toEqual(['b', 'a', 'c'])
+    expect(orderImagesWithPrimary(['a', 'b', 'c'], 9)).toEqual(['a', 'b', 'c'])
+    expect(orderImagesWithPrimary([], 0)).toEqual([])
+    expect(nextPrimaryIndexAfterRemove(2, 0, 2)).toBe(1)
+    expect(nextPrimaryIndexAfterRemove(1, 1, 2)).toBe(0)
+    expect(nextPrimaryIndexAfterRemove(0, 2, 2)).toBe(0)
   })
 })
