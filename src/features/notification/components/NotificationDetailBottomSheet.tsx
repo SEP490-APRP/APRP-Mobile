@@ -1,3 +1,4 @@
+import { useQuery } from '@tanstack/react-query'
 import * as WebBrowser from 'expo-web-browser'
 import { router } from 'expo-router'
 import {
@@ -6,6 +7,7 @@ import {
   Calendar,
   CheckCircle2,
   ExternalLink,
+  Map,
   Package,
   Tag,
   Trash2,
@@ -14,8 +16,11 @@ import {
 } from 'lucide-react-native'
 import { Alert, Linking, Pressable, View } from 'react-native'
 import { AppText, BottomSheet, Button } from '@/components/ui'
+import { orderIdOf, orderKeys, OrderStatusBadge } from '@/features/order'
 import { shipperErrorCode, shipperErrorMessage, useAcceptOrder } from '@/features/shipper'
+import { orderService } from '@/services'
 import type { NotificationItem } from '@/services/notification.types'
+import { shipperService } from '@/services/shipper.service'
 import { useAuthStore, useUiStore } from '@/stores'
 import { colors } from '@/theme/colors'
 import { cn } from '@/utils/helpers'
@@ -50,6 +55,33 @@ export function NotificationDetailBottomSheet({
   const acceptOrder = useAcceptOrder()
   const role = user?.role?.toLowerCase()
 
+  const rawTargetOrderId = (() => {
+    if (!notification) return null
+    if (notification.referenceId) return notification.referenceId
+    const txt = `${notification.title ?? ''} ${notification.message ?? ''} ${notification.evidence ?? ''}`
+    const match = txt.match(/đơn hàng.*?#?(\d+)/i) || txt.match(/#(\d+)/) || (notification.evidence && notification.evidence.match(/(\d+)/))
+    return match?.[1] ? parseInt(match[1], 10) : null
+  })()
+
+  const isShipperOrderCheckEnabled = visible && role === 'shipper' && Boolean(rawTargetOrderId) && !isNaN(rawTargetOrderId!)
+
+  const shipperOrderQuery = useQuery({
+    queryKey: orderKeys.detail(rawTargetOrderId ?? 0),
+    queryFn: () => orderService.getOrderById(rawTargetOrderId!),
+    enabled: isShipperOrderCheckEnabled,
+    retry: false,
+  })
+
+  const shipperReadyQuery = useQuery({
+    queryKey: ['shipper', 'notif-ready-check', rawTargetOrderId],
+    queryFn: async () => {
+      const page = await shipperService.getReadyOrders(0, 50)
+      return page.content.find((o) => orderIdOf(o) === rawTargetOrderId) ?? null
+    },
+    enabled: isShipperOrderCheckEnabled && shipperOrderQuery.isError,
+    retry: false,
+  })
+
   if (!notification) return null
 
   const notif = notification
@@ -62,14 +94,25 @@ export function NotificationDetailBottomSheet({
   let categoryColor: string = colors.leaf700
   let categoryBg = 'bg-leaf-100'
 
+  const isDeliveryReturnFlow =
+    textContent.includes('giao thất bại') ||
+    textContent.includes('giao không thành công') ||
+    textContent.includes('hoàn về vườn') ||
+    textContent.includes('nhận lại hàng') ||
+    textContent.includes('trả hàng về shop') ||
+    textContent.includes('lấy hàng đơn') ||
+    type === 'ORDER_FAILED' ||
+    type === 'ORDER_RETURN_TO_SHOP'
+
   const isDisputeRelated =
-    type.includes('RETURN') ||
-    type.includes('DISPUTE') ||
-    type.includes('ADMIN_APPROVED') ||
-    textContent.includes('khiếu nại') ||
-    textContent.includes('hoàn trả') ||
-    textContent.includes('trả hàng') ||
-    textContent.includes('hoàn tiền')
+    !isDeliveryReturnFlow &&
+    (type.includes('RETURN') ||
+      type.includes('DISPUTE') ||
+      type.includes('ADMIN_APPROVED') ||
+      textContent.includes('khiếu nại') ||
+      textContent.includes('hoàn trả') ||
+      textContent.includes('trả hàng') ||
+      textContent.includes('hoàn tiền'))
 
   if (isDisputeRelated) {
     categoryLabel = 'KHIẾU NẠI'
@@ -222,21 +265,34 @@ export function NotificationDetailBottomSheet({
       smartActionTitle = targetOrderId ? `Xem đơn hàng #${targetOrderId}` : 'Xem đơn hàng của tôi'
     }
   } else if (targetOrderId) {
-    smartActionTitle = `Xem chi tiết đơn hàng #${targetOrderId}`
+    if (role === 'shop' && isDeliveryReturnFlow) {
+      smartActionTitle = textContent.includes('nhận lại hàng')
+        ? `Kiểm tra & Xác nhận hoàn #${targetOrderId}`
+        : `Xem đơn hàng #${targetOrderId}`
+    } else {
+      smartActionTitle = `Xem chi tiết đơn hàng #${targetOrderId}`
+    }
   } else if (categoryLabel === 'TÀI CHÍNH') {
     smartActionTitle = 'Đến ví tiền'
   } else if (categoryLabel === 'ƯU ĐÃI') {
     smartActionTitle = role === 'shop' ? 'Quản lý voucher' : 'Xem kho voucher'
   }
 
-  const isShipperOrderOffer =
+  const liveOrder = shipperOrderQuery.data ?? shipperReadyQuery.data ?? null
+  const isCheckingOrder =
+    isShipperOrderCheckEnabled &&
+    (shipperOrderQuery.isFetching || (shipperOrderQuery.isError && shipperReadyQuery.isFetching))
+  const isShipperOrderReady = role === 'shipper' && liveOrder?.status === 'READY'
+  const isShipperOrderActive =
+    role === 'shipper' &&
+    (liveOrder?.status === 'SHIPPING' || liveOrder?.status === 'PICKED_UP' || liveOrder?.status === 'RETURNING_TO_SHOP')
+  const isShipperOrderUnavailable =
     role === 'shipper' &&
     Boolean(targetOrderId) &&
-    (type.includes('OFFER') ||
-      type.includes('DISPATCH') ||
-      textContent.includes('đơn mới') ||
-      textContent.includes('cần ký quỹ') ||
-      textContent.includes('gần bạn'))
+    !isCheckingOrder &&
+    !liveOrder &&
+    shipperOrderQuery.isError &&
+    !shipperReadyQuery.isFetching
 
   const handleQuickAccept = () => {
     if (!targetOrderId) return
@@ -273,26 +329,65 @@ export function NotificationDetailBottomSheet({
       onClose={onClose}
       footer={
         <View className="w-full gap-2">
-          {isShipperOrderOffer ? (
-            <View className="flex-row gap-2">
+          {role === 'shipper' && Boolean(targetOrderId) && !isDisputeRelated ? (
+            isCheckingOrder ? (
               <Button
-                title="Xem chi tiết"
+                title="Đang kiểm tra trạng thái đơn..."
                 variant="outline"
-                disabled={acceptOrder.isPending}
-                onPress={handlePrimaryAction}
-                className="min-h-[44px] flex-1 px-2.5"
-                textClassName="text-sm"
+                loading
+                disabled
+                onPress={() => {}}
+                className="min-h-[44px] w-full"
               />
+            ) : isShipperOrderReady ? (
+              <View className="flex-row gap-2">
+                <Button
+                  title="Xem chi tiết"
+                  variant="outline"
+                  disabled={acceptOrder.isPending}
+                  onPress={handlePrimaryAction}
+                  className="min-h-[44px] flex-1 px-2.5"
+                  textClassName="text-sm"
+                />
+                <Button
+                  title={`Nhận đơn #${targetOrderId}`}
+                  icon={CheckCircle2}
+                  variant="primary"
+                  loading={acceptOrder.isPending}
+                  onPress={handleQuickAccept}
+                  className="min-h-[44px] flex-1 px-2.5"
+                  textClassName="text-sm"
+                />
+              </View>
+            ) : isShipperOrderActive ? (
+              <View className="flex-row gap-2">
+                <Button
+                  title="Xem chi tiết"
+                  variant="outline"
+                  onPress={handlePrimaryAction}
+                  className="min-h-[44px] flex-1 px-2.5"
+                  textClassName="text-sm"
+                />
+                <Button
+                  title="Mở bản đồ"
+                  icon={Map}
+                  variant="primary"
+                  onPress={() => {
+                    onClose()
+                    router.push({ pathname: '/shipper/tracking/[id]' as any, params: { id: targetOrderId } })
+                  }}
+                  className="min-h-[44px] flex-1 px-2.5"
+                  textClassName="text-sm"
+                />
+              </View>
+            ) : liveOrder ? (
               <Button
-                title={`Nhận đơn #${targetOrderId}`}
-                icon={CheckCircle2}
+                title={`Xem chi tiết đơn #${targetOrderId}`}
                 variant="primary"
-                loading={acceptOrder.isPending}
-                onPress={handleQuickAccept}
-                className="min-h-[44px] flex-1 px-2.5"
-                textClassName="text-sm"
+                onPress={handlePrimaryAction}
+                className="min-h-[44px] w-full"
               />
-            </View>
+            ) : null
           ) : (
             hasSmartAction && (
               <Button
@@ -356,6 +451,23 @@ export function NotificationDetailBottomSheet({
             {notif.message}
           </AppText>
         </View>
+
+        {/* Trạng thái thực tế của đơn hàng đối với Shipper */}
+        {role === 'shipper' && Boolean(targetOrderId) && !isDisputeRelated && liveOrder && (
+          <View className="flex-row items-center justify-between rounded-xl border border-line bg-white px-3.5 py-2.5">
+            <AppText className="text-xs text-ink-muted">Trạng thái hiện tại của đơn #{targetOrderId}</AppText>
+            <OrderStatusBadge status={liveOrder.status} />
+          </View>
+        )}
+        {isShipperOrderUnavailable && (
+          <View className="rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5">
+            <AppText weight="semibold" className="text-xs text-amber-800">
+              {shipperErrorCode(shipperReadyQuery.error) === 7006
+                ? 'Bạn đang tắt nhận đơn nên chưa kiểm tra được đơn mới. Hãy bật "Đang nhận đơn" ở trang chủ.'
+                : `Đơn #${targetOrderId} đã có tài xế khác nhận hoặc không còn ở trạng thái chờ giao.`}
+            </AppText>
+          </View>
+        )}
 
         {/* Evidence / Liên kết đính kèm nếu có */}
         {Boolean(notif.evidence) &&

@@ -19,10 +19,17 @@ export function suggestTopup(missing?: number | null): number {
   return Math.max(MIN_TOPUP_AMOUNT, Math.ceil(missing / 1000) * 1000)
 }
 
-/** Nhãn bút toán ví cho tài xế */
+/** Nhãn bút toán ví cho tài xế / shop / người mua */
 export const WALLET_TX_LABEL: Record<string, string> = {
+  SHOP_INCOME: 'Tiền hàng về ví',
+  SHOP_INCOME_HOLD: 'Tạm giữ tiền hàng',
   SHIPPER_INCOME: 'Cước giao về ví',
   SHIPPER_INCOME_HOLD: 'Tạm giữ cước giao',
+  PLATFORM_INCOME_HOLD: 'Tạm giữ phần sàn',
+  PLATFORM_FARMER_FEE: 'Phí dịch vụ nông dân',
+  PLATFORM_SHIPPER_FEE: 'Phí dịch vụ shipper',
+  PLATFORM_VOUCHER_SUBSIDY: 'Sàn bù voucher',
+  PLATFORM_FREESHIP_SUBSIDY: 'Sàn bù cước hoàn / freeship',
   HOLD_RELEASED: 'Mở tạm giữ (đơn hoàn tất)',
   HOLD_CANCELLED: 'Huỷ tạm giữ (đơn huỷ / thất bại)',
   COD_RESERVED: 'Ký quỹ đơn COD',
@@ -32,5 +39,10 @@ export const WALLET_TX_LABEL: Record<string, string> = {
   TOP_UP: 'Nạp ví qua PayOS',
   WITHDRAW_REQUESTED: 'Rút tiền về ngân hàng',
   WITHDRAW_REFUNDED: 'Hoàn lệnh rút bị từ chối',
+  BUYER_REFUND: 'Hoàn tiền cho người mua',
+  SHOP_REFUND_DEDUCT: 'Trừ tiền do hoàn hàng',
+  PLATFORM_REFUND_DEDUCT: 'Sàn điều chỉnh do hoàn tiền',
+  ORDER_WALLET_PAYMENT: 'Trả đơn hàng bằng ví',
+  ORDER_WALLET_REFUND: 'Hoàn tiền ví (đơn huỷ / thất bại)',
   REFERRAL_COMMISSION: 'Hoa hồng tiếp thị liên kết',
 }

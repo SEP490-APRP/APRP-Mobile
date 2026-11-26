@@ -1,7 +1,7 @@
 import { router } from 'expo-router'
 import { CircleCheck, CircleX, Map, Navigation, PackageCheck, Phone, Truck } from 'lucide-react-native'
 import { useState } from 'react'
-import { Alert, Linking, Pressable, RefreshControl, ScrollView, View } from 'react-native'
+import { Alert, Linking, Platform, Pressable, RefreshControl, ScrollView, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { AppText, Button, ConfirmDialog, EmptyState, ErrorState, Skeleton } from '@/components/ui'
 import { NotificationBellButton } from '@/features/notification'
@@ -44,7 +44,12 @@ const ASK: Record<DeliveryAction, { title: string; confirm: string; done: string
   fail: {
     title: 'Báo giao thất bại?',
     confirm: 'Báo thất bại',
-    done: 'Đã báo giao thất bại. Hàng được hoàn kho, tiền ký quỹ COD đã trả lại ví.',
+    done: 'Đã báo giao thất bại.',
+  },
+  return_shop: {
+    title: 'Trả hàng về Shop',
+    confirm: 'Đã trả hàng',
+    done: 'Đã bàn giao hàng hoàn về nhà vườn thành công!',
   },
 }
 
@@ -67,13 +72,13 @@ export default function ShipperDelivering() {
     if (!ask) return
     const { order, action } = ask
     const { fakeGpsActive, fakeCoords } = useBroadcastState.getState()
-    const deliveryCoords = fakeGpsActive && fakeCoords ? fakeCoords : gps.position
+    const actionCoords = fakeGpsActive && fakeCoords ? fakeCoords : gps.position
     act.mutate(
       {
         orderId: orderIdOf(order),
         action,
         proof,
-        coords: action === 'deliver' ? deliveryCoords : undefined,
+        coords: action === 'deliver' || action === 'return_shop' ? actionCoords : undefined,
       },
       {
         onSuccess: () => showToast(ASK[action].done),
@@ -81,29 +86,38 @@ export default function ShipperDelivering() {
           const code = shipperErrorCode(e)
           const msg = shipperErrorMessage(e, 'Chưa cập nhật được đơn, thử lại nhé.')
           if (code === 7011) {
-            Alert.alert(
-              'Ngoài bán kính giao hàng (>500m)',
-              msg,
-              [
-                {
-                  text: 'Mở bản đồ điều hướng',
-                  onPress: () => router.push(`/shipper/tracking/${orderIdOf(order)}` as any),
-                },
-                { text: 'Đã hiểu', style: 'cancel' },
-              ],
-            )
+            if (Platform.OS === 'web') {
+              showToast(msg)
+            } else {
+              Alert.alert(
+                'Ngoài bán kính cho phép (>500m)',
+                msg,
+                [
+                  {
+                    text: 'Mở bản đồ điều hướng',
+                    onPress: () => router.push(`/shipper/tracking/${orderIdOf(order)}` as any),
+                  },
+                  { text: 'Đã hiểu', style: 'cancel' },
+                ],
+              )
+            }
           } else if (code === 7012) {
-            Alert.alert(
-              'Không xác định được vị trí GPS',
-              'Vui lòng bật quyền truy cập vị trí trên điện thoại, hoặc bật chế độ Demo Fake GPS trên màn hình Bản đồ để đối soát.',
-              [
-                {
-                  text: 'Mở bản đồ',
-                  onPress: () => router.push(`/shipper/tracking/${orderIdOf(order)}` as any),
-                },
-                { text: 'Đã hiểu', style: 'cancel' },
-              ],
-            )
+            const gpsMsg = 'Vui lòng bật GPS trên điện thoại, hoặc mở Bản đồ dùng Demo Fake GPS để đối soát.'
+            if (Platform.OS === 'web') {
+              showToast(gpsMsg)
+            } else {
+              Alert.alert(
+                'Không xác định được vị trí GPS',
+                gpsMsg,
+                [
+                  {
+                    text: 'Mở bản đồ',
+                    onPress: () => router.push(`/shipper/tracking/${orderIdOf(order)}` as any),
+                  },
+                  { text: 'Đã hiểu', style: 'cancel' },
+                ],
+              )
+            }
           } else {
             showToast(msg)
           }
@@ -208,10 +222,19 @@ export default function ShipperDelivering() {
             {/* Đơn giao hàng thường */}
             {list.map((o) => {
               const picked = o.status === 'PICKED_UP'
+              const returning = o.status === 'RETURNING_TO_SHOP'
               return (
                 <View key={`order-${orderIdOf(o)}`} className="gap-3">
-                  <Stage picked={picked} />
-                  {!picked && <PickupCodeTag orderId={orderIdOf(o)} variant="shipper" />}
+                  {returning ? (
+                    <View className="rounded-2xl border border-amber-300 bg-amber-50 px-3.5 py-2.5">
+                      <AppText weight="bold" className="text-xs text-amber-900">
+                        Đơn giao thất bại · Mang hàng hoàn về Nhà vườn
+                      </AppText>
+                    </View>
+                  ) : (
+                    <Stage picked={picked} />
+                  )}
+                  {!picked && !returning && <PickupCodeTag orderId={orderIdOf(o)} variant="shipper" />}
                   <SharingChip state={sharing} />
                   <ShipperOrderCard
                     order={o}
@@ -246,7 +269,14 @@ export default function ShipperDelivering() {
                         </View>
 
                         {/* Hàng 3: Thao tác giao hàng (50% - 50% đều 3 hàng) */}
-                        {picked ? (
+                        {returning ? (
+                          <Button
+                            title="Đã trả hàng về Shop"
+                            icon={PackageCheck}
+                            onPress={() => setAsk({ order: o, action: 'return_shop' })}
+                            className="min-h-[48px] w-full"
+                          />
+                        ) : picked ? (
                           <View className="flex-row gap-2">
                             <Button
                               title="Thất bại"
@@ -348,7 +378,7 @@ export default function ShipperDelivering() {
         failed={ask?.action === 'fail'}
         codAmount={ask ? codToCollect(ask.order) : 0}
         paymentMethod={ask?.order.paymentMethod}
-        stage={ask?.order.status === 'PICKED_UP' ? 'delivery' : 'pickup'}
+        stage={ask?.action === 'return_shop' ? 'return_shop' : ask?.order.status === 'PICKED_UP' ? 'delivery' : 'pickup'}
         loading={act.isPending}
         onSubmit={(proof) => run(proof)}
         onClose={() => setAsk(null)}

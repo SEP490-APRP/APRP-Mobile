@@ -34,7 +34,12 @@ const SEND_MS = 4000
  */
 export function useBroadcastLocation(orderId: number | undefined, orderStatus?: string) {
   // Gửi kèm chặng để bản đồ của nhà vườn và người mua hiện đúng (backend lưu lại phase này).
-  const phase = orderStatus === 'PICKED_UP' ? 'TO_BUYER' : 'TO_SHOP'
+  const phase =
+    orderStatus === 'PICKED_UP'
+      ? 'TO_BUYER'
+      : orderStatus === 'RETURNING_TO_SHOP'
+        ? 'RETURN_TO_SHOP'
+        : 'TO_SHOP'
   const phaseRef = useRef(phase)
   phaseRef.current = phase
   const token = useAuthStore((s) => s.token)

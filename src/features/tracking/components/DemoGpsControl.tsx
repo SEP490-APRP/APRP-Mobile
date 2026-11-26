@@ -56,7 +56,7 @@ export function DemoGpsControl({
   const stageRef = useRef(stage)
   stageRef.current = stage
 
-  // Tự động chuyển sang chặng 2 khi đơn đã được xác nhận lấy hàng
+  // Tự động chuyển sang chặng 2 khi đã lấy hàng, hoặc quay về chặng 1 khi đang hoàn hàng về Vườn
   useEffect(() => {
     if (orderStatus === 'PICKED_UP' && stageRef.current === 'TO_SHOP') {
       if (timerRef.current) clearInterval(timerRef.current)
@@ -67,6 +67,15 @@ export function DemoGpsControl({
       routeRef.current = []
       setStage('TO_BUYER')
       setStatusText('📦 Đã lấy hàng · Sẵn sàng giao khách')
+    } else if (orderStatus === 'RETURNING_TO_SHOP' && stageRef.current === 'TO_BUYER') {
+      if (timerRef.current) clearInterval(timerRef.current)
+      setRunning(false)
+      stepIdxRef.current = 0
+      setCurrentStep(0)
+      setTotalSteps(0)
+      routeRef.current = []
+      setStage('TO_SHOP')
+      setStatusText('↩️ Đang hoàn hàng · Chọn chạy hoặc Tới Vườn ngay')
     }
   }, [orderStatus])
 
@@ -278,6 +287,16 @@ export function DemoGpsControl({
     }
   }
 
+  const isShipping = orderStatus === 'SHIPPING'
+  const isPickedUp = orderStatus === 'PICKED_UP'
+  const isReturning = orderStatus === 'RETURNING_TO_SHOP'
+  const canDemoToShop = isShipping || isReturning
+  const canDemoToBuyer = isPickedUp
+
+  if (orderStatus && !isShipping && !isPickedUp && !isReturning) {
+    return null
+  }
+
   return (
     <View className="overflow-hidden rounded-2xl border border-amber-300 bg-amber-50/95 shadow-sm">
       {/* Header Bar */}
@@ -316,43 +335,47 @@ export function DemoGpsControl({
       {/* Expanded Control Box */}
       {expanded && (
         <View className="gap-2.5 border-t border-amber-200/80 bg-white/80 p-3">
-          {/* Chọn chặng demo */}
+          {/* Chọn chặng demo (ràng buộc theo đúng trạng thái đơn hàng) */}
           <View className="flex-row gap-2">
-            <Pressable
-              onPress={() => {
-                setStage('TO_SHOP')
-                if (running) void startSimulation('TO_SHOP')
-              }}
-              className={cn(
-                'flex-1 items-center justify-center rounded-xl border py-2',
-                stage === 'TO_SHOP' ? 'border-amber-600 bg-amber-100' : 'border-line bg-white',
-              )}
-            >
-              <AppText
-                weight="bold"
-                className={cn('text-xs', stage === 'TO_SHOP' ? 'text-amber-900' : 'text-ink-muted')}
+            {canDemoToShop && (
+              <Pressable
+                onPress={() => {
+                  setStage('TO_SHOP')
+                  if (running) void startSimulation('TO_SHOP')
+                }}
+                className={cn(
+                  'flex-1 items-center justify-center rounded-xl border py-2',
+                  stage === 'TO_SHOP' ? 'border-amber-600 bg-amber-100' : 'border-line bg-white',
+                )}
               >
-                1. Chạy tới Vườn
-              </AppText>
-            </Pressable>
+                <AppText
+                  weight="bold"
+                  className={cn('text-xs', stage === 'TO_SHOP' ? 'text-amber-900' : 'text-ink-muted')}
+                >
+                  {isReturning ? '↩️ Quay về Vườn' : '1. Chạy tới Vườn'}
+                </AppText>
+              </Pressable>
+            )}
 
-            <Pressable
-              onPress={() => {
-                setStage('TO_BUYER')
-                if (running) void startSimulation('TO_BUYER')
-              }}
-              className={cn(
-                'flex-1 items-center justify-center rounded-xl border py-2',
-                stage === 'TO_BUYER' ? 'border-amber-600 bg-amber-100' : 'border-line bg-white',
-              )}
-            >
-              <AppText
-                weight="bold"
-                className={cn('text-xs', stage === 'TO_BUYER' ? 'text-amber-900' : 'text-ink-muted')}
+            {canDemoToBuyer && (
+              <Pressable
+                onPress={() => {
+                  setStage('TO_BUYER')
+                  if (running) void startSimulation('TO_BUYER')
+                }}
+                className={cn(
+                  'flex-1 items-center justify-center rounded-xl border py-2',
+                  stage === 'TO_BUYER' ? 'border-amber-600 bg-amber-100' : 'border-line bg-white',
+                )}
               >
-                2. Chạy tới Khách
-              </AppText>
-            </Pressable>
+                <AppText
+                  weight="bold"
+                  className={cn('text-xs', stage === 'TO_BUYER' ? 'text-amber-900' : 'text-ink-muted')}
+                >
+                  2. Chạy tới Khách
+                </AppText>
+              </Pressable>
+            )}
           </View>
 
           {/* Chọn tốc độ */}
@@ -427,25 +450,29 @@ export function DemoGpsControl({
 
           {/* Nhảy nhanh tới điểm lấy / giao hàng để test ngay không cần chờ */}
           <View className="flex-row gap-2">
-            <Pressable
-              onPress={() => void teleport('SHOP')}
-              className="flex-1 flex-row items-center justify-center gap-1.5 rounded-xl border border-amber-300 bg-amber-50 py-2 active:bg-amber-100"
-            >
-              <MapPin size={13} color={colors.soil600} />
-              <AppText weight="bold" className="text-xs text-amber-900">
-                Tới Vườn ngay
-              </AppText>
-            </Pressable>
+            {canDemoToShop && (
+              <Pressable
+                onPress={() => void teleport('SHOP')}
+                className="flex-1 flex-row items-center justify-center gap-1.5 rounded-xl border border-amber-300 bg-amber-50 py-2 active:bg-amber-100"
+              >
+                <MapPin size={13} color={colors.soil600} />
+                <AppText weight="bold" className="text-xs text-amber-900">
+                  {isReturning ? 'Về Vườn ngay' : 'Tới Vườn ngay'}
+                </AppText>
+              </Pressable>
+            )}
 
-            <Pressable
-              onPress={() => void teleport('BUYER')}
-              className="flex-1 flex-row items-center justify-center gap-1.5 rounded-xl border border-leaf-600/30 bg-leaf-50 py-2 active:bg-leaf-100"
-            >
-              <FastForward size={13} color={colors.leaf700} />
-              <AppText weight="bold" className="text-xs text-leaf-800">
-                Tới Khách ngay
-              </AppText>
-            </Pressable>
+            {canDemoToBuyer && (
+              <Pressable
+                onPress={() => void teleport('BUYER')}
+                className="flex-1 flex-row items-center justify-center gap-1.5 rounded-xl border border-leaf-600/30 bg-leaf-50 py-2 active:bg-leaf-100"
+              >
+                <FastForward size={13} color={colors.leaf700} />
+                <AppText weight="bold" className="text-xs text-leaf-800">
+                  Tới Khách ngay
+                </AppText>
+              </Pressable>
+            )}
           </View>
         </View>
       )}

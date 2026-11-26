@@ -1,7 +1,7 @@
 import { router } from 'expo-router'
 import { CircleCheck, CircleX, Navigation, PackageCheck, Phone } from 'lucide-react-native'
 import { useState } from 'react'
-import { Alert, Linking, View } from 'react-native'
+import { Alert, Linking, Platform, View } from 'react-native'
 import { AppText, Button, ConfirmDialog } from '@/components/ui'
 import { PickupCodeTag } from '@/features/order/components/PickupCodeTag'
 import { orderIdOf, pickupCode } from '@/features/order/utils/orderStatus'
@@ -24,7 +24,12 @@ const ASK: Record<DeliveryAction, { title: string; confirm: string; done: string
   fail: {
     title: 'Báo giao thất bại?',
     confirm: 'Báo thất bại',
-    done: 'Đã báo giao thất bại. Hàng được hoàn kho, tiền ký quỹ COD đã trả lại ví.',
+    done: 'Đã báo giao thất bại.',
+  },
+  return_shop: {
+    title: 'Trả hàng về Shop',
+    confirm: 'Đã trả hàng',
+    done: 'Đã bàn giao hàng hoàn về nhà vườn thành công!',
   },
 }
 
@@ -54,7 +59,8 @@ export function ShipperDeliveryActions({
 
   const id = orderIdOf(order)
   const picked = order.status === 'PICKED_UP'
-  const isActive = order.status === 'SHIPPING' || picked
+  const returning = order.status === 'RETURNING_TO_SHOP'
+  const isActive = order.status === 'SHIPPING' || picked || returning
   if (!isActive) return null
 
   const dirUrl = directionsUrl(order)
@@ -65,13 +71,13 @@ export function ShipperDeliveryActions({
     if (!ask) return
     const action = ask
     const { fakeGpsActive, fakeCoords } = useBroadcastState.getState()
-    const deliveryCoords = fakeGpsActive && fakeCoords ? fakeCoords : gps.position
+    const actionCoords = fakeGpsActive && fakeCoords ? fakeCoords : gps.position
     act.mutate(
       {
         orderId: id,
         action,
         proof,
-        coords: action === 'deliver' ? deliveryCoords : undefined,
+        coords: action === 'deliver' || action === 'return_shop' ? actionCoords : undefined,
       },
       {
         onSuccess: () => {
@@ -82,29 +88,38 @@ export function ShipperDeliveryActions({
           const code = shipperErrorCode(e)
           const msg = shipperErrorMessage(e, 'Chưa cập nhật được đơn, thử lại nhé.')
           if (code === 7011) {
-            Alert.alert(
-              'Ngoài bán kính giao hàng (>500m)',
-              msg,
-              inMap
-                ? [{ text: 'Đã hiểu', style: 'cancel' }]
-                : [
-                    { text: 'Mở bản đồ điều hướng', onPress: () => router.push(`/shipper/tracking/${id}` as any) },
-                    { text: 'Đã hiểu', style: 'cancel' },
-                  ],
-            )
+            if (Platform.OS === 'web') {
+              showToast(msg)
+            } else {
+              Alert.alert(
+                'Ngoài bán kính cho phép (>500m)',
+                msg,
+                inMap
+                  ? [{ text: 'Đã hiểu', style: 'cancel' }]
+                  : [
+                      { text: 'Mở bản đồ điều hướng', onPress: () => router.push(`/shipper/tracking/${id}` as any) },
+                      { text: 'Đã hiểu', style: 'cancel' },
+                    ],
+              )
+            }
           } else if (code === 7012) {
-            Alert.alert(
-              'Không xác định được vị trí GPS',
-              inMap
-                ? 'Hãy bật GPS trên điện thoại hoặc dùng "Đến ngay Khách (<500m)" trong Demo Fake GPS phía trên.'
-                : 'Vui lòng bật quyền truy cập vị trí trên điện thoại, hoặc mở Bản đồ để dùng Demo Fake GPS.',
-              inMap
-                ? [{ text: 'Đã hiểu', style: 'cancel' }]
-                : [
-                    { text: 'Mở bản đồ', onPress: () => router.push(`/shipper/tracking/${id}` as any) },
-                    { text: 'Đã hiểu', style: 'cancel' },
-                  ],
-            )
+            const gpsMsg = inMap
+              ? 'Hãy bật GPS trên điện thoại hoặc dùng "Tới Vườn ngay" / "Tới Khách ngay" trong Demo Fake GPS.'
+              : 'Vui lòng bật quyền truy cập vị trí trên điện thoại, hoặc mở Bản đồ để dùng Demo Fake GPS.'
+            if (Platform.OS === 'web') {
+              showToast(gpsMsg)
+            } else {
+              Alert.alert(
+                'Không xác định được vị trí GPS',
+                gpsMsg,
+                inMap
+                  ? [{ text: 'Đã hiểu', style: 'cancel' }]
+                  : [
+                      { text: 'Mở bản đồ', onPress: () => router.push(`/shipper/tracking/${id}` as any) },
+                      { text: 'Đã hiểu', style: 'cancel' },
+                    ],
+              )
+            }
           } else {
             showToast(msg)
           }
@@ -149,7 +164,14 @@ export function ShipperDeliveryActions({
         </View>
       )}
 
-      {picked ? (
+      {returning ? (
+        <Button
+          title="Đã trả hàng về Shop"
+          icon={PackageCheck}
+          onPress={() => setAsk('return_shop')}
+          className="min-h-[48px] w-full"
+        />
+      ) : picked ? (
         <View className="gap-2">
           {cod > 0 && (
             <View className="rounded-xl bg-amber-50 px-3 py-1.5">
@@ -197,7 +219,7 @@ export function ShipperDeliveryActions({
         failed={ask === 'fail'}
         codAmount={cod}
         paymentMethod={order.paymentMethod}
-        stage={picked ? 'delivery' : 'pickup'}
+        stage={ask === 'return_shop' ? 'return_shop' : picked ? 'delivery' : 'pickup'}
         loading={act.isPending}
         onSubmit={(proof) => run(proof)}
         onClose={() => setAsk(null)}

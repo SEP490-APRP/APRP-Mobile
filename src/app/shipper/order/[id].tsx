@@ -21,8 +21,10 @@ import { AppText, BottomSheet, Button, CapNongLoading, ErrorState } from '@/comp
 import { BackButton } from '@/features/auth/components'
 import { orderIdOf, OrderStatusBadge, useOrder } from '@/features/order'
 import { money } from '@/features/product'
+import { OrderSettlementCard } from '@/features/wallet/components/OrderSettlementCard'
 import {
   codReserveCheck,
+  failReasonLabel,
   isCod,
   netShipperFee,
   ShipperDeliveryActions,
@@ -124,8 +126,8 @@ export default function ShipperOrderDetailScreen() {
   const shipFee = Number(order.shippingFee ?? 0)
   const netIncome = netShipperFee(shipFee)
   const isReady = order.status === 'READY'
-  const isActive = order.status === 'SHIPPING' || order.status === 'PICKED_UP'
-  const isFail = order.status === 'FAILED'
+  const isActive = order.status === 'SHIPPING' || order.status === 'PICKED_UP' || order.status === 'RETURNING_TO_SHOP'
+  const isFail = order.status === 'FAILED' || order.status === 'RETURNING_TO_SHOP' || order.status === 'RETURNED_TO_SHOP'
   const busy = (active.data?.length ?? 0) > 0
   const available = wallet.data?.availableBalance ?? wallet.data?.balance
   const reserve = codReserveCheck(order, available)
@@ -186,8 +188,48 @@ export default function ShipperOrderDetailScreen() {
           />
         }
       >
-        {/* Banner trạng thái giao nếu thất bại */}
-        {isFail && (
+        {/* Banner trạng thái hoàn hàng / giao thất bại */}
+        {order.status === 'RETURNING_TO_SHOP' && (
+          <View className="rounded-panel border border-amber-300 bg-amber-50 p-4">
+            <View className="flex-row items-center gap-2">
+              <ShieldAlert size={18} color="#b45309" />
+              <AppText weight="bold" className="text-sm text-amber-900">
+                Đơn giao thất bại · Mang hàng hoàn về Nhà vườn
+              </AppText>
+            </View>
+            <AppText className="mt-1 text-xs text-amber-800">
+              Lý do: {failReasonLabel(order.failReason)}
+              {order.failNote ? ` · ${order.failNote}` : ''}
+            </AppText>
+            {order.failCallAttempts != null && (
+              <AppText className="mt-0.5 text-xs text-amber-800">
+                Số lần gọi khách: {order.failCallAttempts} lần
+              </AppText>
+            )}
+          </View>
+        )}
+
+        {order.status === 'RETURNED_TO_SHOP' && (
+          <View className="rounded-panel border border-purple-300 bg-purple-50 p-4">
+            <View className="flex-row items-center gap-2">
+              <Package size={18} color="#7e22ce" />
+              <AppText weight="bold" className="text-sm text-purple-900">
+                Đã trả hàng về Nhà vườn · Chờ Shop xác nhận
+              </AppText>
+            </View>
+            <AppText className="mt-1 text-xs text-purple-800">
+              Lý do giao thất bại: {failReasonLabel(order.failReason)}
+              {order.failNote ? ` · ${order.failNote}` : ''}
+            </AppText>
+            {Boolean(order.returnedToShopAt) && (
+              <AppText className="mt-0.5 text-xs text-purple-800">
+                Thời điểm trả về Vườn: {formatDateTime(order.returnedToShopAt)}
+              </AppText>
+            )}
+          </View>
+        )}
+
+        {order.status === 'FAILED' && (
           <View className="rounded-panel border border-sale/40 bg-sale-soft p-4">
             <View className="flex-row items-center gap-2">
               <ShieldAlert size={18} color={colors.sale} />
@@ -196,7 +238,7 @@ export default function ShipperOrderDetailScreen() {
               </AppText>
             </View>
             <AppText className="mt-1 text-xs text-sale">
-              Lý do: {order.failReason || 'Không rõ lý do'}
+              Lý do: {failReasonLabel(order.failReason)}
               {order.failNote ? ` · ${order.failNote}` : ''}
             </AppText>
             {order.failCallAttempts != null && (
@@ -402,6 +444,8 @@ export default function ShipperOrderDetailScreen() {
           )}
         </View>
 
+        <OrderSettlementCard orderId={orderId} viewer="SHIPPER" />
+
         {/* Mốc thời gian */}
         <View className="rounded-panel border border-line bg-white p-4 gap-2">
           <AppText weight="bold" className="text-xs uppercase tracking-wide text-ink-muted">
@@ -433,7 +477,34 @@ export default function ShipperOrderDetailScreen() {
               <AppText weight="bold" className="text-xs text-sale">{formatDateTime(order.failedAt)}</AppText>
             </View>
           )}
+
+          {Boolean(order.returnedToShopAt) && (
+            <View className="flex-row items-center justify-between">
+              <AppText className="text-xs text-purple-800">Thời điểm trả hàng về Vườn</AppText>
+              <AppText weight="bold" className="text-xs text-purple-800">{formatDateTime(order.returnedToShopAt)}</AppText>
+            </View>
+          )}
         </View>
+
+        {/* Ảnh bằng chứng trả hàng về Vườn */}
+        {order.returnToShopProofUrls && order.returnToShopProofUrls.length > 0 && (
+          <View className="rounded-panel border border-purple-200 bg-white p-4 gap-2">
+            <AppText weight="bold" className="text-xs uppercase tracking-wide text-purple-800">
+              Ảnh bàn giao hàng hoàn về Vườn (Nhấn để xem lớn)
+            </AppText>
+            <View className="flex-row flex-wrap gap-2">
+              {order.returnToShopProofUrls.map((url: string, i: number) => (
+                <Pressable
+                  key={i}
+                  onPress={() => setPreviewImage(url)}
+                  className="h-20 w-20 overflow-hidden rounded-lg border border-purple-200 active:opacity-80"
+                >
+                  <Image source={{ uri: url }} style={{ width: 80, height: 80 }} contentFit="cover" />
+                </Pressable>
+              ))}
+            </View>
+          </View>
+        )}
 
         {/* Ảnh bằng chứng giao / thất bại */}
         {((order.deliveryProofUrls && order.deliveryProofUrls.length > 0) ||

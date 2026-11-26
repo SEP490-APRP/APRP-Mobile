@@ -62,6 +62,15 @@ export default function ShopOrdersTab() {
       },
     )
 
+  const confirmReturn = (id: number) =>
+    action.mutate(
+      { id, action: 'confirm_return' },
+      {
+        onSuccess: () => showToast(`Đã xác nhận nhận lại hàng đơn #${id}. Tồn kho đã được hoàn lại!`),
+        onError: (err) => showToast(getErrorMessage(err, 'Chưa xác nhận được hoàn hàng.')),
+      },
+    )
+
   const cancel = () => {
     if (cancelId == null) return
     action.mutate(
@@ -190,6 +199,7 @@ export default function ShopOrdersTab() {
               onCancel={() => setCancelId(id)}
               onPack={() => openOrder(id)}
               onTrack={() => router.push({ pathname: '/shop/tracking/[id]', params: { id: String(id) } })}
+              onConfirmReturn={() => confirmReturn(id)}
             />
           )
         }}

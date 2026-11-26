@@ -81,18 +81,20 @@ export function OrderItemRow({ item }: { item: OrderItem }) {
 }
 
 /** Khối gợi ý theo bước (màu theo mức cần làm). */
-export function StageHint({ order }: { order: Pick<OrderResponse, 'status' | 'paymentMethod'> }) {
+export function StageHint({ order }: { order: Pick<OrderResponse, 'status' | 'paymentMethod' | 'failReason'> }) {
   const stage = shopOrderStage(order.status)
   const text = stageHint(order)
   if (!text) return null
   const tone =
     stage === 'cancelled'
       ? { box: 'bg-rose-50 border-rose-200', text: 'text-rose-800', Icon: XCircle, color: '#be123c' }
-      : stage === 'done' || (stage === 'confirm' && isPrepaid(order))
-        ? { box: 'bg-emerald-50 border-emerald-200', text: 'text-emerald-800', Icon: CheckCircle2, color: '#047857' }
-        : stage === 'shipping'
-          ? { box: 'bg-sky-50 border-sky-200', text: 'text-sky-800', Icon: Navigation, color: '#0369a1' }
-          : { box: 'bg-amber-50 border-amber-200', text: 'text-amber-800', Icon: Boxes, color: '#b45309' }
+      : stage === 'returning' || stage === 'returned_to_shop'
+        ? { box: 'bg-amber-50 border-amber-200', text: 'text-amber-900', Icon: Boxes, color: '#b45309' }
+        : stage === 'done' || (stage === 'confirm' && isPrepaid(order))
+          ? { box: 'bg-emerald-50 border-emerald-200', text: 'text-emerald-800', Icon: CheckCircle2, color: '#047857' }
+          : stage === 'shipping'
+            ? { box: 'bg-sky-50 border-sky-200', text: 'text-sky-800', Icon: Navigation, color: '#0369a1' }
+            : { box: 'bg-amber-50 border-amber-200', text: 'text-amber-800', Icon: Boxes, color: '#b45309' }
   return (
     <View className={cn('flex-row gap-2 rounded-xl border p-3', tone.box)}>
       <tone.Icon size={16} color={tone.color} />
@@ -122,6 +124,7 @@ export function ShopOrderCard({
   onCancel,
   onPack,
   onTrack,
+  onConfirmReturn,
 }: {
   order: OrderResponse
   busy: boolean
@@ -130,6 +133,7 @@ export function ShopOrderCard({
   onCancel: () => void
   onPack: () => void
   onTrack: () => void
+  onConfirmReturn?: () => void
 }) {
   const [pledged, setPledged] = useState(false)
   const id = orderIdOf(order)
@@ -207,7 +211,7 @@ export function ShopOrderCard({
 
         {stage === 'confirm' && <WeightPledge checked={pledged} onToggle={() => setPledged((v) => !v)} />}
 
-        {(stage === 'confirm' || stage === 'pack' || stage === 'shipping') && (
+        {(stage === 'confirm' || stage === 'pack' || stage === 'shipping' || stage === 'returning' || stage === 'returned_to_shop') && (
           <View className="flex-row gap-2">
             {shopCanCancel(order.status) && (
               <Button
@@ -231,8 +235,33 @@ export function ShopOrderCard({
             {stage === 'pack' && (
               <Button title="Đóng gói" icon={Boxes} onPress={onPack} className="min-h-[44px] flex-[1.5]" />
             )}
-            {stage === 'shipping' && (
-              <Button title="Theo dõi shipper" icon={Navigation} onPress={onTrack} className="min-h-[44px] flex-1" />
+            {(stage === 'shipping' || stage === 'returning') && (
+              <Button
+                title={stage === 'returning' ? 'Theo dõi tài xế' : 'Theo dõi shipper'}
+                icon={Navigation}
+                onPress={onTrack}
+                className="min-h-[44px] flex-1"
+              />
+            )}
+            {stage === 'returned_to_shop' && (
+              <>
+                <Button
+                  title="Xem ảnh"
+                  variant="outline"
+                  onPress={onOpen}
+                  disabled={busy}
+                  className="min-h-[44px] flex-1"
+                />
+                {onConfirmReturn && (
+                  <Button
+                    title="Đã nhận lại hàng"
+                    icon={CheckCircle2}
+                    onPress={onConfirmReturn}
+                    loading={busy}
+                    className="min-h-[44px] flex-[1.6]"
+                  />
+                )}
+              </>
             )}
           </View>
         )}

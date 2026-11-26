@@ -124,6 +124,11 @@ export async function readyOrder(orderId: number): Promise<OrderResponse> {
   return unwrap<OrderResponse>(res)
 }
 
+export async function confirmReturnReceived(orderId: number): Promise<OrderResponse> {
+  const res = await axiosInstance.put(`/orders/${orderId}/confirm-return-received`)
+  return unwrap<OrderResponse>(res)
+}
+
 // ── SHIPPER: Vận chuyển & Giao hàng ──────────────────────────────────────────
 
 /**
@@ -204,6 +209,7 @@ export const orderService = {
   fetchShopOrders,
   confirmOrder,
   readyOrder,
+  confirmReturnReceived,
   shipOrder,
   deliverOrder,
   failOrder,

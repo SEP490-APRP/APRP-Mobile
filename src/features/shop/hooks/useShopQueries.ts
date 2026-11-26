@@ -76,12 +76,13 @@ export function useShopOrderFeed(tab: ShopOrderTab) {
   })
 }
 
-export type ShopOrderAction = 'confirm' | 'ready' | 'cancel'
+export type ShopOrderAction = 'confirm' | 'ready' | 'cancel' | 'confirm_return'
 
 const ACTIONS: Record<ShopOrderAction, (id: number) => Promise<unknown>> = {
   confirm: orderService.confirmOrder,
   ready: orderService.readyOrder,
   cancel: orderService.cancelOrder,
+  confirm_return: orderService.confirmReturnReceived,
 }
 
 /** Xác nhận (PENDING/PAID → CONFIRMED), sẵn sàng giao (CONFIRMED → READY) hoặc huỷ; xong thì tải lại mọi danh sách đơn. */

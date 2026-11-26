@@ -10,8 +10,14 @@ import { uploadService } from './upload.service'
  * Chép từ APRP-FE/src/services/shipper.service.ts, giữ tên hàm và endpoint.
  */
 
-/** Lý do giao thất bại, khớp enum DeliveryFailReason ở BE */
-export type DeliveryFailReason = 'KHONG_LIEN_LAC_DUOC' | 'SAI_DIA_CHI' | 'KHACH_TU_CHOI' | 'KHAC'
+/** Lý do giao/lấy hàng thất bại, khớp enum DeliveryFailReason ở BE */
+export type DeliveryFailReason =
+  | 'KHONG_LIEN_LAC_DUOC'
+  | 'SAI_DIA_CHI'
+  | 'KHACH_TU_CHOI'
+  | 'SHOP_DONG_CUA'
+  | 'SHOP_CHUA_SAN_SANG'
+  | 'KHAC'
 
 export interface FailOrderRequest {
   reason: DeliveryFailReason
@@ -141,9 +147,24 @@ export const shipperService = {
     )
   },
 
-  /** Giao thất bại (lý do, số cuộc gọi, ảnh), kho được hoàn lại: SHIPPING/PICKED_UP → FAILED. */
+  /** Giao thất bại (lý do, số cuộc gọi, ảnh): SHIPPING → FAILED; PICKED_UP → RETURNING_TO_SHOP. */
   async failOrder(orderId: number, body: FailOrderRequest): Promise<OrderResponse> {
     return unwrap<OrderResponse>(await axiosInstance.put(`/orders/${orderId}/fail`, body))
+  },
+
+  /** Shipper trả hàng hoàn về Shop: RETURNING_TO_SHOP → RETURNED_TO_SHOP (bắt buộc >= 1 ảnh bàn giao). */
+  async returnOrderToShop(
+    orderId: number,
+    proofImageUrls: string[],
+    coords?: { latitude: number; longitude: number } | null
+  ): Promise<OrderResponse> {
+    return unwrap<OrderResponse>(
+      await axiosInstance.put(`/orders/${orderId}/return-to-shop`, {
+        proofImageUrls,
+        latitude: coords?.latitude,
+        longitude: coords?.longitude,
+      })
+    )
   },
 
   /** Upload ảnh bằng chứng giao hàng, trả về danh sách URL */

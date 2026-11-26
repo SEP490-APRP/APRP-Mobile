@@ -21,6 +21,8 @@ export const ORDER_STATUS_LABELS: Record<string, string> = {
   PAID: 'Đã thanh toán',
   CANCELLED: 'Đã huỷ',
   FAILED: 'Giao thất bại',
+  RETURNING_TO_SHOP: 'Đang hoàn về Shop',
+  RETURNED_TO_SHOP: 'Chờ Shop xác nhận hoàn',
   REFUND_REQUESTED: 'Đang yêu cầu trả hàng',
   REFUNDED: 'Đã hoàn tiền',
   SHOP_APPROVED: 'Shop đã duyệt',
@@ -67,6 +69,8 @@ export function orderStatusTone(status?: string | null): StatusTone {
     case 'AWAITING_CONFIRMATION':
     case 'PREPARING':
     case 'QUALITY_CHECKING':
+    case 'RETURNING_TO_SHOP':
+    case 'RETURNED_TO_SHOP':
     case 'REFUND_REQUESTED':
     case 'REFUND_PENDING':
     case 'DISPUTED':
@@ -92,7 +96,7 @@ export const ORDER_TABS: { key: OrderTab; label: string; statuses?: OrderStatus[
   { key: 'SHIPPING', label: 'Đang giao', statuses: ['CONFIRMED', 'READY', 'SHIPPING', 'PICKED_UP'] },
   { key: 'COMPLETED', label: 'Hoàn thành', statuses: ['DELIVERED', 'COMPLETED'] },
   { key: 'REFUND', label: 'Trả hàng / Hoàn tiền', statuses: ['REFUND_REQUESTED', 'REFUNDED'] },
-  { key: 'CANCELLED', label: 'Đã huỷ', statuses: ['CANCELLED', 'FAILED'] },
+  { key: 'CANCELLED', label: 'Đã huỷ / Thất bại', statuses: ['CANCELLED', 'FAILED', 'RETURNING_TO_SHOP', 'RETURNED_TO_SHOP'] },
 ]
 
 export const orderIdOf = (o: Pick<OrderResponse, 'orderId' | 'id'>) => o.orderId ?? o.id ?? 0

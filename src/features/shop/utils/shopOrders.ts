@@ -1,4 +1,5 @@
 import { orderIdOf } from '@/features/order/utils/orderStatus'
+import { failReasonLabel } from '@/features/shipper/utils/deliveryProof'
 import type { OrderResponse, OrderStatus } from '@/types/order.types'
 
 export type ShopOrderTab = 'ALL' | 'TO_CONFIRM' | 'PACKING' | 'READY' | 'SHIPPING' | 'DONE' | 'CANCELLED'
@@ -15,6 +16,8 @@ export const SHOP_ORDER_TABS: { key: ShopOrderTab; label: string; statuses: Orde
       'READY',
       'SHIPPING',
       'PICKED_UP',
+      'RETURNING_TO_SHOP',
+      'RETURNED_TO_SHOP',
       'DELIVERED',
       'COMPLETED',
       'CANCELLED',
@@ -26,13 +29,22 @@ export const SHOP_ORDER_TABS: { key: ShopOrderTab; label: string; statuses: Orde
   { key: 'READY', label: 'Sẵn sàng giao', statuses: ['READY'] },
   { key: 'SHIPPING', label: 'Đang giao', statuses: ['SHIPPING', 'PICKED_UP'] },
   { key: 'DONE', label: 'Đã giao', statuses: ['DELIVERED', 'COMPLETED'] },
-  { key: 'CANCELLED', label: 'Đã huỷ', statuses: ['CANCELLED', 'FAILED'] },
+  { key: 'CANCELLED', label: 'Hoàn về / Thất bại', statuses: ['CANCELLED', 'FAILED', 'RETURNING_TO_SHOP', 'RETURNED_TO_SHOP'] },
 ]
 
 export const isShopOrderTab = (v: unknown): v is ShopOrderTab => SHOP_ORDER_TABS.some((t) => t.key === v)
 
 /** Bước tiếp theo shop cần làm với đơn. */
-export type ShopOrderStage = 'confirm' | 'pack' | 'waiting_shipper' | 'shipping' | 'done' | 'cancelled' | 'other'
+export type ShopOrderStage =
+  | 'confirm'
+  | 'pack'
+  | 'waiting_shipper'
+  | 'shipping'
+  | 'returning'
+  | 'returned_to_shop'
+  | 'done'
+  | 'cancelled'
+  | 'other'
 
 export function shopOrderStage(status?: string | null): ShopOrderStage {
   switch (status) {
@@ -46,6 +58,10 @@ export function shopOrderStage(status?: string | null): ShopOrderStage {
     case 'SHIPPING':
     case 'PICKED_UP':
       return 'shipping'
+    case 'RETURNING_TO_SHOP':
+      return 'returning'
+    case 'RETURNED_TO_SHOP':
+      return 'returned_to_shop'
     case 'DELIVERED':
     case 'COMPLETED':
       return 'done'
@@ -65,7 +81,7 @@ export const isPrepaid = (o: Pick<OrderResponse, 'status' | 'paymentMethod'>) =>
   o.status === 'PAID' || ['PAYOS', 'TRANSFER'].includes(o.paymentMethod?.toUpperCase() ?? '')
 
 /** Lời nhắc theo bước, lấy từ các khối thông báo trong thẻ đơn bản web. */
-export function stageHint(o: Pick<OrderResponse, 'status' | 'paymentMethod'>): string {
+export function stageHint(o: Pick<OrderResponse, 'status' | 'paymentMethod' | 'failReason'>): string {
   switch (shopOrderStage(o.status)) {
     case 'confirm':
       return isPrepaid(o)
@@ -79,10 +95,21 @@ export function stageHint(o: Pick<OrderResponse, 'status' | 'paymentMethod'>): s
       return o.status === 'PICKED_UP'
         ? 'Shipper đã lấy hàng và đang giao tới người nhận.'
         : 'Shipper đã nhận đơn và đang tới vườn lấy hàng.'
+    case 'returning':
+      return o.failReason
+        ? `Đơn giao thất bại (${failReasonLabel(o.failReason)}). Tài xế đang mang hàng hoàn về vườn.`
+        : 'Đơn giao thất bại. Tài xế đang mang hàng hoàn về vườn.'
+    case 'returned_to_shop':
+      return 'Tài xế đã trả hàng về Shop. Vui lòng kiểm tra hàng hoàn và xác nhận để hoàn lại tồn kho.'
     case 'done':
       return 'Giao hàng thành công, khách đã nhận nông sản.'
     case 'cancelled':
-      return o.status === 'FAILED' ? 'Giao không thành công.' : 'Đơn đã huỷ, số lượng nông sản đã được hoàn lại kho.'
+      if (o.status === 'FAILED') {
+        return o.failReason
+          ? `Giao không thành công · Lý do: ${failReasonLabel(o.failReason)}.`
+          : 'Giao không thành công.'
+      }
+      return 'Đơn đã huỷ, số lượng nông sản đã được hoàn lại kho.'
     default:
       return ''
   }

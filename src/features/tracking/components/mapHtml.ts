@@ -160,7 +160,8 @@ export const MAP_HTML = `<!doctype html>
 
   function trimShopLine(pos) {
     if (!shopLine || !shopPts || !shopPts.length) return;
-    if (!pos || (state && state.phase !== 'TO_SHOP')) { shopLine.setLatLngs([]); return; }
+    var isToShop = state && (state.phase === 'TO_SHOP' || state.phase === 'RETURN_TO_SHOP');
+    if (!pos || !isToShop) { shopLine.setLatLngs([]); return; }
     shopLine.setLatLngs(sliceAhead(shopPts, pos));
   }
 
@@ -284,7 +285,7 @@ export const MAP_HTML = `<!doctype html>
       }
     }
 
-    var showToShop = s.routes.toShop && s.shipper && s.phase === 'TO_SHOP';
+    var showToShop = s.routes.toShop && s.shipper && (s.phase === 'TO_SHOP' || s.phase === 'RETURN_TO_SHOP');
     if (showToShop) {
       if (s.demoRoute && s.demoRoute.length > 1) {
         var sk = routeKey(s.demoRoute[0], s.demoRoute[s.demoRoute.length - 1]) + ':' + s.demoRoute.length;
@@ -300,7 +301,7 @@ export const MAP_HTML = `<!doctype html>
         if ((!shopFetched && !shopPts) || offRoute) {
           shopFetched = true;
           route(s.shipper, s.shop).then(function (pts) {
-            if (state && state.phase === 'TO_SHOP') setShopRoute(pts);
+            if (state && (state.phase === 'TO_SHOP' || state.phase === 'RETURN_TO_SHOP')) setShopRoute(pts);
           });
         }
       }

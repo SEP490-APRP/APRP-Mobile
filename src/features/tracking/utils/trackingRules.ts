@@ -6,7 +6,7 @@
  */
 
 export type TrackingRole = 'BUYER' | 'SHOP' | 'SHIPPER'
-export type DeliveryPhase = 'TO_SHOP' | 'AT_SHOP' | 'TO_BUYER' | 'DELIVERED' | 'FAILED'
+export type DeliveryPhase = 'TO_SHOP' | 'AT_SHOP' | 'TO_BUYER' | 'RETURN_TO_SHOP' | 'DELIVERED' | 'FAILED'
 
 export interface LatLng {
   lat: number
@@ -68,8 +68,8 @@ export const DEFAULT_DEST: LatLng = { lat: 10.7725, lng: 106.6578 }
 /** Trạng thái đơn cho phép mở bản đồ, theo nút "Theo dõi lộ trình" ở từng trang web */
 const TRACKABLE: Record<TrackingRole, readonly string[]> = {
   BUYER: ['READY', 'SHIPPING', 'PICKED_UP'],
-  SHOP: ['SHIPPING', 'PICKED_UP'],
-  SHIPPER: ['ASSIGNED', 'SHIPPING', 'PICKED_UP'],
+  SHOP: ['SHIPPING', 'PICKED_UP', 'RETURNING_TO_SHOP'],
+  SHIPPER: ['ASSIGNED', 'SHIPPING', 'PICKED_UP', 'RETURNING_TO_SHOP'],
 }
 
 export const canTrackOrder = (status: string | null | undefined, role: TrackingRole) =>
@@ -112,6 +112,8 @@ export function effectivePhase(
   shop: LatLng,
   dest: LatLng,
 ): DeliveryPhase {
+  if (data?.orderStatus === 'RETURNING_TO_SHOP') return 'RETURN_TO_SHOP'
+  if (data?.orderStatus === 'RETURNED_TO_SHOP') return 'FAILED'
   if (data?.orderStatus === 'PICKED_UP') return 'TO_BUYER'
   if (data?.orderStatus === 'DELIVERED') return 'DELIVERED'
   const phase = data?.deliveryPhase as DeliveryPhase | undefined
@@ -142,7 +144,7 @@ export function isShipperVisible(
     return false
   }
   if (phase === 'DELIVERED' || phase === 'FAILED') return false
-  if (role === 'SHOP') return phase === 'TO_SHOP' || phase === 'AT_SHOP'
+  if (role === 'SHOP') return phase === 'TO_SHOP' || phase === 'AT_SHOP' || phase === 'RETURN_TO_SHOP'
   if (role === 'BUYER') return phase === 'TO_BUYER'
   return true
 }
@@ -158,6 +160,7 @@ const JOURNEY: Record<TrackingRole, Record<DeliveryPhase, string>> = {
     TO_SHOP: 'Tài xế đang đến nhà vườn lấy hàng',
     AT_SHOP: 'Tài xế đang nhận hàng tại nhà vườn',
     TO_BUYER: 'Tài xế đã lấy hàng và đang giao đến bạn',
+    RETURN_TO_SHOP: 'Đơn hàng đang được hoàn về nhà vườn',
     DELIVERED: 'Đơn hàng đã giao đến bạn thành công',
     FAILED: 'Giao hàng không thành công',
   },
@@ -165,6 +168,7 @@ const JOURNEY: Record<TrackingRole, Record<DeliveryPhase, string>> = {
     TO_SHOP: 'Shipper đang trên đường đến lấy hàng',
     AT_SHOP: 'Shipper đã tới, đang nhận hàng',
     TO_BUYER: 'Shipper đã nhận hàng và đang giao cho khách',
+    RETURN_TO_SHOP: 'Đơn giao thất bại · Shipper đang mang hàng hoàn về vườn',
     DELIVERED: 'Đơn hàng đã được giao thành công',
     FAILED: 'Giao hàng không thành công',
   },
@@ -172,6 +176,7 @@ const JOURNEY: Record<TrackingRole, Record<DeliveryPhase, string>> = {
     TO_SHOP: 'Bạn đang di chuyển đến quán lấy hàng',
     AT_SHOP: 'Bạn đã tới quán, đang nhận hàng',
     TO_BUYER: 'Bạn đang giao hàng đến khách',
+    RETURN_TO_SHOP: 'Đơn giao thất bại · Mang hàng hoàn về nhà vườn',
     DELIVERED: 'Bạn đã giao hàng thành công',
     FAILED: 'Giao hàng không thành công',
   },

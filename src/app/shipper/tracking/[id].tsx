@@ -32,7 +32,11 @@ export default function ShipperTrackingScreen() {
             showQuickContact={false}
             onSuccess={(action) => {
               void orderQuery.refetch()
-              if (action === 'deliver' || action === 'fail') {
+              if (
+                action === 'deliver' ||
+                action === 'return_shop' ||
+                (action === 'fail' && order.status === 'SHIPPING')
+              ) {
                 router.replace('/shipper/delivering' as any)
               }
             }}

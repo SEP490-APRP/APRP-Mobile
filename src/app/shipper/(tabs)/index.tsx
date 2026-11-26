@@ -202,11 +202,16 @@ export default function ShipperHome() {
       <Truck size={20} color="#92400e" />
       <View className="flex-1">
         <AppText weight="bold" className="text-sm text-amber-900">
-          Bạn đang giao đơn #{orderIdOf(current)}
+          {current.status === 'RETURNING_TO_SHOP'
+            ? `Đang hoàn hàng đơn #${orderIdOf(current)}`
+            : `Bạn đang giao đơn #${orderIdOf(current)}`}
         </AppText>
         <AppText className="text-xs text-amber-800">
-          {current.status === 'SHIPPING' ? 'Đến nhà vườn lấy hàng' : 'Đã lấy hàng, đang giao cho khách'} · giao xong mới
-          nhận được đơn mới
+          {current.status === 'RETURNING_TO_SHOP'
+            ? 'Giao thất bại, đang mang hàng về nhà vườn · trả xong mới nhận được đơn mới'
+            : current.status === 'SHIPPING'
+              ? 'Đến nhà vườn lấy hàng · giao xong mới nhận được đơn mới'
+              : 'Đã lấy hàng, đang giao cho khách · giao xong mới nhận được đơn mới'}
         </AppText>
       </View>
       <ChevronRight size={18} color="#92400e" />

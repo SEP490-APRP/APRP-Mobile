@@ -10,7 +10,7 @@ import { useUiStore } from '@/stores'
 import { colors } from '@/theme/colors'
 import type { UploadFile } from '@/types/upload.types'
 import type { DeliveryProof } from '../hooks/useShipperQueries'
-import { FAIL_REASONS, MIN_CALLS_WHEN_UNREACHABLE, validateDeliveryProof } from '../utils/deliveryProof'
+import { FAIL_REASONS, MIN_CALLS_WHEN_UNREACHABLE, PICKUP_FAIL_REASONS, validateDeliveryProof } from '../utils/deliveryProof'
 
 /**
  * Xác nhận giao hàng (Bước 3), thay cho ConfirmDialog cũ:
@@ -33,8 +33,8 @@ export function DeliveryResultSheet({
   /** Tiền mặt cần thu (đơn COD) */
   codAmount?: number
   paymentMethod?: string
-  /** Chưa lấy hàng thì "thất bại" nghĩa là không lấy được hàng */
-  stage: 'pickup' | 'delivery'
+  /** Chưa lấy hàng thì "thất bại" nghĩa là không lấy được hàng; return_shop là trả hàng hoàn về Vườn */
+  stage: 'pickup' | 'delivery' | 'return_shop'
   loading?: boolean
   onSubmit: (proof: DeliveryProof) => void
   onClose: () => void
@@ -58,7 +58,7 @@ export function DeliveryResultSheet({
     setPreviewUri(null)
   }, [visible])
 
-  const errors = validateDeliveryProof({ photoCount: photos.length, reason, callAttempts: calls, note }, failed)
+  const errors = validateDeliveryProof({ photoCount: photos.length, reason, callAttempts: calls, note }, failed, stage)
 
   const pick = async (source: 'camera' | 'library') => {
     const perm =
@@ -90,11 +90,23 @@ export function DeliveryResultSheet({
     onSubmit({ photos, reason: reason ?? undefined, callAttempts: calls, note })
   }
 
+  const isReturnShop = stage === 'return_shop'
+  const isPickupFail = failed && stage === 'pickup'
   const title = failed
-    ? stage === 'pickup'
-      ? `Không lấy được hàng · #${orderId}`
+    ? isPickupFail
+      ? `Không lấy được hàng tại vườn · #${orderId}`
       : `Báo giao thất bại · #${orderId}`
-    : `Xác nhận đã giao · #${orderId}`
+    : isReturnShop
+      ? `Trả hàng hoàn về Shop · #${orderId}`
+      : `Xác nhận đã giao · #${orderId}`
+
+  const subtitle = isPickupFail
+    ? 'Đơn sẽ bị huỷ giao và hoàn tiền cho khách (nếu đã thanh toán)'
+    : failed
+      ? 'Đơn sẽ chuyển hoàn hàng về nhà vườn'
+      : isReturnShop
+        ? 'Chụp ảnh bàn giao lại kiện hàng cho nhà vườn'
+        : 'Chụp ảnh hàng tại nhà khách hoặc lúc khách nhận'
 
   return (
     <>
@@ -102,22 +114,23 @@ export function DeliveryResultSheet({
         visible={visible}
         onClose={() => !loading && onClose()}
         title={title}
-        subtitle={failed ? 'Đơn sẽ bị huỷ giao, hàng hoàn về kho' : 'Chụp ảnh hàng tại nhà khách hoặc lúc khách nhận'}
+        subtitle={subtitle}
         footer={
           <View className="flex-row gap-2.5">
             <Button title="Huỷ" variant="outline" disabled={loading} onPress={onClose} className="min-h-[48px] flex-1" />
             <Button
-              title={failed ? 'Báo thất bại' : 'Đã giao'}
+              title={isPickupFail ? 'Báo không lấy được' : failed ? 'Báo thất bại' : isReturnShop ? 'Đã trả hàng' : 'Đã giao'}
               variant={failed ? 'danger' : 'primary'}
               loading={loading}
               onPress={submit}
               className="min-h-[48px] flex-[1.5]"
+              textClassName="text-sm"
             />
           </View>
         }
       >
       <View className="gap-4">
-        {!failed && (
+        {!failed && !isReturnShop && (
           isCod ? (
             <View className="rounded-2xl border border-amber-300 bg-amber-50 p-4">
               <View className="flex-row items-center justify-between">
@@ -155,7 +168,7 @@ export function DeliveryResultSheet({
           <>
             <ChoiceChips
               label="Lý do"
-              options={FAIL_REASONS}
+              options={isPickupFail ? PICKUP_FAIL_REASONS : FAIL_REASONS}
               value={reason ?? ''}
               onChange={(v) => setReason(v as DeliveryFailReason)}
             />
@@ -164,7 +177,7 @@ export function DeliveryResultSheet({
             <View className="flex-row items-center justify-between gap-3 rounded-card border border-line p-3">
               <View className="flex-1">
                 <AppText weight="bold" className="text-sm">
-                  Số cuộc đã gọi khách
+                  {isPickupFail ? 'Số cuộc đã gọi nhà vườn' : 'Số cuộc đã gọi khách'}
                 </AppText>
                 <AppText className="text-xs text-ink-muted">
                   {reason === 'KHONG_LIEN_LAC_DUOC' ? `Tối thiểu ${MIN_CALLS_WHEN_UNREACHABLE} cuộc` : 'Không bắt buộc'}
@@ -198,7 +211,11 @@ export function DeliveryResultSheet({
               onChangeText={setNote}
               maxLength={500}
               multiline
-              placeholder="VD: khách hẹn giao lại ngày mai"
+              placeholder={
+                isPickupFail
+                  ? 'VD: vườn đóng cửa, hàng chưa đóng gói xong...'
+                  : 'VD: khách hẹn giao lại ngày mai'
+              }
               error={touched ? errors.note : undefined}
             />
           </>
@@ -239,9 +256,11 @@ export function DeliveryResultSheet({
             </View>
           )}
           <AppText className="text-xs leading-relaxed text-ink-muted">
-            {failed
-              ? 'Chụp cửa nhà, lịch sử cuộc gọi… (tối thiểu 1 ảnh, nhấn ảnh để phóng to).'
-              : 'Bắt buộc ít nhất 1 ảnh (nhấn vào ảnh để phóng to kiểm tra độ nét).'}
+            {isPickupFail
+              ? 'Chụp cửa vườn/kho đóng, lịch sử cuộc gọi với shop… (tối thiểu 1 ảnh).'
+              : failed
+                ? 'Chụp cửa nhà khách, lịch sử cuộc gọi… (tối thiểu 1 ảnh, nhấn ảnh để phóng to).'
+                : 'Bắt buộc ít nhất 1 ảnh (nhấn vào ảnh để phóng to kiểm tra độ nét).'}
           </AppText>
           {touched && errors.photos && <AppText className="text-xs text-sale">{errors.photos}</AppText>}
         </View>

@@ -16,6 +16,8 @@ export type OrderStatus =
   | 'COMPLETED' // Hoàn thành
   | 'CANCELLED' // Đã hủy
   | 'FAILED' // Giao thất bại
+  | 'RETURNING_TO_SHOP' // Đang hoàn hàng về Shop
+  | 'RETURNED_TO_SHOP' // Shipper đã trả hàng về Shop, chờ xác nhận
   | 'REFUND_REQUESTED' // Đang yêu cầu trả hàng / hoàn tiền
   | 'REFUNDED' // Đã hoàn tiền
 
@@ -65,6 +67,7 @@ export interface OrderResponse {
   shippingFee?: number
   voucherDiscountAmount?: number
   refundAmount?: number
+  refundReason?: string | null
   shippingLatitude?: number
   shippingLongitude?: number
   shopLatitude?: number
@@ -92,6 +95,9 @@ export interface OrderResponse {
   failCallAttempts?: number | null
   failProofUrls?: string[]
   failedAt?: string
+  returnToShopProofUrls?: string[]
+  returnedToShopAt?: string
+  returnConfirmedAt?: string
 }
 
 /** Response khi BE trả về dạng page */
