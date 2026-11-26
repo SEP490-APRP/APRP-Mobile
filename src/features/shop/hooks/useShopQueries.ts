@@ -9,6 +9,11 @@ import { uploadService } from '@/services/upload.service'
 import type { UploadFile } from '@/types/upload.types'
 import { productKeys } from '@/features/product/hooks/useProductQueries'
 import { comboKeys } from '@/features/combo/hooks/useComboQueries'
+import { getErrorMessage } from '@/utils/errors'
+import {
+  imageUploadMessage,
+  orderImagesWithPrimary,
+} from '../utils/productForm'
 import {
   bundleDetailFromBox,
   bundleDetailFromCombo,
@@ -116,26 +121,94 @@ async function attachImage(productId: number, file: UploadFile, isPrimary: boole
   return (await productService.addImage(productId, { imageUrl: url, isPrimary, displayOrder })).result
 }
 
+export interface FailedImageUpload {
+  name: string
+  reason: string
+}
+
+export interface CreateProductWithImagesParams {
+  request: ProductCreationRequest
+  images: readonly UploadFile[]
+  primaryIndex?: number
+  onProgress?: (current: number, total: number) => void
+}
+
+export interface CreateProductWithImagesResult {
+  productId: number
+  uploadedCount: number
+  failedImages: FailedImageUpload[]
+}
+
+export interface ProductImageAttachDeps {
+  createProduct: typeof productService.createProduct
+  deleteProduct: typeof productService.deleteProduct
+  uploadAndAttach: (productId: number, file: UploadFile, isPrimary: boolean, displayOrder: number) => Promise<unknown>
+}
+
+const DEFAULT_CREATE_DEPS: ProductImageAttachDeps = {
+  createProduct: (req) => productService.createProduct(req),
+  deleteProduct: (id) => productService.deleteProduct(id),
+  uploadAndAttach: attachImage,
+}
+
 /**
- * Đăng bán nông sản: tạo sản phẩm (trạng thái Chờ duyệt) rồi gắn ảnh chính.
- * Ảnh lỗi không làm mất sản phẩm vừa tạo: trả về imageError để màn hình báo và cho thêm ảnh sau.
+ * Tạo sản phẩm (PENDING) rồi tuần tự tải + thẩm định AI từng ảnh (ảnh chính đầu tiên).
+ * Nếu ảnh đầu tiên không qua kiểm duyệt bước đầu (hoặc lỗi ngay ảnh đầu), tự động rollback xoá
+ * bản ghi sản phẩm vừa tạo để không để sót sản phẩm ở trạng thái "Chờ duyệt".
+ */
+export async function createProductWithImages(
+  { request, images, primaryIndex = 0, onProgress }: CreateProductWithImagesParams,
+  deps: ProductImageAttachDeps = DEFAULT_CREATE_DEPS,
+): Promise<CreateProductWithImagesResult> {
+  const ordered = orderImagesWithPrimary(images, primaryIndex)
+  if (ordered.length === 0) {
+    throw new Error('Vui lòng thêm ít nhất 1 ảnh nông sản trước khi đăng bán.')
+  }
+
+  const product = (await deps.createProduct(request)).result
+  const productId = Number(product?.productId ?? product?.id)
+  if (!(productId > 0)) {
+    throw new Error('Không tạo được sản phẩm mới, thử lại nhé.')
+  }
+
+  let uploadedCount = 0
+  const failedImages: FailedImageUpload[] = []
+
+  for (let i = 0; i < ordered.length; i += 1) {
+    const file = ordered[i]
+    onProgress?.(i + 1, ordered.length)
+    try {
+      await deps.uploadAndAttach(productId, file, i === 0, i)
+      uploadedCount += 1
+    } catch (err) {
+      const reason = imageUploadMessage(err, getErrorMessage(err, 'Chưa tải được ảnh lên.'))
+      if (i === 0) {
+        let rolledBack = false
+        try {
+          await deps.deleteProduct(productId)
+          rolledBack = true
+        } catch {
+          rolledBack = false
+        }
+        const suffix = rolledBack
+          ? ' Sản phẩm chưa được gửi duyệt, bạn vui lòng chọn ảnh nông sản khác nhé.'
+          : ' Hệ thống chưa huỷ được bản nháp tự động, bạn vui lòng kiểm tra lại mục Chờ duyệt.'
+        throw new Error(`Ảnh đại diện chưa đạt kiểm duyệt: ${reason}${suffix}`)
+      }
+      failedImages.push({ name: file.name, reason })
+    }
+  }
+
+  return { productId, uploadedCount, failedImages }
+}
+
+/**
+ * Đăng bán nông sản nhiều ảnh với rollback tự động nếu ảnh đại diện không qua kiểm duyệt bước đầu.
  */
 export function useCreateShopProduct() {
   const invalidate = useInvalidateListings()
   return useMutation({
-    mutationFn: async ({ request, image }: { request: ProductCreationRequest; image?: UploadFile }) => {
-      const product = (await productService.createProduct(request)).result
-      const productId = Number(product?.productId ?? product?.id)
-      let imageError: unknown
-      if (image && productId > 0) {
-        try {
-          await attachImage(productId, image, true, 0)
-        } catch (err) {
-          imageError = err
-        }
-      }
-      return { productId, imageError }
-    },
+    mutationFn: (params: CreateProductWithImagesParams) => createProductWithImages(params),
     onSettled: () => void invalidate(),
   })
 }
@@ -177,16 +250,49 @@ export function useShopProductImages(productId: number) {
 
 export type ProductImageAction =
   | { kind: 'add'; file: UploadFile; isPrimary: boolean; displayOrder: number }
+  | {
+      kind: 'addMany'
+      files: readonly UploadFile[]
+      startOrder: number
+      needPrimary: boolean
+      onProgress?: (current: number, total: number) => void
+    }
   | { kind: 'primary'; imageId: number }
   | { kind: 'delete'; imageId: number }
 
-/** Thêm ảnh, đặt ảnh chính, xoá ảnh (ProductImageGalleryModal bản web). */
+export interface BatchImageAddResult {
+  addedCount: number
+  failedImages: FailedImageUpload[]
+}
+
+/** Thêm 1 hoặc nhiều ảnh, đặt ảnh chính, xoá ảnh (ProductImageGalleryModal bản web). */
 export function useProductImageAction(productId: number) {
   const invalidate = useInvalidateListings()
   return useMutation({
-    mutationFn: async (a: ProductImageAction) => {
-      if (a.kind === 'add') await attachImage(productId, a.file, a.isPrimary, a.displayOrder)
-      else if (a.kind === 'primary') await productService.setPrimaryImage(productId, a.imageId)
+    mutationFn: async (a: ProductImageAction): Promise<BatchImageAddResult | void> => {
+      if (a.kind === 'add') {
+        await attachImage(productId, a.file, a.isPrimary, a.displayOrder)
+        return
+      }
+      if (a.kind === 'addMany') {
+        let addedCount = 0
+        const failedImages: FailedImageUpload[] = []
+        for (let i = 0; i < a.files.length; i += 1) {
+          const file = a.files[i]
+          a.onProgress?.(i + 1, a.files.length)
+          try {
+            await attachImage(productId, file, a.needPrimary && i === 0, a.startOrder + addedCount)
+            addedCount += 1
+          } catch (err) {
+            failedImages.push({
+              name: file.name,
+              reason: imageUploadMessage(err, getErrorMessage(err, 'Chưa tải được ảnh lên.')),
+            })
+          }
+        }
+        return { addedCount, failedImages }
+      }
+      if (a.kind === 'primary') await productService.setPrimaryImage(productId, a.imageId)
       else await productService.deleteImage(productId, a.imageId)
     },
     onSettled: () => void invalidate(),

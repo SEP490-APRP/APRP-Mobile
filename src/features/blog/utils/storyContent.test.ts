@@ -49,6 +49,49 @@ describe('parseStoryContent', () => {
     expect(parseStoryContent('')).toEqual([])
     expect(parseStoryContent(undefined)).toEqual([])
   })
+
+  it('hiểu HTML từ CKEditor 5: list lồng <p>, figure/figcaption, link, gạch chân và bảng', () => {
+    const html =
+      '<ul><li><p>Bón phân <u>hữu cơ</u></p></li><li><p>Xem <a href="https://capnong.vn/tips">hướng dẫn</a></p></li></ul>' +
+      '<blockquote><p>Dòng một</p><p>Dòng hai</p></blockquote>' +
+      '<figure class="image"><img src="https://res.cloudinary.com/demo/image/upload/v1/garden.jpg" alt="Vườn">' +
+      '<figcaption>Thu hoạch sáng sớm</figcaption></figure>' +
+      '<table><thead><tr><th>Loại</th><th>Giá</th></tr></thead><tbody><tr><td>Xoài cát</td><td>35.000đ</td></tr></tbody></table>'
+
+    const blocks = parseStoryContent(html)
+    expect(blocks.map((b) => b.type)).toEqual(['list', 'quote', 'image', 'table'])
+    expect(blocks[0]).toEqual({
+      type: 'list',
+      ordered: false,
+      items: [
+        [
+          { text: 'Bón phân ', bold: false, italic: false },
+          { text: 'hữu cơ', bold: false, italic: false, underline: true },
+        ],
+        [
+          { text: 'Xem ', bold: false, italic: false },
+          { text: 'hướng dẫn', bold: false, italic: false, href: 'https://capnong.vn/tips' },
+        ],
+      ],
+    })
+    expect(blocks[1]).toEqual({
+      type: 'quote',
+      runs: [{ text: 'Dòng một\nDòng hai', bold: false, italic: false }],
+    })
+    expect(blocks[2]).toEqual({
+      type: 'image',
+      src: 'https://res.cloudinary.com/demo/image/upload/v1/garden.jpg',
+      alt: 'Vườn',
+      caption: 'Thu hoạch sáng sớm',
+    })
+    expect(blocks[3]).toEqual({
+      type: 'table',
+      rows: [
+        ['Loại', 'Giá'],
+        ['Xoài cát', '35.000đ'],
+      ],
+    })
+  })
 })
 
 describe('chữ thuần, trích đoạn, thời gian đọc', () => {

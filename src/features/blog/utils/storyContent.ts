@@ -2,11 +2,13 @@ import type { BlogResponse } from '@/services/blog.service'
 import { BlogCategoryLabel } from '@/types'
 import { absoluteUrl } from '@/utils/helpers'
 
-/** Đoạn chữ cùng kiểu (đậm / nghiêng) trong một khối. */
+/** Đoạn chữ cùng kiểu (đậm / nghiêng / gạch chân / liên kết) trong một khối. */
 export interface StoryRun {
   text: string
   bold?: boolean
   italic?: boolean
+  underline?: boolean
+  href?: string
 }
 
 /** Khối nội dung bài viết, vẽ bằng component RN thay cho dangerouslySetInnerHTML của web. */
@@ -15,7 +17,8 @@ export type StoryBlock =
   | { type: 'heading'; level: 1 | 2 | 3; runs: StoryRun[] }
   | { type: 'quote'; runs: StoryRun[] }
   | { type: 'list'; ordered: boolean; items: StoryRun[][] }
-  | { type: 'image'; src: string; alt?: string }
+  | { type: 'image'; src: string; alt?: string; caption?: string }
+  | { type: 'table'; rows: string[][] }
 
 /** Danh mục lọc trên trang "Chuyện nhà nông" (FARMER_STORIES_CATEGORIES bản web). */
 export const STORY_CATEGORIES = [
@@ -54,9 +57,9 @@ export function decodeEntities(s: string): string {
   })
 }
 
-/** Nội dung là HTML (bài soạn bằng trình soạn thảo) hay chữ thường tách đoạn bằng dòng trống. */
+/** Nội dung là HTML (bài soạn bằng trình soạn thảo CKEditor / web) hay chữ thường tách đoạn bằng dòng trống. */
 export function isHtmlContent(content: string): boolean {
-  return /<(p|div|h[1-6]|br|ul|ol|li|img|strong|b|em|i|blockquote)\b/i.test(content)
+  return /<(p|div|h[1-6]|br|ul|ol|li|img|figure|figcaption|table|tr|td|th|strong|b|em|i|u|a|blockquote)\b/i.test(content)
 }
 
 /** Gộp các đoạn liền nhau cùng kiểu và bỏ khoảng trắng thừa ở đầu, cuối khối. */
@@ -64,8 +67,24 @@ function tidyRuns(runs: StoryRun[]): StoryRun[] {
   const out: StoryRun[] = []
   for (const r of runs) {
     const last = out[out.length - 1]
-    if (last && !!last.bold === !!r.bold && !!last.italic === !!r.italic) last.text += r.text
-    else out.push({ ...r })
+    if (
+      last &&
+      !!last.bold === !!r.bold &&
+      !!last.italic === !!r.italic &&
+      !!last.underline === !!r.underline &&
+      (last.href || '') === (r.href || '')
+    ) {
+      last.text += r.text
+    } else {
+      const normalized: StoryRun = {
+        text: r.text,
+        bold: !!r.bold,
+        italic: !!r.italic,
+      }
+      if (r.underline) normalized.underline = true
+      if (r.href) normalized.href = r.href
+      out.push(normalized)
+    }
   }
   for (const r of out) r.text = r.text.replace(/ *\n */g, '\n')
   if (out.length) {
@@ -84,11 +103,32 @@ function plainToBlocks(content: string): StoryBlock[] {
     .map((p) => ({ type: 'paragraph' as const, runs: [{ text: p }] }))
 }
 
-const BLOCK_TAGS = new Set(['p', 'div', 'section', 'article', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'blockquote', 'li'])
+function safeHref(raw?: string): string | undefined {
+  if (!raw) return undefined
+  const trimmed = decodeEntities(raw).trim()
+  if (/^(https?:\/\/|mailto:|\/)/i.test(trimmed)) return trimmed
+  return undefined
+}
+
+const BLOCK_TAGS = new Set([
+  'p',
+  'div',
+  'section',
+  'article',
+  'figure',
+  'h1',
+  'h2',
+  'h3',
+  'h4',
+  'h5',
+  'h6',
+  'blockquote',
+  'li',
+])
 
 /**
- * Chuyển nội dung bài viết thành các khối hiển thị. Chỉ hiểu nhóm thẻ trình soạn thảo hay sinh
- * (p, h1–h6, ul/ol/li, blockquote, br, img, b/strong, i/em); thẻ lạ bị bỏ, chữ bên trong vẫn giữ.
+ * Chuyển nội dung bài viết thành các khối hiển thị (hỗ trợ đầy đủ HTML từ CKEditor 5 của web
+ * như heading, list có lồng <p>, figure/figcaption, bảng, blockquote, link, gạch chân).
  */
 export function parseStoryContent(content?: string | null): StoryBlock[] {
   if (!content?.trim()) return []
@@ -96,22 +136,45 @@ export function parseStoryContent(content?: string | null): StoryBlock[] {
 
   const blocks: StoryBlock[] = []
   let runs: StoryRun[] = []
-  let kind: 'paragraph' | 'heading' | 'li' = 'paragraph'
+  let kind: 'paragraph' | 'heading' = 'paragraph'
   let level: 1 | 2 | 3 = 2
   let quote = 0
+  let inLi = false
+  let inCaption = false
+  let captionText = ''
   let bold = 0
   let italic = 0
+  let underline = 0
+  let currentHref: string | undefined
   let skip = 0
   let list: { ordered: boolean; items: StoryRun[][] } | null = null
+  let tableRows: string[][] | null = null
+  let currentRow: string[] | null = null
+  let inCell = false
+  let cellText = ''
+
+  const makeRun = (text: string): StoryRun => {
+    const r: StoryRun = { text, bold: bold > 0, italic: italic > 0 }
+    if (underline > 0) r.underline = true
+    if (currentHref) r.href = currentHref
+    return r
+  }
 
   const flush = () => {
     const tidy = tidyRuns(runs)
     runs = []
     if (!tidy.length) return
-    if (kind === 'li' && list) list.items.push(tidy)
+    if (inLi && list) list.items.push(tidy)
     else if (kind === 'heading') blocks.push({ type: 'heading', level, runs: tidy })
     else if (quote > 0) blocks.push({ type: 'quote', runs: tidy })
     else blocks.push({ type: 'paragraph', runs: tidy })
+  }
+
+  const flushCell = () => {
+    if (!inCell || !currentRow) return
+    currentRow.push(decodeEntities(cellText).replace(/\s+/g, ' ').trim())
+    cellText = ''
+    inCell = false
   }
 
   const tagRe = /<(\/?)([a-z][a-z0-9]*)([^>]*)>|<!--[\s\S]*?-->/gi
@@ -119,8 +182,16 @@ export function parseStoryContent(content?: string | null): StoryBlock[] {
   let m: RegExpExecArray | null
   const pushText = (raw: string) => {
     if (skip) return
+    if (inCell) {
+      cellText += raw
+      return
+    }
+    if (inCaption) {
+      captionText += decodeEntities(raw.replace(/\s+/g, ' '))
+      return
+    }
     const text = decodeEntities(raw.replace(/\s+/g, ' '))
-    if (text) runs.push({ text, bold: bold > 0, italic: italic > 0 })
+    if (text) runs.push(makeRun(text))
   }
 
   while ((m = tagRe.exec(content))) {
@@ -131,11 +202,72 @@ export function parseStoryContent(content?: string | null): StoryBlock[] {
     const tag = m[2].toLowerCase()
     const attrs = m[3] ?? ''
 
-    if (tag === 'script' || tag === 'style') skip += closing ? -1 : 1
-    else if (tag === 'b' || tag === 'strong') bold = Math.max(0, bold + (closing ? -1 : 1))
-    else if (tag === 'i' || tag === 'em') italic = Math.max(0, italic + (closing ? -1 : 1))
-    else if (tag === 'br') runs.push({ text: '\n', bold: bold > 0, italic: italic > 0 })
-    else if (tag === 'img' && !closing) {
+    if (tag === 'script' || tag === 'style') {
+      skip += closing ? -1 : 1
+    } else if (tag === 'table') {
+      if (!closing) {
+        flush()
+        tableRows = []
+        currentRow = null
+        inCell = false
+        cellText = ''
+      } else if (tableRows) {
+        flushCell()
+        if (currentRow?.some(Boolean)) tableRows.push(currentRow)
+        if (tableRows.length) blocks.push({ type: 'table', rows: tableRows })
+        tableRows = null
+        currentRow = null
+      }
+    } else if (tableRows && tag === 'tr') {
+      if (!closing) {
+        flushCell()
+        currentRow = []
+      } else {
+        flushCell()
+        if (currentRow?.some(Boolean)) tableRows.push(currentRow)
+        currentRow = null
+      }
+    } else if (tableRows && (tag === 'td' || tag === 'th')) {
+      if (!closing) {
+        flushCell()
+        if (!currentRow) currentRow = []
+        inCell = true
+        cellText = ''
+      } else {
+        flushCell()
+      }
+    } else if (tag === 'figcaption') {
+      if (!closing) {
+        flush()
+        inCaption = true
+        captionText = ''
+      } else if (inCaption) {
+        const cleanCaption = captionText.replace(/\s+/g, ' ').trim()
+        inCaption = false
+        captionText = ''
+        const lastBlock = blocks[blocks.length - 1]
+        if (cleanCaption) {
+          if (lastBlock?.type === 'image') lastBlock.caption = cleanCaption
+          else blocks.push({ type: 'paragraph', runs: [{ text: cleanCaption, italic: true }] })
+        }
+      }
+    } else if (tag === 'b' || tag === 'strong') {
+      bold = Math.max(0, bold + (closing ? -1 : 1))
+    } else if (tag === 'i' || tag === 'em') {
+      italic = Math.max(0, italic + (closing ? -1 : 1))
+    } else if (tag === 'u') {
+      underline = Math.max(0, underline + (closing ? -1 : 1))
+    } else if (tag === 'a') {
+      if (!closing) {
+        const hrefAttr = /\shref=["']([^"']+)["']/i.exec(attrs)?.[1]
+        currentHref = safeHref(hrefAttr)
+      } else {
+        currentHref = undefined
+      }
+    } else if (tag === 'br') {
+      if (inCell) cellText += ' '
+      else runs.push(makeRun('\n'))
+    } else if (tag === 'img' && !closing) {
       const src = /\ssrc=["']([^"']+)["']/i.exec(attrs)?.[1]
       if (src && /^https?:\/\//i.test(src)) {
         flush()
@@ -144,6 +276,7 @@ export function parseStoryContent(content?: string | null): StoryBlock[] {
       }
     } else if (tag === 'ul' || tag === 'ol') {
       flush()
+      inLi = false
       if (!closing) {
         list = { ordered: tag === 'ol', items: [] }
       } else if (list) {
@@ -152,14 +285,26 @@ export function parseStoryContent(content?: string | null): StoryBlock[] {
         kind = 'paragraph'
       }
     } else if (BLOCK_TAGS.has(tag)) {
-      flush()
-      if (tag === 'blockquote') quote = Math.max(0, quote + (closing ? -1 : 1))
-      if (closing) kind = 'paragraph'
-      else if (tag === 'li') kind = 'li'
-      else if (tag[0] === 'h') {
-        kind = 'heading'
-        level = Math.min(3, Number(tag[1])) as 1 | 2 | 3
-      } else kind = 'paragraph'
+      if (tag === 'li') {
+        flush()
+        inLi = !closing
+        kind = 'paragraph'
+      } else if (inLi && (tag === 'p' || tag === 'div')) {
+        // CKEditor thường bọc <li><p>...</p></li>: giữ nguyên văn bản bên trong mục list hiện tại.
+        if (!closing && runs.length > 0) runs.push(makeRun('\n'))
+      } else if (quote > 0 && tag === 'p') {
+        if (!closing && runs.length > 0) runs.push(makeRun('\n'))
+      } else {
+        flush()
+        if (tag === 'blockquote') quote = Math.max(0, quote + (closing ? -1 : 1))
+        if (closing) kind = 'paragraph'
+        else if (tag[0] === 'h') {
+          kind = 'heading'
+          level = Math.min(3, Number(tag[1])) as 1 | 2 | 3
+        } else {
+          kind = 'paragraph'
+        }
+      }
     }
   }
   pushText(content.slice(at))

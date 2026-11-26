@@ -4,7 +4,7 @@ import type { ProductCreationRequest, ProductResponse } from '@/services/product
 export const PRODUCT_UNITS = ['kg', 'hộp', 'bó', 'túi', 'trái', 'thùng'] as const
 
 export const MAX_IMAGE_BYTES = 5 * 1024 * 1024
-export const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp']
+export const IMAGE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp']
 
 export interface ProductFormValues {
   name: string
@@ -109,23 +109,43 @@ const codeOf = (err: unknown): number | undefined => {
   return typeof code === 'number' ? code : undefined
 }
 
+/** Sắp xếp danh sách ảnh với ảnh đại diện (primaryIndex) lên đầu để kiểm duyệt và gắn trước. */
+export function orderImagesWithPrimary<T>(images: readonly T[], primaryIndex: number): T[] {
+  if (images.length === 0) return []
+  const idx = primaryIndex >= 0 && primaryIndex < images.length ? primaryIndex : 0
+  return [images[idx], ...images.filter((_, i) => i !== idx)]
+}
+
+/** Tính lại vị trí ảnh đại diện sau khi xoá một ảnh khỏi danh sách. */
+export function nextPrimaryIndexAfterRemove(
+  currentPrimary: number,
+  removedIndex: number,
+  nextLength: number,
+): number {
+  if (nextLength <= 0 || removedIndex === currentPrimary) return 0
+  const shifted = removedIndex < currentPrimary ? currentPrimary - 1 : currentPrimary
+  return shifted >= 0 && shifted < nextLength ? shifted : 0
+}
+
 /**
  * Câu báo lỗi khi tải ảnh nông sản, như ProductImageGalleryModal bản web:
- * 3022 là AI kiểm duyệt từ chối ảnh, 3024 là đã đủ 8 ảnh.
+ * 3022 là AI kiểm duyệt từ chối ảnh, 3024 là đã đủ 8 ảnh, 4002 là vượt dung lượng.
  */
 export function imageUploadMessage(err: unknown, message: string): string {
   const code = codeOf(err)
   const m = message.toLowerCase()
   if (code === 3024 || m.includes('3024') || m.includes('tối đa 8') || m.includes('maximum of 8'))
     return `Mỗi sản phẩm chỉ có tối đa ${MAX_PRODUCT_IMAGES} ảnh. Xoá bớt ảnh cũ rồi thêm ảnh mới nhé.`
-  if (code === 3022 || /3022|nông sản|agricultural|cồn|alcohol/.test(m))
+  if (code === 3022 || /3022|nông sản|agricultural|cồn|alcohol|inappropriate/.test(m))
     return 'AI thấy ảnh chưa phù hợp: cần ảnh chụp nông sản tươi thật, không phải đồ uống có cồn, đồ ăn chế biến sẵn hay đồ vật.'
+  if (code === 4002 || m.includes('dung lượng') || m.includes('too large'))
+    return 'Dung lượng ảnh vượt quá giới hạn cho phép.'
   return message || 'Chưa tải được ảnh lên. Thử lại nhé.'
 }
 
 /** Kiểm tra ảnh chọn từ máy trước khi tải lên. */
 export function imageProblem(asset: { mimeType?: string | null; fileSize?: number | null }): string | undefined {
-  if (asset.mimeType && !IMAGE_TYPES.includes(asset.mimeType)) return 'Chỉ nhận ảnh JPEG, PNG hoặc WebP'
+  if (asset.mimeType && !IMAGE_TYPES.includes(asset.mimeType.toLowerCase())) return 'Chỉ nhận ảnh JPEG, PNG hoặc WebP'
   if (asset.fileSize && asset.fileSize > MAX_IMAGE_BYTES) return 'Ảnh vượt quá 5MB, chọn ảnh nhỏ hơn nhé'
   return undefined
 }

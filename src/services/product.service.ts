@@ -141,7 +141,9 @@ export const productService = {
 
   /** Thêm ảnh vào sản phẩm (kích hoạt AI Google Cloud Vision ngầm tại backend) */
   async addImage(productId: number, request: ProductImageCreationRequest): Promise<ApiResponse<ProductImageResponse>> {
-    const res = await axiosInstance.post<ApiResponse<ProductImageResponse>>(`/products/${productId}/images`, request)
+    const res = await axiosInstance.post<ApiResponse<ProductImageResponse>>(`/products/${productId}/images`, request, {
+      timeout: 60_000,
+    })
     return res.data
   },
 
