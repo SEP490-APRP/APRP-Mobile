@@ -1,4 +1,4 @@
-import { Camera, CheckCircle2, Clock, MapPin, Navigation, Phone, XCircle } from 'lucide-react-native'
+import { Camera, CheckCircle2, Clock, MapPin, Navigation, Phone, Warehouse, XCircle } from 'lucide-react-native'
 import { useState, type ReactNode } from 'react'
 import { ActivityIndicator, Linking, Pressable, View } from 'react-native'
 import { AppText, Button } from '@/components/ui'
@@ -9,7 +9,7 @@ import { colors } from '@/theme/colors'
 import { getErrorMessage } from '@/utils/errors'
 import { cn } from '@/utils/helpers'
 import { directionsUrl, fmtDateTime, formatVnd } from '../utils/campaignFormat'
-import { Notice, Pill } from './CampaignBits'
+import { Pill } from './CampaignBits'
 
 const PRIORITY: Record<PriorityLevel, { label: string; tone: 'rose' | 'amber' | 'leaf' }> = {
   URGENT: { label: 'Gấp', tone: 'rose' },
@@ -21,10 +21,11 @@ export const FAIL_REASONS = ['Không liên lạc được người nhận', 'Ng�
 
 /** Phí dịch vụ shipper (khớp capnong.wallet.shipper-fee-rate) */
 const SHIPPER_FEE_RATE = 0.03
-const shipperEarn = (o: PreOrderResponse) => Math.round(Number(o.shippingBaseFee ?? o.shippingFee ?? 0) * (1 - SHIPPER_FEE_RATE))
+const shipperEarn = (o: PreOrderResponse) =>
+  o.shipperEarnEstimate != null ? Math.round(Number(o.shipperEarnEstimate)) : Math.round(Number(o.shippingBaseFee ?? o.shippingFee ?? 0) * (1 - SHIPPER_FEE_RATE))
 
 /** Thẻ đơn chiến dịch cho tài xế (OrderCard trong ShipperCampaignOrders bản web) */
-export function ShipperPreOrderCard({ o, action }: { o: PreOrderResponse; action: ReactNode }) {
+export function ShipperPreOrderCard({ o, action, hideHub = false }: { o: PreOrderResponse; action: ReactNode; hideHub?: boolean }) {
   const p = PRIORITY[(o.priorityLevel ?? 'NORMAL') as PriorityLevel]
   const dir = directionsUrl(o.shippingLatitude, o.shippingLongitude, o.shippingAddress)
   return (
@@ -60,15 +61,10 @@ export function ShipperPreOrderCard({ o, action }: { o: PreOrderResponse; action
           )}
         </View>
       </View>
-      {o.status === 'READY' && Number(o.remainingAmount ?? 0) > 0 && (
-        <Notice>
-          Nhận đơn cần ký quỹ {formatVnd(o.remainingAmount)} trong ví (bằng số tiền sẽ thu). Giao xong ví trừ đúng số tiền mặt bạn cầm và cộng cước; giao
-          thất bại thì trả lại ký quỹ.
-        </Notice>
-      )}
+      {!hideHub && !!o.hubName && <HubPickup o={o} />}
       {Number(o.codReservedAmount ?? 0) > 0 && (
         <AppText weight="semibold" className="text-xs text-sky-700">
-          Đang ký quỹ {formatVnd(o.codReservedAmount)} trong ví cho đơn này
+          Đang ký quỹ {formatVnd(o.codReservedAmount)} · giao xong trừ ví, thất bại thì hoàn
         </AppText>
       )}
       <View className="gap-1 rounded-2xl bg-paper px-3 py-2">
@@ -93,9 +89,42 @@ export function ShipperPreOrderCard({ o, action }: { o: PreOrderResponse; action
       </View>
       <View className="flex-row flex-wrap gap-2">
         {!!o.recipientPhone && <SmallLink icon={Phone} label="Gọi" url={`tel:${o.recipientPhone}`} />}
-        {dir && <SmallLink icon={Navigation} label="Chỉ đường" url={dir} />}
+        {dir && <SmallLink icon={Navigation} label="Đường tới khách" url={dir} />}
       </View>
       {action}
+    </View>
+  )
+}
+
+/** Hub shipper tới lấy hàng: xe CapNong đã chở thùng từ điểm tập kết tới đây */
+function HubPickup({ o }: { o: PreOrderResponse }) {
+  const url = directionsUrl(o.hubLatitude, o.hubLongitude, o.hubAddress)
+  const pickedUp = o.status === 'SHIPPING' || !!o.pickedUpAt
+  return (
+    <View className="gap-1.5 rounded-2xl border border-leaf-200 bg-leaf-50 p-3">
+      <View className="flex-row items-center gap-2">
+        <Warehouse size={16} color={colors.leaf700} />
+        <AppText weight="extrabold" className="flex-1 text-sm text-leaf-800">
+          {pickedUp ? 'Đã lấy hàng tại' : 'Lấy hàng tại'} {/^hub /i.test(o.hubName ?? '') ? o.hubName : `hub ${o.hubName}`}
+        </AppText>
+      </View>
+      {!!o.hubAddress && <AppText className="text-xs text-ink-muted">{o.hubAddress}</AppText>}
+      {(!!o.hubOpenHours || !!o.hubPhone) && (
+        <AppText className="text-xs text-ink-subtle">{[o.hubOpenHours, o.hubPhone].filter(Boolean).join(' · ')}</AppText>
+      )}
+      {!pickedUp && (
+        <View className="flex-row flex-wrap gap-2">
+          {url && (
+            <Pressable onPress={() => void Linking.openURL(url)} className="flex-row items-center gap-1 rounded-xl bg-leaf-700 px-3 py-2 active:opacity-80">
+              <Navigation size={13} color={colors.white} />
+              <AppText weight="bold" className="text-xs text-white">
+                Đường tới hub
+              </AppText>
+            </Pressable>
+          )}
+          {!!o.hubPhone && <SmallLink icon={Phone} label="Gọi hub" url={`tel:${o.hubPhone}`} />}
+        </View>
+      )}
     </View>
   )
 }

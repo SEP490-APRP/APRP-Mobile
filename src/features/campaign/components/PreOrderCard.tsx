@@ -5,7 +5,7 @@ import { AppText, Button } from '@/components/ui'
 import type { PreOrderResponse } from '@/services'
 import { colors } from '@/theme/colors'
 import { cn } from '@/utils/helpers'
-import { fmtDateTime, formatVnd, PRE_ORDER_STATUS, PRE_ORDER_STEPS } from '../utils/campaignFormat'
+import { fmtDateTime, formatVnd, PRE_ORDER_STATUS, PRE_ORDER_STEPS, readyLabel } from '../utils/campaignFormat'
 import { Notice, Pill } from './CampaignBits'
 
 /** Thẻ đơn đặt trước chiến dịch (PreOrderCard bản web) */
@@ -27,7 +27,8 @@ export function PreOrderCard({
   campaignHref: string
 }) {
   // Đơn cũ nhận trước khi có trạng thái SHIPPING: READY + pickedUpAt cũng là "Đang giao"
-  const st = p.status === 'READY' && p.pickedUpAt ? PRE_ORDER_STATUS.SHIPPING : (PRE_ORDER_STATUS[p.status] ?? PRE_ORDER_STATUS.PENDING)
+  const base = PRE_ORDER_STATUS[p.status] ?? PRE_ORDER_STATUS.PENDING
+  const st = p.status !== 'READY' ? base : p.pickedUpAt ? PRE_ORDER_STATUS.SHIPPING : { ...base, label: readyLabel(p.hubStage, base.label) }
   const unpaid = p.status === 'PENDING'
   const stepIndex = PRE_ORDER_STEPS.findIndex((s) => s.key.includes(p.status))
   const reduced = p.originalCrateQuantity != null && p.originalCrateQuantity > p.crateQuantity

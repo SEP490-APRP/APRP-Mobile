@@ -102,6 +102,9 @@ async function registerByRole(role: RegisterRole, values: RegisterValues) {
       address: values.shipperArea.trim(),
       cccd: values.cccd.trim(),
       vehicleNumber: values.vehicleNumber.trim(),
+      vehicleType: values.shipperVehicle || 'MOTORBIKE',
+      licenseClass: values.licenseClass.trim().toUpperCase(),
+      license: values.licenseNumber.trim(),
     })
   }
   return authService.registerBuyer({

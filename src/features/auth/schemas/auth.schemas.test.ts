@@ -91,6 +91,8 @@ describe('shipperRegisterSchema', () => {
     email: 'giao@capnong.vn',
     cccd: '079201004321',
     vehicleNumber: '59-A1 123.45',
+    licenseClass: 'A1',
+    licenseNumber: '079201004321',
     shipperArea: 'Quận 7, TP.HCM',
     password: 'password123',
     confirmPassword: 'password123',
@@ -105,6 +107,14 @@ describe('shipperRegisterSchema', () => {
     expect(error(validate(shipperRegisterSchema, { ...base, vehicleNumber: '' }))).toBe(
       'Vui lòng nhập biển số xe vận chuyển (VD: 59-A1 123.45)',
     ))
+  it('chặn xe không đủ điều kiện: bằng không đủ hạng, biển số sai loại', () => {
+    expect(error(validate(shipperRegisterSchema, { ...base, shipperVehicle: 'TRUCK_2T', vehicleNumber: '51C-200.03', licenseClass: 'B' }))).toBe(
+      'Loại xe này cần giấy phép hạng C1, C, C1E, CE',
+    )
+    expect(error(validate(shipperRegisterSchema, { ...base, shipperVehicle: 'TRUCK_1T', licenseClass: 'C' }))).toBe(
+      'Biển số không đúng loại xe (VD: 51C-100.01)',
+    )
+  })
 })
 
 describe('memberRegisterSchema', () => {

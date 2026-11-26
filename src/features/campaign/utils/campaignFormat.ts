@@ -1,4 +1,4 @@
-import type { CampaignResponse, CrateSize, FarmRegistrationStatus, PreOrderResponse, ShelfLifeTier } from '@/services'
+import type { VehicleType, CampaignResponse, FarmRegistrationStatus, PreOrderResponse, ShelfLifeTier } from '@/services'
 import { storyExcerpt } from '@/features/blog/utils/storyContent'
 
 export const formatKg = (kg: number | null | undefined) =>
@@ -31,10 +31,15 @@ export function timeLeftLabel(cutoffAt: string | null | undefined, now = Date.no
 export const progressOf = (c: Pick<CampaignResponse, 'progressPercent'>) =>
   Math.max(0, Math.min(100, Number(c.progressPercent ?? 0)))
 
-/** Thùng người mua được đặt: 5 / 10 / 15 kg (mua nhiều thùng để cộng dồn kg) */
-export const CRATE_SIZES = [5, 10, 15] as const
-export type CrateKg = (typeof CRATE_SIZES)[number]
-export const CRATE_ENUM: Record<CrateKg, CrateSize> = { 5: 'KG_5', 10: 'KG_10', 15: 'KG_15' }
+/**
+ * Chia số kg người mua nhập thành thùng (khớp CrateSplitter ở máy chủ): thùng lớn nhất 15 / 10 / 5 kg mà số kg chia hết.
+ * Không phải bội số của 5 thì trả null.
+ */
+export function splitCrates(kg: number): { crateKg: number; quantity: number } | null {
+  if (!Number.isInteger(kg) || kg < 5 || kg % 5 !== 0) return null
+  const crateKg = [15, 10, 5].find((s) => kg % s === 0)!
+  return { crateKg, quantity: kg / crateKg }
+}
 
 export const CAMPAIGN_STATUS_LABEL: Record<CampaignResponse['status'], string> = {
   DRAFT: 'Sắp mở',
@@ -94,7 +99,7 @@ export function directionsUrl(lat?: number | null, lng?: number | null, address?
   return q ? `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(q)}` : null
 }
 
-/** Lấy tên phường/xã trong địa chỉ để gom đơn cùng phường (BE giảm 50% phí giao) */
+/** Lấy tên phường/xã trong địa chỉ giao */
 export function wardOf(address: string) {
   return /(Phường|Xã|Thị trấn|P\.)\s*[^,]+/i.exec(address)?.[0]?.trim()
 }
@@ -143,10 +148,10 @@ export const PRE_ORDER_FILTERS: { id: string; label: string; statuses?: PreStatu
 
 /* ───── Nhà vườn ───── */
 
-/** Nhà vườn nhận 90% sau phí dịch vụ 10% (khớp capnong.wallet.farmer-fee-rate) */
-export const FARMER_KEEP_RATE = 0.9
+/** Nhà vườn nhận 70% sau phí dịch vụ 30% (khớp capnong.campaign.farmer-fee-rate) */
+export const FARMER_KEEP_RATE = 0.7
 
-/** 3 mức bảo quản, số ngày tính từ ngày kết thúc chiến dịch */
+/** 3 mức bảo quản, số ngày tính từ ngày kết thúc mở điểm tập kết */
 export const SHELF_LIFE: { id: ShelfLifeTier; min: number; max: number; label: string; hint: string; tone: string }[] = [
   { id: 'DAYS_2_3', min: 2, max: 3, label: '2 – 3 ngày', hint: 'Rau ăn lá, quả chín mềm: dễ dập héo, giao gấp', tone: 'bg-rose-50 text-rose-700' },
   { id: 'DAYS_3_4', min: 3, max: 4, label: '3 – 4 ngày', hint: 'Cà chua, dưa leo, bắp: giữ được vài ngày ở nơi mát', tone: 'bg-amber-50 text-amber-700' },
@@ -155,7 +160,7 @@ export const SHELF_LIFE: { id: ShelfLifeTier; min: number; max: number; label: s
 export const shelfLabel = (t?: ShelfLifeTier | null) => SHELF_LIFE.find((s) => s.id === t)?.label ?? '—'
 
 export const REGISTRATION_STATUS: Record<FarmRegistrationStatus, { label: string; tone: 'amber' | 'leaf' | 'rose' | 'gray' }> = {
-  PENDING: { label: 'Chờ duyệt & thương lượng giá', tone: 'amber' },
+  PENDING: { label: 'Chờ duyệt', tone: 'amber' },
   APPROVED: { label: 'Đã duyệt', tone: 'leaf' },
   REJECTED: { label: 'Bị từ chối', tone: 'rose' },
   CANCELLED: { label: 'Chiến dịch đã huỷ', tone: 'gray' },
@@ -170,3 +175,23 @@ export const addDays = (iso: string, n: number) => {
   return localIsoDate(d)
 }
 export const isoIn = (days: number) => localIsoDate(new Date(Date.now() + days * 86_400_000))
+
+/** Loại xe tài xế và sức chở (kg), khớp VehicleType ở BE; dùng lọc chuyến chở hàng ra hub */
+export const VEHICLE_TYPES: { id: VehicleType; label: string; capacityKg: number }[] = [
+  { id: 'MOTORBIKE', label: 'Xe máy', capacityKg: 60 },
+  { id: 'VAN', label: 'Xe ba gác / bán tải', capacityKg: 500 },
+  { id: 'TRUCK_1T', label: 'Xe tải 1 tấn', capacityKg: 1000 },
+  { id: 'TRUCK_2T', label: 'Xe tải 2 tấn', capacityKg: 2000 },
+  { id: 'TRUCK_5T', label: 'Xe tải 5 tấn', capacityKg: 5000 },
+]
+
+export const vehicleLabel = (t?: string | null) => VEHICLE_TYPES.find((v) => v.id === t)?.label ?? 'Xe máy'
+export const vehicleCapacity = (t?: string | null) => VEHICLE_TYPES.find((v) => v.id === t)?.capacityKg ?? 60
+
+/** Nhãn cho đơn READY theo vị trí thật của hàng (đã chốt xe chưa có nghĩa hàng đã tới hub) */
+export const readyLabel = (hubStage?: string | null, atHub = 'Tại hub') =>
+  hubStage === 'AT_SITE' ? 'Chờ xe tại điểm tập kết' : hubStage === 'ON_THE_WAY' ? 'Đang chở ra hub' : atHub
+
+/** Dòng ghi hub đã xác nhận đơn lúc nào, ai xác nhận (tài xế chỉ thấy đơn đã xác nhận) */
+export const hubConfirmText = (o: { hubReceivedAt?: string | null; hubReceivedBy?: string | null }) =>
+  o.hubReceivedAt ? `Hub đã xác nhận ${fmtDateTime(o.hubReceivedAt)}${o.hubReceivedBy ? ` · ${o.hubReceivedBy}` : ''}` : null

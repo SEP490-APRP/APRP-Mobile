@@ -24,6 +24,16 @@ export function invitesFromNotifications(notis: NotificationItem[], calls: Campa
   return [...out.values()]
 }
 
+/** Nhà vườn đăng ký góp hàng được chưa: chiến dịch nháp phải đăng lời kêu gọi rồi mới nhận đăng ký */
+export const registrationOpen = (c: Pick<CampaignResponse, 'status' | 'callPostedAt'>) => c.status !== 'DRAFT' || !!c.callPostedAt
+
+export const openingText = (c: Pick<CampaignResponse, 'publishAt'>) => {
+  if (!c.publishAt) return 'Chờ CapNong mở đăng ký'
+  const d = new Date(c.publishAt)
+  const two = (n: number) => String(n).padStart(2, '0')
+  return `Mở đăng ký ${two(d.getHours())}:${two(d.getMinutes())} ${two(d.getDate())}/${two(d.getMonth() + 1)}`
+}
+
 const DECLINED_KEY = 'capnong.campaignInvites.declined'
 
 /** Lời mời đã từ chối lưu trên máy (giống localStorage bản web) */

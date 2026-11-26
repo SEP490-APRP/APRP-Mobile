@@ -7,6 +7,7 @@ import type { CampaignResponse, FarmRegistrationResponse } from '@/services'
 import { colors } from '@/theme/colors'
 import { cn } from '@/utils/helpers'
 import { fmtDate, formatKg, formatVnd, REGISTRATION_STATUS, shelfLabel, timeLeftLabel } from '../utils/campaignFormat'
+import { openingText, registrationOpen } from '../utils/campaignInvites'
 import { Notice, Pill, ProgressBar, SiteLocation, Stat } from './CampaignBits'
 
 /** Thẻ lời kêu gọi góp hàng (CallCard bản web) */
@@ -93,7 +94,12 @@ export function CallCard({
             ))}
           </View>
         )}
-        <Button title={topUp ? 'Đăng ký lô bổ sung' : mine.length ? 'Đăng ký thêm lô hàng' : 'Đăng ký góp hàng'} icon={Sprout} onPress={onRegister} />
+        <Button
+          title={!registrationOpen(c) ? openingText(c) : topUp ? 'Đăng ký lô bổ sung' : mine.length ? 'Đăng ký thêm lô hàng' : 'Đăng ký góp hàng'}
+          icon={Sprout}
+          disabled={!registrationOpen(c)}
+          onPress={onRegister}
+        />
       </View>
     </View>
   )
@@ -104,7 +110,7 @@ export function RegistrationCard({ r }: { r: FarmRegistrationResponse }) {
   const st = REGISTRATION_STATUS[r.status]
   const steps = [
     { label: 'Gửi đăng ký', done: true },
-    { label: 'Duyệt & chốt giá', done: r.status === 'APPROVED' },
+    { label: 'Được duyệt', done: r.status === 'APPROVED' },
     { label: 'Cân tại điểm gom', done: !!r.intakeAt },
     { label: 'Nhận tiền', done: !!r.paidOutAt },
   ]
@@ -112,7 +118,7 @@ export function RegistrationCard({ r }: { r: FarmRegistrationResponse }) {
     ['Số kg khai', formatKg(r.surplusVolumeKg)],
     ['Thu hoạch', fmtDate(r.harvestDate)],
     ['Bảo quản', shelfLabel(r.shelfLifeTier)],
-    [r.agreedPricePerKg != null ? 'Giá đã chốt' : 'Giá đề xuất', r.effectivePricePerKg != null ? `${formatVnd(r.effectivePricePerKg)}/kg` : '—'],
+    ['Giá thu mua', r.effectivePricePerKg != null ? `${formatVnd(r.effectivePricePerKg)}/kg` : '—'],
   ]
   if (r.allocatedVolumeKg != null) facts.push(['Được phân bổ', formatKg(r.allocatedVolumeKg)])
   if (r.receivedWeightKg != null) facts.push(['Cân thực tế', `${formatKg(r.receivedWeightKg)}${r.qualityPassed === false ? ' · không đạt' : ''}`])

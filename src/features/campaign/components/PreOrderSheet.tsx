@@ -16,17 +16,15 @@ import { cn } from '@/utils/helpers'
 import { campaignKeys } from '../hooks/useCampaignQueries'
 import { useDepositCheckout } from '../hooks/useDepositCheckout'
 import {
-  CRATE_ENUM,
-  CRATE_SIZES,
   fmtDate,
   formatKg,
   formatVnd,
   remainingKgOf,
+  splitCrates,
   timeLeftLabel,
   wardOf,
-  type CrateKg,
 } from '../utils/campaignFormat'
-import { CheckRow, Notice, Row, SiteLocation, Stepper } from './CampaignBits'
+import { CheckRow, Notice, Row, SiteLocation } from './CampaignBits'
 
 /**
  * Đặt trước thùng (PreOrderBox + ConfirmPreOrder bản web): chọn thùng, cách nhận, địa chỉ, xem phí giao,
@@ -41,8 +39,8 @@ export function PreOrderSheet({ c, visible, onClose }: { c: CampaignResponse; vi
   const payDeposit = useDepositCheckout()
 
   const [step, setStep] = useState<'form' | 'confirm'>('form')
-  const [crate, setCrate] = useState<CrateKg>(5)
-  const [qty, setQty] = useState(1)
+  // Người mua chỉ nhập số kg, hệ thống tự chia thùng
+  const [kgText, setKgText] = useState('5')
   const pickupAllowed = c.pickupEnabled !== false
   const [method, setMethod] = useState<FulfillmentMethod>('DELIVERY')
   const [name, setName] = useState(user?.fullName || user?.name || '')
@@ -71,7 +69,12 @@ export function PreOrderSheet({ c, visible, onClose }: { c: CampaignResponse; vi
     }
   }, [visible])
 
-  const totalKg = crate * qty
+  const typedKg = Number(kgText || 0)
+  const split = splitCrates(typedKg)
+  const totalKg = split ? typedKg : 0
+  const crate = split?.crateKg ?? 0
+  const qty = split?.quantity ?? 0
+  const stepKg = (d: number) => setKgText(String(Math.max(5, (Math.floor(typedKg / 5) + d) * 5)))
   const goods = totalKg * Number(c.rescuePricePerKg ?? 0)
   const remainingKg = remainingKgOf(c)
   const overLimit = totalKg > remainingKg
@@ -89,7 +92,7 @@ export function PreOrderSheet({ c, visible, onClose }: { c: CampaignResponse; vi
         lng: method === 'DELIVERY' ? address?.longitude : undefined,
         address: method === 'DELIVERY' ? address?.address : undefined,
       }),
-    enabled: visible && quoteReady,
+    enabled: visible && quoteReady && totalKg > 0,
     staleTime: 60_000,
   })
   const shipFee = method === 'PICKUP' ? 0 : (quote.data?.shippingFee ?? null)
@@ -105,8 +108,7 @@ export function PreOrderSheet({ c, visible, onClose }: { c: CampaignResponse; vi
   const order = useMutation({
     mutationFn: () =>
       campaignService.createPreOrder(c.campaignId, {
-        crateSize: CRATE_ENUM[crate],
-        crateQuantity: qty,
+        totalKg,
         recipientName: name.trim(),
         recipientPhone: phone.trim(),
         shippingAddress: method === 'PICKUP' ? '' : (address?.address ?? ''),
@@ -120,9 +122,10 @@ export function PreOrderSheet({ c, visible, onClose }: { c: CampaignResponse; vi
   })
 
   const next = () => {
+    if (!split) return setFormError('Nhập số kg là bội số của 5 (5, 10, 15…).')
     if (!name.trim() || !phone.trim()) return setFormError('Nhập tên và số điện thoại người nhận.')
     if (method === 'DELIVERY' && !address) return setFormError('Chọn địa chỉ giao hàng.')
-    if (overLimit) return setFormError(`Chiến dịch chỉ còn ${formatKg(remainingKg)}, bạn giảm số thùng nhé.`)
+    if (overLimit) return setFormError(`Chiến dịch chỉ còn ${formatKg(remainingKg)}, bạn giảm số kg nhé.`)
     if (!feeKnown) return setFormError('Đang tính phí giao, chờ một chút nhé.')
     setFormError(null)
     setStep('confirm')
@@ -248,33 +251,39 @@ export function PreOrderSheet({ c, visible, onClose }: { c: CampaignResponse; vi
         title="Góp một thùng cho chiến dịch"
         subtitle={`Còn ${formatKg(remainingKg)} · ${timeLeftLabel(c.cutoffAt).toLowerCase()} trước khi chốt`}
         onClose={onClose}
-        footer={<Button className="flex-1" title="Tiếp tục xác nhận" icon={ChevronRight} disabled={overLimit} onPress={next} />}
+        footer={<Button className="flex-1" title="Tiếp tục xác nhận" icon={ChevronRight} disabled={overLimit || !split} onPress={next} />}
       >
         <View className="gap-4">
           <View className="gap-2">
-            <AppText weight="semibold" className="text-sm">
-              Cỡ thùng
-            </AppText>
-            <View className="flex-row gap-2">
-              {CRATE_SIZES.map((kg) => (
+            <TextField label="Bạn muốn mua bao nhiêu kg?" value={kgText} onChangeText={(v) => setKgText(v.replace(/\D/g, '').slice(0, 5))} keyboardType="number-pad" />
+            <View className="flex-row flex-wrap gap-2">
+              <Pressable onPress={() => stepKg(-1)} disabled={typedKg <= 5} accessibilityLabel="Bớt 5 kg" className={cn('rounded-full border border-line px-3.5 py-2', typedKg <= 5 && 'opacity-40')}>
+                <AppText weight="extrabold" className="text-sm text-leaf-700">−5</AppText>
+              </Pressable>
+              <Pressable onPress={() => stepKg(1)} accessibilityLabel="Thêm 5 kg" className="rounded-full border border-line px-3.5 py-2">
+                <AppText weight="extrabold" className="text-sm text-leaf-700">+5</AppText>
+              </Pressable>
+              {[10, 20, 30, 50].map((k) => (
                 <Pressable
-                  key={kg}
-                  onPress={() => setCrate(kg)}
+                  key={k}
+                  onPress={() => setKgText(String(k))}
                   accessibilityRole="radio"
-                  accessibilityState={{ checked: crate === kg }}
-                  className={cn('flex-1 rounded-2xl border p-3', crate === kg ? 'border-leaf-700 bg-leaf-50' : 'border-line')}
+                  accessibilityState={{ checked: typedKg === k }}
+                  className={cn('rounded-full border px-3.5 py-2', typedKg === k ? 'border-leaf-700 bg-leaf-50' : 'border-line')}
                 >
-                  <AppText weight="extrabold">{kg} kg</AppText>
-                  <AppText className="text-xs text-ink-subtle">{formatVnd(kg * Number(c.rescuePricePerKg))}</AppText>
+                  <AppText weight="bold" className="text-sm">{k} kg</AppText>
                 </Pressable>
               ))}
             </View>
-          </View>
-          <View className="flex-row items-center justify-between">
-            <AppText weight="semibold" className="text-sm">
-              Số thùng
-            </AppText>
-            <Stepper value={qty} onChange={setQty} />
+            {split ? (
+              <AppText className="text-xs text-ink-muted">
+                Hệ thống chia thành {qty} thùng × {crate} kg
+              </AppText>
+            ) : (
+              <AppText weight="bold" className="text-xs text-rose-700">
+                Nhập số kg là bội số của 5 (5, 10, 15…).
+              </AppText>
+            )}
           </View>
 
           <TextField label="Người nhận" value={name} onChangeText={setName} autoComplete="name" />
@@ -373,7 +382,7 @@ export function PreOrderSheet({ c, visible, onClose }: { c: CampaignResponse; vi
             </Notice>
           )}
           {quote.isError && method === 'DELIVERY' && <Notice tone="rose">{getErrorMessage(quote.error, 'Chưa tính được phí giao cho địa chỉ này.')}</Notice>}
-          {overLimit && <Notice tone="rose">Chiến dịch chỉ còn {formatKg(remainingKg)}, bạn giảm số thùng nhé.</Notice>}
+          {overLimit && <Notice tone="rose">Chiến dịch chỉ còn {formatKg(remainingKg)}, bạn giảm số kg nhé.</Notice>}
           {formError && <Notice tone="rose">{formError}</Notice>}
         </View>
       </BottomSheet>

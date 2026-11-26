@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { ActivityIndicator, BackHandler, FlatList, Pressable, RefreshControl, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { AppText, BottomSheet, Button, EmptyState, ErrorState, Skeleton } from '@/components/ui'
+import { CampaignEntryCard } from '@/features/campaign'
 import { orderIdOf } from '@/features/order/utils/orderStatus'
 import { money } from '@/features/product'
 import { useMyProfile } from '@/features/profile'
@@ -313,6 +314,7 @@ export default function ShipperHome() {
             {header}
             <View className="gap-3 px-4 pt-4">
               {banner}
+              <CampaignEntryCard />
               {gpsNote}
               {online && (
                 <View className="flex-row rounded-xl bg-slate-200/70 p-1">

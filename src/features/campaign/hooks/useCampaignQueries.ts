@@ -3,11 +3,14 @@ import {
   campaignProposalService,
   campaignService,
   notificationService,
+  shipperHubTripService,
   shipperPreOrderService,
   type CampaignPhase,
   type CampaignProposalRequest,
   type FarmRegistrationRequest,
+  type HubTrip,
 } from '@/services'
+import { withLoaded } from '../utils/crates'
 
 export const campaignKeys = {
   all: ['campaigns'] as const,
@@ -147,10 +150,69 @@ export function useShipperPreOrders() {
   return { ready, mine }
 }
 
+/** Sức chở của xe, số kg đang chở và số dư ví còn ký quỹ được */
+export function useShipperCapacity() {
+  return useQuery({ queryKey: [...campaignKeys.shipperAll, 'capacity'], queryFn: shipperPreOrderService.capacity, refetchInterval: 30_000 })
+}
+
+/** Chuyến chở hàng ra hub: đang kêu gọi (chưa có tài xế) và của tôi */
+export function useHubTrips() {
+  const open = useQuery({ queryKey: ['shipper-hub-trips', 'open'], queryFn: shipperHubTripService.open, refetchInterval: 30_000 })
+  const mine = useQuery({ queryKey: ['shipper-hub-trips', 'mine'], queryFn: shipperHubTripService.mine, refetchInterval: 30_000 })
+  return { open, mine }
+}
+
+export function useHubTripAction() {
+  const qc = useQueryClient()
+  const refresh = () => qc.invalidateQueries({ queryKey: ['shipper-hub-trips'] })
+  return useMutation({
+    mutationFn: ({ id, kind }: { id: number; kind: 'accept' | 'decline' | 'release' }) => shipperHubTripService[kind](id),
+    onSettled: refresh,
+  })
+}
+
+/** Tài xế xe tải báo đã giao hàng của một hub */
+export function useArriveStop() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, hubId, photoUrl }: { id: number; hubId: number; photoUrl: string }) => shipperHubTripService.arriveStop(id, hubId, photoUrl),
+    onSettled: () => qc.invalidateQueries({ queryKey: ['shipper-hub-trips'] }),
+  })
+}
+
+/** Tài xế bốc xong hàng, gửi ảnh và chạy ra hub */
+export function useStartTrip() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, photoUrl }: { id: number; photoUrl: string }) => shipperHubTripService.start(id, photoUrl),
+    onSettled: () => qc.invalidateQueries({ queryKey: ['shipper-hub-trips'] }),
+  })
+}
+
+/** Tài xế đánh dấu thùng đã bốc lên xe: hiện ngay, lưu lần lượt để chạm nhanh không ghi đè nhau */
+export function useLoadBoxes(tripId: number) {
+  const qc = useQueryClient()
+  const mutationKey = ['hub-boxes', tripId]
+  const mineKey = ['shipper-hub-trips', 'mine']
+  return useMutation({
+    mutationKey,
+    scope: { id: `hub-boxes-${tripId}` },
+    mutationFn: ({ orderId, loaded }: { orderId: number; loaded: number[] }) => shipperHubTripService.loadBoxes(tripId, orderId, loaded),
+    onMutate: ({ orderId, loaded }) => {
+      void qc.cancelQueries({ queryKey: mineKey })
+      qc.setQueryData<HubTrip[]>(mineKey, (old) => old?.map((t) => (t.tripId === tripId ? withLoaded(t, orderId, loaded) : t)))
+    },
+    onSettled: () => {
+      if (qc.isMutating({ mutationKey }) <= 1) void qc.invalidateQueries({ queryKey: ['shipper-hub-trips'] })
+    },
+  })
+}
+
 export function useShipperPreOrderAction() {
   const qc = useQueryClient()
   const refresh = () => qc.invalidateQueries({ queryKey: campaignKeys.shipperAll })
   const accept = useMutation({ mutationFn: (id: number) => shipperPreOrderService.accept(id), onSuccess: refresh })
+  const acceptBatch = useMutation({ mutationFn: (ids: number[]) => shipperPreOrderService.acceptBatch(ids), onSettled: refresh })
   const deliver = useMutation({
     mutationFn: ({ id, pod }: { id: number; pod?: string }) => shipperPreOrderService.deliver(id, pod),
     onSuccess: refresh,
@@ -159,5 +221,10 @@ export function useShipperPreOrderAction() {
     mutationFn: ({ id, reason }: { id: number; reason: string }) => shipperPreOrderService.fail(id, reason),
     onSuccess: refresh,
   })
-  return { accept, deliver, fail }
+  const pickup = useMutation({
+    mutationFn: ({ id, crates }: { id: number; crates: number[] }) => shipperPreOrderService.pickup(id, crates),
+    onSettled: refresh,
+  })
+  const release = useMutation({ mutationFn: (id: number) => shipperPreOrderService.release(id), onSettled: refresh })
+  return { accept, acceptBatch, deliver, fail, pickup, release }
 }

@@ -35,6 +35,7 @@ export interface UserResponse {
   licensePlate?: string
   license?: string
   vehicleNumber?: string
+  licenseClass?: string
   licenseImageUrl?: string
   vehicleDocImageUrl?: string
   rating?: number

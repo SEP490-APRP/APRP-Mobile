@@ -1,6 +1,6 @@
 import { Image } from 'expo-image'
 import { router } from 'expo-router'
-import { CalendarClock, Info, LogIn, MapPin, ShieldCheck, ShoppingBasket, Sprout, Tag, Truck, Users, Wallet } from 'lucide-react-native'
+import { CalendarClock, Info, LogIn, MapPin, ShieldCheck, ShoppingBasket, Sprout, Truck, Users, Wallet } from 'lucide-react-native'
 import { useMemo, useState } from 'react'
 import { ScrollView, View } from 'react-native'
 import { AppText, Button } from '@/components/ui'
@@ -21,6 +21,7 @@ import {
 import { Bullet, Card, Notice, ProgressBar, SectionTitle, SiteLocation, Stat } from './CampaignBits'
 import { PreOrderSheet } from './PreOrderSheet'
 import { RegisterLotSheet } from './RegisterLotSheet'
+import { SupplyStory } from './SupplyStory'
 
 const fallbackCover = require('../../../../assets/images/hero-farmer.jpg')
 
@@ -62,6 +63,7 @@ export function CampaignArticle({ c, bottomInset = 0 }: { c: CampaignResponse; b
 
         <View className="gap-5 px-4">
           <CampaignNumbers c={c} depositPct={depositPct} />
+          {c.status === 'COMPLETED' && c.supply && <SupplyStory s={c.supply} />}
 
           {blocks.length > 0 ? (
             <StoryBody blocks={blocks} />
@@ -223,20 +225,14 @@ function Meta({ icon: Icon, text }: { icon: typeof Wallet; text: string }) {
 
 /** Cách tính phí giao: mua càng nhiều ship càng rẻ */
 function ShippingRules({ c }: { c: CampaignResponse }) {
-  const half = Number(c.shipHalfKg ?? 10)
-  const free = Number(c.shipFreeKg ?? 20)
-  const radius = Number(c.shipFreeRadiusKm ?? 10)
-  const group = Number(c.groupDiscountMinOrders ?? 5)
+  const mid = Number(c.shipHalfKg ?? 30)
+  const free = Number(c.shipFreeKg ?? 50)
+  const midFee = Number(c.shipMidFee ?? 50_000)
+  const smallFee = Number(c.shipSmallFee ?? 70_000)
   const steps = [
-    { kg: `Dưới ${formatKg(half)}`, fee: 'Phí gốc', sub: 'theo km', h: 64, cls: 'bg-white/15', text: 'text-white' },
-    { kg: `Từ ${formatKg(half)}`, fee: '-50%', sub: 'phí giao', h: 92, cls: 'bg-leaf-200', text: 'text-leaf-800' },
-    { kg: `Từ ${formatKg(free)}`, fee: '0đ', sub: `trong ${radius} km`, h: 120, cls: 'bg-sun-300', text: 'text-soil-600' },
-  ]
-  const tiers = [
-    ['< 5 km', '15k'],
-    ['5–10 km', '20k'],
-    ['10–20 km', '30k'],
-    ['> 20 km', '30k + 3k/km'],
+    { kg: `Dưới ${formatKg(mid)}`, fee: formatVnd(smallFee), sub: 'mỗi đơn', h: 64, cls: 'bg-white/15', text: 'text-white' },
+    { kg: `Từ ${formatKg(mid)}`, fee: formatVnd(midFee), sub: 'mỗi đơn', h: 92, cls: 'bg-leaf-200', text: 'text-leaf-800' },
+    { kg: `Từ ${formatKg(free)}`, fee: '0đ', sub: 'phí giao', h: 120, cls: 'bg-sun-300', text: 'text-soil-600' },
   ]
   return (
     <View className="overflow-hidden rounded-panel border border-line">
@@ -251,7 +247,7 @@ function ShippingRules({ c }: { c: CampaignResponse }) {
           <AppText weight="extrabold" className="text-2xl text-white">
             Mua càng nhiều, ship càng rẻ
           </AppText>
-          <AppText className="text-xs text-white/80">Cộng dồn mọi thùng trong đơn (2 thùng 5 kg = 10 kg). Phí biết trước khi đặt.</AppText>
+          <AppText className="text-xs text-white/80">Cộng dồn mọi thùng trong đơn (2 thùng 15 kg = 30 kg). Phí cố định theo số kg.</AppText>
         </View>
         <View className="flex-row items-end gap-2">
           {steps.map((s) => (
@@ -260,7 +256,7 @@ function ShippingRules({ c }: { c: CampaignResponse }) {
                 {s.kg}
               </AppText>
               <View className={`w-full items-center justify-center rounded-2xl ${s.cls}`} style={{ height: s.h }}>
-                <AppText weight="extrabold" className={`text-xl ${s.text}`}>
+                <AppText weight="extrabold" className={`text-lg ${s.text}`}>
                   {s.fee}
                 </AppText>
                 <AppText className={`text-[11px] ${s.text}`}>{s.sub}</AppText>
@@ -270,18 +266,6 @@ function ShippingRules({ c }: { c: CampaignResponse }) {
         </View>
       </View>
       <View className="gap-3 bg-white p-4">
-        <AppText weight="extrabold" className="text-[11px] uppercase text-ink-subtle">
-          Phí gốc theo khoảng cách từ {c.collectionSiteName || 'điểm tập kết'}
-        </AppText>
-        <View className="flex-row flex-wrap gap-2">
-          {tiers.map(([km, fee]) => (
-            <View key={km} className="min-w-[46%] flex-1 items-center rounded-xl border border-line bg-paper py-2">
-              <AppText className="text-xs text-ink-subtle">{km}</AppText>
-              <AppText weight="extrabold">{fee}</AppText>
-            </View>
-          ))}
-        </View>
-        <AppText className="text-xs text-ink-subtle">Từ {formatKg(free)} mà ở xa hơn {radius} km: vẫn được giảm 50%.</AppText>
         <View className="flex-row gap-2.5 rounded-2xl bg-leaf-50 p-3">
           <MapPin size={16} color={colors.leaf700} />
           <AppText className="flex-1 text-xs leading-relaxed text-ink">
@@ -289,15 +273,6 @@ function ShippingRules({ c }: { c: CampaignResponse }) {
               Tự đến điểm tập kết: 0đ.{' '}
             </AppText>
             CapNong báo khi bắt đầu nhận hàng và khi đơn đóng gói xong.
-          </AppText>
-        </View>
-        <View className="flex-row gap-2.5 rounded-2xl bg-amber-50 p-3">
-          <Tag size={16} color="#b45309" />
-          <AppText className="flex-1 text-xs leading-relaxed text-ink">
-            <AppText weight="bold" className="text-xs">
-              Rủ hàng xóm cùng đặt.{' '}
-            </AppText>
-            Phường có từ {group} đơn trở lên được giảm thêm 50% phí giao khi chốt.
           </AppText>
         </View>
       </View>
