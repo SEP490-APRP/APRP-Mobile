@@ -1,5 +1,5 @@
 import { Image } from 'expo-image'
-import { Ban, CalendarClock, CheckCircle2, Navigation, PackageCheck, Undo2 } from 'lucide-react-native'
+import { Ban, CalendarClock, Check, CheckCircle2, Navigation, PackageCheck, Undo2 } from 'lucide-react-native'
 import { useState, type ReactNode } from 'react'
 import { Linking, Pressable, View } from 'react-native'
 import { AppText, Button } from '@/components/ui'
@@ -7,10 +7,11 @@ import type { HubTrip } from '@/services'
 import { useUiStore } from '@/stores'
 import { colors } from '@/theme/colors'
 import { getErrorMessage } from '@/utils/errors'
-import { useArriveStop, useHubTripAction, useStartTrip } from '../hooks/useCampaignQueries'
-import { directionsUrl, fmtDate, formatKg, formatVnd } from '../utils/campaignFormat'
+import { useArriveStop, useHubTripAction, useLoadBoxes, useStartTrip } from '../hooks/useCampaignQueries'
+import { directionsUrl, fmtDate, fmtDateTime, formatKg, formatVnd } from '../utils/campaignFormat'
+import { boxesLeft } from '../utils/crates'
 import { Notice, Pill } from './CampaignBits'
-import { HubTripBoxes } from './HubTripBoxes'
+import { CrateSheet } from './CrateSheet'
 import { PhotoConfirm } from './PhotoConfirm'
 
 const STATUS: Record<string, { label: string; tone: 'amber' | 'leaf' | 'blue' | 'gray' }> = {
@@ -22,11 +23,17 @@ const STATUS: Record<string, { label: string; tone: 'amber' | 'leaf' | 'blue' | 
 
 type Kind = 'accept' | 'decline' | 'release'
 
+/** 3 chặng của một chuyến đã nhận; số = số chặng đã xong */
+const STEPS = ['Đã nhận', 'Lấy hàng', 'Tới hub']
+const STEP_AT: Record<string, number> = { ACCEPTED: 1, IN_TRANSIT: 2, DELIVERED: 3 }
+
 /** Chuyến chở hàng chiến dịch từ điểm tập kết ra hub: nhận hoặc không nhận chuyến, lấy hàng, giao tới hub */
 export function HubTripCard({ t }: { t: HubTrip }) {
   const act = useHubTripAction()
   const start = useStartTrip()
   const arrive = useArriveStop()
+  const load = useLoadBoxes(t.tripId)
+  const [checking, setChecking] = useState(false)
   const showToast = useUiStore((s) => s.showToast)
   const [pending, setPending] = useState<Kind | null>(null)
   const st = STATUS[t.status] ?? STATUS.OPEN
@@ -60,7 +67,13 @@ export function HubTripCard({ t }: { t: HubTrip }) {
   // Hàng chỉ rời điểm tập kết từ ngày cần xe (ngày kết thúc mở điểm tập kết)
   const tooEarly = !!t.pickupDate && new Date(`${String(t.pickupDate).slice(0, 10)}T00:00:00`).getTime() > Date.now()
 
-  const boxesLeft = Math.max(0, (t.boxTotal ?? 0) - (t.boxLoaded ?? 0))
+  const left = boxesLeft(t)
+  const canLoad = t.status === 'ACCEPTED' && t.confirmed && !tooEarly
+  const step = STEP_AT[t.status]
+  const openCrates = () => {
+    load.reset()
+    setChecking(true)
+  }
 
   let actions: ReactNode = null
   if (t.status === 'OPEN') {
@@ -77,21 +90,30 @@ export function HubTripCard({ t }: { t: HubTrip }) {
   } else if (t.status === 'ACCEPTED') {
     actions = (
       <View className="gap-2">
-        {tooEarly && <Notice>Hàng chỉ rời điểm tập kết từ ngày {fmtDate(t.pickupDate!)}.</Notice>}
-        {t.confirmed && !tooEarly && boxesLeft > 0 && <Notice>Còn {boxesLeft} thùng chưa nhận lên xe, nhận đủ mới chạy ra hub.</Notice>}
-        {t.confirmed && !tooEarly && boxesLeft === 0 && (
-          <PhotoConfirm
-            subtitle="Chụp thùng hàng đã bốc lên xe"
-            captureLabel="Chụp ảnh hàng trên xe"
-            confirmLabel="Chạy ra hub"
-            busy={start.isPending}
-            onConfirm={(photoUrl) =>
-              start.mutate(
-                { id: t.tripId, photoUrl },
-                { onSuccess: () => showToast('Đã ghi nhận lấy hàng, chúc bạn chạy an toàn.'), onError: (e) => showToast(getErrorMessage(e, 'Thao tác chưa thành công.')) },
-              )
-            }
-          />
+        {!canLoad && <Notice>{tooEarly ? `Lấy hàng từ ngày ${fmtDate(t.pickupDate!)}.` : 'Chờ CapNong chốt xe sau khi cân hàng.'}</Notice>}
+        {canLoad && left > 0 && <Button title={`Nhận hàng (${t.boxLoaded ?? 0}/${t.boxTotal ?? 0} thùng)`} icon={PackageCheck} onPress={openCrates} />}
+        {canLoad && left === 0 && (
+          <>
+            {(t.boxTotal ?? 0) > 0 && (
+              <Pressable accessibilityRole="button" onPress={openCrates} className="py-1">
+                <AppText weight="bold" className="text-xs text-leaf-700 underline">
+                  Đã nhận đủ {t.boxTotal} thùng · Xem lại hàng
+                </AppText>
+              </Pressable>
+            )}
+            <PhotoConfirm
+              subtitle="Chụp thùng hàng đã bốc lên xe"
+              captureLabel="Chụp ảnh hàng trên xe"
+              confirmLabel="Chạy ra hub"
+              busy={start.isPending}
+              onConfirm={(photoUrl) =>
+                start.mutate(
+                  { id: t.tripId, photoUrl },
+                  { onSuccess: () => showToast('Đã ghi nhận lấy hàng, chúc bạn chạy an toàn.'), onError: (e) => showToast(getErrorMessage(e, 'Thao tác chưa thành công.')) },
+                )
+              }
+            />
+          </>
         )}
         <Button title="Không nhận nữa" variant="ghost" icon={Undo2} loading={pending === 'release'} onPress={() => void run('release', 'Đã trả chuyến, tài xế khác có thể nhận.')} />
       </View>
@@ -150,6 +172,18 @@ export function HubTripCard({ t }: { t: HubTrip }) {
       </View>
 
       <View className="gap-4 p-4">
+        {step != null && (
+          <View accessibilityLabel="Tiến độ chuyến" className="flex-row gap-2">
+            {STEPS.map((label, i) => (
+              <View key={label} className={`flex-1 flex-row items-center gap-1 border-t-4 pt-1.5 ${i < step ? 'border-leaf-700' : 'border-line'}`}>
+                {i < step && <Check size={12} color={colors.leaf700} />}
+                <AppText weight="bold" className={`text-[11px] ${i < step ? 'text-leaf-700' : 'text-ink-subtle'}`}>
+                  {label}
+                </AppText>
+              </View>
+            ))}
+          </View>
+        )}
         {/* Lộ trình: lấy hàng rồi lần lượt từng hub */}
         <View>
           <Stop
@@ -191,7 +225,7 @@ export function HubTripCard({ t }: { t: HubTrip }) {
                       </View>
                     )}
                     <AppText weight="bold" className="text-xs text-leaf-700">
-                      Đã giao tới hub này
+                      ✓ Đã giao {fmtDateTime(s.arrivedAt)}
                     </AppText>
                   </View>
                 ) : t.status === 'IN_TRANSIT' && s.hubId != null ? (
@@ -213,10 +247,31 @@ export function HubTripCard({ t }: { t: HubTrip }) {
           ))}
         </View>
 
-        {t.status === 'ACCEPTED' && <HubTripBoxes t={t} locked={!t.confirmed || tooEarly} />}
-        {!t.confirmed && t.status !== 'DELIVERED' && <Notice>Kế hoạch dự kiến, CapNong xác nhận sau khi cân hàng tại điểm tập kết.</Notice>}
+        {!t.confirmed && t.status === 'OPEN' && <Notice>Kế hoạch dự kiến, chốt sau khi cân hàng.</Notice>}
         {actions}
       </View>
+
+      {checking && canLoad && (
+        <CrateSheet
+          title={`Nhận hàng lên xe ${t.tripNo}`}
+          subtitle={t.collectionSiteName || 'Điểm tập kết'}
+          word="nhận"
+          boxes={t.boxes ?? []}
+          line={(b) => `Giao tới ${b.hubName ?? 'hub'}`}
+          saving={load.isPending}
+          error={load.isError ? getErrorMessage(load.error, 'Chưa lưu được, kiểm tra lại các thùng vừa chọn.') : null}
+          onSet={(b, loaded) => load.mutate({ orderId: b.orderId, loaded })}
+          onClose={() => setChecking(false)}
+          action={
+            <Button
+              title={left === 0 ? 'Đủ hàng · chụp ảnh để chạy' : `Còn ${left} thùng, đóng lại`}
+              variant={left === 0 ? 'primary' : 'outline'}
+              disabled={load.isPending}
+              onPress={() => setChecking(false)}
+            />
+          }
+        />
+      )}
     </View>
   )
 }

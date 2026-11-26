@@ -427,6 +427,8 @@ export interface HubTripBox {
   crateKg: number
   crates: number
   loaded: number[]
+  /** Mã tem của đơn, chỉ có khi chuyến đã có tài xế */
+  qrCode?: string | null
 }
 
 /** Chuyến xe chở hàng từ điểm tập kết ra các hub; tài xế nhận chuyến, lấy hàng, giao tới hub */

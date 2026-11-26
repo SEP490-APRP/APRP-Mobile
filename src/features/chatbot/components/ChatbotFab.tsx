@@ -16,7 +16,7 @@ const EDGE_GAP = 16
 const TAB_BAR_HEIGHT = 66
 
 /** Các màn không nên bị che hoặc thoát giữa chừng, giống hideFAB của app cũ. */
-const HIDDEN_PATTERN = /^\/(?:buyer|shop|shipper)\/(?:chatbot|checkout|payment|messages\/)/
+const HIDDEN_PATTERN = /^\/(?:buyer|shop|shipper)\/(?:chatbot|checkout|payment|campaign-orders|messages\/)/
 
 /** Nút mở chat kéo được. Chuyển từ ChatBotFAB của app cũ, giao diện theo APRP-Mobile. */
 export function ChatbotFab({ role }: { role: ChatbotRole }) {

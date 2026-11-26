@@ -8,7 +8,9 @@ import {
   type CampaignPhase,
   type CampaignProposalRequest,
   type FarmRegistrationRequest,
+  type HubTrip,
 } from '@/services'
+import { withLoaded } from '../utils/crates'
 
 export const campaignKeys = {
   all: ['campaigns'] as const,
@@ -187,11 +189,22 @@ export function useStartTrip() {
   })
 }
 
-export function useLoadBoxes() {
+/** Tài xế đánh dấu thùng đã bốc lên xe: hiện ngay, lưu lần lượt để chạm nhanh không ghi đè nhau */
+export function useLoadBoxes(tripId: number) {
   const qc = useQueryClient()
+  const mutationKey = ['hub-boxes', tripId]
+  const mineKey = ['shipper-hub-trips', 'mine']
   return useMutation({
-    mutationFn: ({ id, orderId, loaded }: { id: number; orderId: number; loaded: number[] }) => shipperHubTripService.loadBoxes(id, orderId, loaded),
-    onSettled: () => qc.invalidateQueries({ queryKey: ['shipper-hub-trips'] }),
+    mutationKey,
+    scope: { id: `hub-boxes-${tripId}` },
+    mutationFn: ({ orderId, loaded }: { orderId: number; loaded: number[] }) => shipperHubTripService.loadBoxes(tripId, orderId, loaded),
+    onMutate: ({ orderId, loaded }) => {
+      void qc.cancelQueries({ queryKey: mineKey })
+      qc.setQueryData<HubTrip[]>(mineKey, (old) => old?.map((t) => (t.tripId === tripId ? withLoaded(t, orderId, loaded) : t)))
+    },
+    onSettled: () => {
+      if (qc.isMutating({ mutationKey }) <= 1) void qc.invalidateQueries({ queryKey: ['shipper-hub-trips'] })
+    },
   })
 }
 

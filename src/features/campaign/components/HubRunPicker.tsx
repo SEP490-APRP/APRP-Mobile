@@ -108,7 +108,7 @@ export function HubRunPicker({ orders }: { orders: PreOrderResponse[] }) {
           <AppText className="text-xs text-ink-muted">{o.shippingAddress}</AppText>
           <AppText className="text-[11px] text-ink-subtle">
             {formatKg(kgOf(o))}
-            {Number.isFinite(dist) ? ` · cách hub ${dist.toFixed(1)} km` : ''} · thu hộ {formatVnd(codOf(o))}
+            {Number.isFinite(dist) ? ` · cách hub ${dist.toLocaleString('vi-VN', { maximumFractionDigits: 1 })} km` : ''} · thu hộ {formatVnd(codOf(o))}
           </AppText>
           {!!hubConfirmText(o) && (
             <AppText weight="bold" className="text-[11px] text-leaf-700">
@@ -193,7 +193,7 @@ export function HubRunPicker({ orders }: { orders: PreOrderResponse[] }) {
           <Tile label="Tải" value={limits ? `${formatKg(totals.kg)} / ${formatKg(limits.kg)}` : formatKg(totals.kg)} />
           <Tile label="Bạn nhận" value={formatVnd(totals.fee)} cls="text-leaf-700" />
           <Tile label="Thu hộ cần giữ" value={formatVnd(totals.cod)} cls="text-amber-700" />
-          <Tile label="Quãng đường" value={picked.length && km != null ? `~${km} km` : '—'} />
+          <Tile label="Quãng đường" value={picked.length && km != null ? `~${km.toLocaleString('vi-VN')} km` : '—'} />
         </View>
         {link && (
           <Pressable onPress={() => void Linking.openURL(link)} className="flex-row items-center justify-center gap-1.5 rounded-xl border border-line bg-white py-2.5">
