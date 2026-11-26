@@ -27,6 +27,7 @@ export interface BlogDraft {
   title: string
   category: string
   body: string
+  productId?: number | null
 }
 
 const runsToText = (runs: StoryRun[]) =>
@@ -122,10 +123,11 @@ export function blogToDraft(b: BlogResponse): BlogDraft {
     title: decodeEntities(b.title ?? ''),
     category: b.category || BlogCategory.STORY,
     body: htmlToDraftBody(b.content),
+    productId: b.productId ?? null,
   }
 }
 
-export const emptyBlogDraft = (): BlogDraft => ({ title: '', category: BlogCategory.STORY, body: '' })
+export const emptyBlogDraft = (): BlogDraft => ({ title: '', category: BlogCategory.STORY, body: '', productId: null })
 
 export function validateBlogDraft(d: BlogDraft): Partial<Record<keyof BlogDraft, string>> {
   const e: Partial<Record<keyof BlogDraft, string>> = {}
@@ -142,5 +144,6 @@ export function toBlogRequest(d: BlogDraft, status: BlogStatus, pictureUrl?: str
     content: draftBodyToHtml(d.body),
     status,
     pictureUrl,
+    productId: d.productId,
   }
 }

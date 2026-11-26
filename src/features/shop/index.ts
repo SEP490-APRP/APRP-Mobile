@@ -37,6 +37,7 @@ export {
 } from './hooks/useProductForm'
 export { usePickProductImage, usePickProductImages, type ImageSource } from './hooks/usePickProductImage'
 export { BundleItemsEditor, ProductPickerSheet } from './components/BundleItemsEditor'
+export { SingleProductPickerSheet } from './components/SingleProductPickerSheet'
 export {
   shopContentKeys,
   uploadImageUrl,
