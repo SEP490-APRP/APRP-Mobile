@@ -156,10 +156,13 @@ export default function CheckoutScreen() {
         entries.set(normalized, next)
       })
     }
-    addBreakdown(p?.voucherDiscountsDetail)
-    p?.shopOrders?.forEach((order) => {
-      addBreakdown(order.voucherDiscountsDetail)
-    })
+    if (p?.voucherDiscountsDetail && Object.keys(p.voucherDiscountsDetail).length > 0) {
+      addBreakdown(p.voucherDiscountsDetail)
+    } else {
+      p?.shopOrders?.forEach((order) => {
+        addBreakdown(order.voucherDiscountsDetail)
+      })
+    }
     return Array.from(entries.entries()).sort(([a], [b]) => a.localeCompare(b))
   }, [p])
 
@@ -359,7 +362,7 @@ export default function CheckoutScreen() {
                 <View className="mt-1 gap-1 border-t border-line pt-2">
                   <Line label="Phí giao từ nhà vườn" value={money(shopPreview.shippingFee)} />
                   {shopPreview.voucherDiscount > 0 && (
-                    <Line label="Voucher shop" value={`-${money(shopPreview.voucherDiscount)}`} tone="leaf" />
+                    <Line label="Voucher shop" value={`-${money(shopPreview.voucherDiscount)}`} tone="sale" />
                   )}
                 </View>
               )}
@@ -450,14 +453,14 @@ export default function CheckoutScreen() {
             label="Phí vận chuyển"
             value={preview.isFetching && shipping == null ? '…' : shipping == null ? 'Chọn địa chỉ để tính' : money(shipping)}
           />
-          {discount > 0 && <Line label="Giảm giá voucher" value={`-${money(discount)}`} tone="leaf" />}
+          {discount > 0 && <Line label="Giảm giá voucher" value={`-${money(discount)}`} tone="sale" />}
           {voucherBreakdown.length > 0 && (
-            <View className="my-1 gap-1.5 border-l-2 border-leaf-300 pl-3">
+            <View className="my-1 gap-1.5 border-l-2 border-red-300 pl-3">
               <AppText weight="bold" className="text-[11px] uppercase tracking-wider text-ink-muted">
                 Chi tiết mã giảm giá
               </AppText>
               {voucherBreakdown.map(([vcCode, val]) => (
-                <Line key={vcCode} label={`Mã ${vcCode}`} value={`-${money(val)}`} tone="leaf" />
+                <Line key={vcCode} label={`Mã ${vcCode}`} value={`-${money(val)}`} tone="sale" />
               ))}
             </View>
           )}
@@ -559,11 +562,13 @@ const fromSaved = (a: SavedAddress): Delivery => ({
   shippingAddress: a.address,
 })
 
-function Line({ label, value, tone }: { label: string; value: string; tone?: 'leaf' }) {
+function Line({ label, value, tone }: { label: string; value: string; tone?: 'leaf' | 'sale' }) {
+  const isSale = tone === 'sale'
+  const isLeaf = tone === 'leaf'
   return (
     <View className="flex-row justify-between">
-      <AppText className={cn('text-sm', tone ? 'text-leaf-700' : 'text-ink-muted')}>{label}</AppText>
-      <AppText weight="semibold" className={cn('text-sm', tone ? 'text-leaf-700' : 'text-ink')}>
+      <AppText className={cn('text-sm', isSale ? 'text-red-600' : isLeaf ? 'text-leaf-700' : 'text-ink-muted')}>{label}</AppText>
+      <AppText weight="semibold" className={cn('text-sm', isSale ? 'text-red-600 font-bold' : isLeaf ? 'text-leaf-700' : 'text-ink')}>
         {value}
       </AppText>
     </View>

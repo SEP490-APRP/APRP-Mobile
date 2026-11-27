@@ -1,8 +1,6 @@
 import * as Clipboard from 'expo-clipboard'
 import { router } from 'expo-router'
 import {
-  ArrowDownLeft,
-  ArrowUpRight,
   Check,
   Clock,
   Copy,
@@ -19,14 +17,18 @@ import {
 import { useState } from 'react'
 import { Image, Pressable, RefreshControl, ScrollView, Share, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { AppText, EmptyState, Skeleton } from '@/components/ui'
+import { AppText, Skeleton } from '@/components/ui'
 import { BackButton } from '@/features/auth/components'
 import {
   useMyReferralCommissions,
   useMyReferralLinks,
   useReferralDashboard,
 } from '@/features/referral'
-import { useMyWallet, useMyWalletTransactions, WALLET_TX_LABEL } from '@/features/wallet'
+import {
+  MobileWalletTransactionList,
+  useMyWallet,
+  useMyWalletTransactions,
+} from '@/features/wallet'
 import { colors } from '@/theme/colors'
 import { cn } from '@/utils/helpers'
 
@@ -36,14 +38,6 @@ const formatRate = (rate?: number) => {
   if (rate == null) return '2.0%'
   const pct = rate > 1 ? rate : rate * 100
   return `${pct.toFixed(1)}%`
-}
-
-const formatTxDate = (v?: string | number[] | null) => {
-  if (!v) return 'Gần đây'
-  if (Array.isArray(v)) {
-    return new Date(v[0], (v[1] || 1) - 1, v[2] || 1).toLocaleDateString('vi-VN')
-  }
-  return new Date(v).toLocaleDateString('vi-VN')
 }
 
 const formatDateText = (dateVal?: unknown) => {
@@ -416,53 +410,12 @@ export default function BuyerWalletScreen() {
               Lịch sử giao dịch ví
             </AppText>
 
-            {txQuery.isPending ? (
-              <Skeleton className="h-32 w-full rounded-card" />
-            ) : !tx?.content || tx.content.length === 0 ? (
-              <EmptyState title="Chưa có giao dịch" description="Hoa hồng tiếp thị sẽ ghi nhận tại đây khi đơn hoàn tất." />
-            ) : (
-              <View className="gap-2">
-                {tx.content.map((item) => {
-                  const isPlus = item.type === 'COMMISSION' || item.type === 'REFUND' || item.type === 'TOPUP' || (item as any).type === 'REFERRAL_COMMISSION'
-                  return (
-                    <View
-                      key={item.id}
-                      className="flex-row items-center justify-between rounded-xl border border-line bg-white p-3 shadow-xs"
-                    >
-                      <View className="flex-row items-center gap-3">
-                        <View
-                          className={cn(
-                            'h-10 w-10 items-center justify-center rounded-full',
-                            isPlus ? 'bg-leaf-50' : 'bg-red-50',
-                          )}
-                        >
-                          {isPlus ? (
-                            <ArrowDownLeft size={18} color={colors.leaf700} />
-                          ) : (
-                            <ArrowUpRight size={18} color={colors.sale} />
-                          )}
-                        </View>
-                        <View>
-                          <AppText weight="bold" className="text-xs text-ink">
-                            {WALLET_TX_LABEL[item.type] || item.description || 'Giao dịch ví'}
-                          </AppText>
-                          <AppText className="text-[10px] text-ink-muted">
-                            {formatTxDate(item.createdAt)}
-                          </AppText>
-                        </View>
-                      </View>
-
-                      <AppText
-                        weight="extrabold"
-                        className={cn('text-sm', isPlus ? 'text-leaf-700' : 'text-danger')}
-                      >
-                        {isPlus ? '+' : '-'}{money(item.amount)}
-                      </AppText>
-                    </View>
-                  )
-                })}
-              </View>
-            )}
+            <MobileWalletTransactionList
+              items={tx?.content ?? []}
+              isLoading={txQuery.isPending}
+              showCommissionTab={true}
+              emptyText="Hoa hồng tiếp thị hoặc biến động ví sẽ ghi nhận tại đây khi đơn hoàn tất."
+            />
           </View>
         )}
       </ScrollView>

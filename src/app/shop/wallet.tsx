@@ -1,7 +1,6 @@
 import { router } from 'expo-router'
 import {
   ArrowDownToLine,
-  ArrowUpRight,
   Coins,
   Landmark,
   RefreshCw,
@@ -23,6 +22,7 @@ import { AppText, Button } from '@/components/ui'
 import { BackButton } from '@/features/auth/components'
 import { money } from '@/features/product'
 import { useMyProfile } from '@/features/profile'
+import { MobileWalletTransactionList } from '@/features/wallet'
 import {
   MIN_WITHDRAW_AMOUNT,
   useShopWallet,
@@ -298,55 +298,12 @@ export default function ShopWalletScreen() {
           {/* Nội dung danh sách theo Tab */}
           <View className="mt-3">
             {activeTab === 'TRANSACTIONS' ? (
-              transactions.length === 0 ? (
-                <View className="items-center rounded-panel border border-line bg-white p-8">
-                  <AppText className="text-sm text-ink-muted">Chưa có giao dịch biến động nào</AppText>
-                </View>
-              ) : (
-                <View className="overflow-hidden rounded-panel border border-line bg-white">
-                  {transactions.map((tx, idx) => {
-                    const isPositive = tx.amount > 0
-                    return (
-                      <View
-                        key={tx.id || idx}
-                        className={cn('flex-row items-center gap-3 p-3.5', idx > 0 && 'border-t border-line')}
-                      >
-                        <View
-                          className={cn(
-                            'h-10 w-10 items-center justify-center rounded-full',
-                            isPositive ? 'bg-leaf-50' : 'bg-red-50',
-                          )}
-                        >
-                          {isPositive ? (
-                            <ArrowUpRight size={19} color={colors.leaf700} />
-                          ) : (
-                            <ArrowDownToLine size={19} color={colors.sale} />
-                          )}
-                        </View>
-                        <View className="min-w-0 flex-1">
-                          <AppText weight="bold" numberOfLines={1} className="text-sm text-ink">
-                            {tx.description || (isPositive ? 'Doanh thu đơn hàng' : 'Rút tiền về tài khoản')}
-                          </AppText>
-                          <AppText className="text-[11px] text-ink-subtle">
-                            {tx.createdAt ? new Date(String(tx.createdAt)).toLocaleDateString('vi-VN') : 'Mới đây'}
-                          </AppText>
-                        </View>
-                        <View className="items-end">
-                          <AppText
-                            weight="extrabold"
-                            className={cn('text-sm', isPositive ? 'text-leaf-700' : 'text-sale')}
-                          >
-                            {isPositive ? `+${money(tx.amount)}` : money(tx.amount)}
-                          </AppText>
-                          <AppText className="text-[10px] text-ink-subtle">
-                            Dư: {money(tx.balanceAfter)}
-                          </AppText>
-                        </View>
-                      </View>
-                    )
-                  })}
-                </View>
-              )
+              <MobileWalletTransactionList
+                items={transactions as any}
+                isLoading={txQuery.isLoading}
+                showHoldTab={true}
+                emptyText="Chưa có giao dịch biến động nào."
+              />
             ) : withdrawals.length === 0 ? (
               <View className="items-center rounded-panel border border-line bg-white p-8">
                 <AppText className="text-sm text-ink-muted">Chưa có yêu cầu rút tiền nào</AppText>
