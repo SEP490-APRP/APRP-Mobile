@@ -14,7 +14,8 @@ export function voucherLabels(v: VoucherResponse) {
         ? 'Miễn phí vận chuyển'
         : `Giảm ${vnd(v.discountValue)}`
   const isPlatform = v.voucherScope === 'PLATFORM' || v.creatorRole === 'ADMIN'
-  const condition = `${v.maxDiscount ? `Tối đa ${vnd(v.maxDiscount)} · ` : ''}Đơn từ ${vnd(v.minOrderValue)}`
+  const isPercent = v.voucherType === 'PERCENTAGE'
+  const condition = `${isPercent && v.maxDiscount ? `Tối đa ${vnd(v.maxDiscount)} · ` : ''}Đơn từ ${vnd(v.minOrderValue)}`
   return { discount, isFreeShip, isPlatform, condition }
 }
 
